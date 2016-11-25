@@ -168,7 +168,7 @@ class LatentProductModel(object):
 
     count = 0
     while count < self.batch_size:
-      u, i = random.choice(data)
+      u, i, _ = random.choice(data)
       batch_user_input.append(u)
       batch_item_input.append(i)
       

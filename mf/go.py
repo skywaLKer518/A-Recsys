@@ -129,7 +129,7 @@ def train():
 		logging.info("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
 		hist, hist_va, hist_withval = {}, {}, {}
-		for u, i in data_tr:
+		for u, i, _ in data_tr:
 			if u not in hist:
 				hist[u] = set([i])
 			else:
@@ -138,7 +138,7 @@ def train():
 				hist_withval[u] = set([i])
 			else:
 				hist_withval[u].add(i)
-		for u, i in data_va:
+		for u, i, _ in data_va:
 			if u not in hist_va:
 				hist_va[u] = set([i])
 			else:
@@ -159,7 +159,7 @@ def train():
 			item_population = range(len(item_ind2logit_ind)) # todo
 		else:
 			item_population = set([])
-			for u, i in data_tr:
+			for u, i, _ in data_tr:
 				item_population.add(i)
 			item_population = list(item_population)
 		print(len(item_ind2logit_ind))

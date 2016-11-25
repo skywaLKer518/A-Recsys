@@ -177,7 +177,7 @@ def create_dictionary(data_dir, data_tr, features, feature_types, feature_names,
     name = feature_names[ind]
     vocab_counts[name] = {}
 
-  for u1, u2 in data_tr: # i, u both index
+  for u1, u2, _ in data_tr: # i, u both index
     if prefix=='user':
       u = u1
     else:
@@ -444,10 +444,10 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
   data_va = None
   if _submit == 1:    
     interact_tr = np.append(interact_tr, interact_va, 0)
-    data_tr = zip(list(interact_tr[:, 0]), list(interact_tr[:, 1]))
+    data_tr = zip(list(interact_tr[:, 0]), list(interact_tr[:, 1]), list(interact_tr[:, 3]))
   else:
-    data_tr = zip(list(interact_tr[:, 0]), list(interact_tr[:, 1]))
-    data_va = zip(list(interact_va[:, 0]), list(interact_va[:, 1]))
+    data_tr = zip(list(interact_tr[:, 0]), list(interact_tr[:, 1]), list(interact_tr[:, 3]))
+    data_va = zip(list(interact_va[:, 0]), list(interact_va[:, 1]), list(interact_va[:, 3]))
 
   # clean data
   filename = 'processed_user' + '_ta_' + str(ta)
