@@ -1,4 +1,6 @@
 from load_data import *
+import sys
+sys.path.insert(0, '../utils')
 import attribute
 
 from os import listdir, mkdir, path, rename

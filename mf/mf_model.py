@@ -15,6 +15,8 @@ from tensorflow.python.ops import embedding_ops
 from tensorflow.python.ops import array_ops
 
 import time
+import sys
+sys.path.insert(0, '../utils')
 import attribute
 import itertools
 
