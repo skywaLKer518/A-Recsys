@@ -78,18 +78,18 @@ class Attributes(object):
     return
 
 
-  def view(self):
-    print("type of things")
-    print(type(self.features_cat))
-    for t in self.features_cat:
-      print(type(t))
-      print(len(t))
-      print("fdsafsadf")
-      sys.stdout.flush()
-      print(t.shape)
-    print(type(self.features_mulhot))
-    print("completed")
-    return
+  # def view(self):
+  #   print("type of things")
+  #   print(type(self.features_cat))
+  #   for t in self.features_cat:
+  #     print(type(t))
+  #     print(len(t))
+  #     print("fdsafsadf")
+  #     sys.stdout.flush()
+  #     print(t.shape)
+  #   print(type(self.features_mulhot))
+  #   print("completed")
+  #   return
 
 class EmbeddingAttribute(object):
   def __init__(self, user_attributes, item_attributes, mb, n_sampled, 
@@ -112,7 +112,7 @@ class EmbeddingAttribute(object):
       self.indices_item = range(self.logit_size)
     # self.logit_size_test = logit_size_test
 
-    self.item_target = tf.placeholder(tf.int32, shape = [mb], name = "item")
+    # self.item_target = tf.placeholder(tf.int32, shape = [mb], name = "item")
     '''
     user embeddings:
       variables -
@@ -432,8 +432,7 @@ class EmbeddingAttribute(object):
         neg_item_input=None, item_sampled = None, item_sampled_id2idx = None, 
         forward_only=False, recommend=False, recommend_new = False, loss=None):
     # input indices of user/item
-    if loss == 'ce':
-      input_feed[self.item_target.name] = [self.item_ind2logit_ind[v] for v in item_input] # logits indices
+
     if loss in ['mw', 'warp', 'mce'] and recommend == False:      
       input_feed[self.item_target.name] = [item_sampled_id2idx[v] for v in item_input]
     if item_sampled is not None:

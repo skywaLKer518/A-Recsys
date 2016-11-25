@@ -22,7 +22,7 @@ import itertools
 
 class LatentProductModel(object):
   def __init__(self, user_size, item_size, size,
-               num_layers, max_gradient_norm, batch_size, learning_rate,
+               num_layers, batch_size, learning_rate,
                learning_rate_decay_factor, user_attributes=None, 
                item_attributes=None, item_ind2logit_ind=None, 
                logit_ind2item_ind=None, loss_function='ce', GPU=None, 
@@ -54,7 +54,6 @@ class LatentProductModel(object):
     self.n_sampled = n_sampled
     self.batch_size = batch_size
     
-
     self.learning_rate = tf.Variable(float(learning_rate), trainable=False)
     self.learning_rate_decay_op = self.learning_rate.assign(
         self.learning_rate * learning_rate_decay_factor)
@@ -62,15 +61,13 @@ class LatentProductModel(object):
     self.att_emb = None
 
     mb = self.batch_size
-    self.user_input = tf.placeholder(tf.int32, shape = [mb], name = "user")
+    # self.user_input = tf.placeholder(tf.int32, shape = [mb], name = "user")
     self.item_target = tf.placeholder(tf.int32, shape = [mb], name = "item")
     # self.neg_item_input = tf.placeholder(tf.int32, shape = [mb], 
     #   name = "neg_item")
     
     self.dropout = dropout
     self.keep_prob = tf.placeholder(tf.float32, name='keep_prob')
-    self.input_att_map = True
-    self.use_user_bias = False # not sure if need to be True
 
     m = attribute.EmbeddingAttribute(user_attributes, item_attributes, mb, 
       self.n_sampled, item_ind2logit_ind, logit_ind2item_ind)
@@ -83,7 +80,7 @@ class LatentProductModel(object):
     pos_embs_item, pos_item_b = m.get_batch_item('pos', batch_size)
     neg_embs_item, neg_item_b = m.get_batch_item('neg', batch_size)
 
-    print("construct postive/negative items/scores (for bpr los, AUC")
+    print("construct postive/negative items/scores \n(for bpr loss, AUC)")
     pos_scores, neg_scores = [],[]
     for i in xrange(m.num_item_features):
       pos_scores.append(tf.reduce_sum(tf.mul(proj_user_drops[i], 
@@ -132,6 +129,8 @@ class LatentProductModel(object):
     else:
       input_feed[self.keep_prob.name] = self.dropout
     
+    if loss == 'ce':
+      input_feed[self.item_target.name] = [self.item_ind2logit_ind[v] for v in item_input] # logits indices    
     if self.att_emb is not None:
       self.att_emb.add_input(input_feed, user_input, item_input, 
         neg_item_input=neg_item_input, item_sampled = item_sampled, 
@@ -141,8 +140,7 @@ class LatentProductModel(object):
 
     if not recommend:
       if not forward_only:
-        # output_feed = [self.updates, self.loss, self.auc]
-        output_feed = [self.updates, self.loss, self.auc] #, self.neg_score, self.pos_score]
+        output_feed = [self.updates, self.loss, self.auc]
       else:
         output_feed = [self.loss, self.auc]
     else:

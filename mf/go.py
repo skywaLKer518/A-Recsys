@@ -13,6 +13,7 @@ import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 # from load_data import *    
+sys.path.insert(0, '../utils')
 from recsys_data import data_read
 
 import mf_model
@@ -81,7 +82,7 @@ def create_model(session, u_attributes=None, i_attributes=None,
 	gpu = None if FLAGS.gpu == -1 else FLAGS.gpu
 	model = mf_model.LatentProductModel(FLAGS.user_vocab_size, 
 		FLAGS.item_vocab_size, FLAGS.size, FLAGS.num_layers, 
-		FLAGS.max_gradient_norm, FLAGS.batch_size, FLAGS.learning_rate, 
+		FLAGS.batch_size, FLAGS.learning_rate, 
 		FLAGS.learning_rate_decay_factor, u_attributes, i_attributes, 
 		item_ind2logit_ind, logit_ind2item_ind, loss_function = loss, GPU=gpu, 
 		logit_size_test=logit_size_test, nonlinear=FLAGS.nonlinear, 
