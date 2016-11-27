@@ -3,3 +3,5 @@ mf/test/*
 mf/*pyc
 mf/log/*
 utils/*pyc
+mf/data*
+mf/test*

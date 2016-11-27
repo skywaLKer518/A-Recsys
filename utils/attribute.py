@@ -93,11 +93,14 @@ class Attributes(object):
 
 class EmbeddingAttribute(object):
   def __init__(self, user_attributes, item_attributes, mb, n_sampled, 
+    input_steps=0, item_output=False,
     item_ind2logit_ind=None, logit_ind2item_ind=None, indices_item=None):
     self.user_attributes = user_attributes
     self.item_attributes = item_attributes
     self.batch_size = mb
     self.n_sampled = n_sampled
+    self.input_steps = input_steps
+    self.item_output = item_output # whether to use separate embedding for item output
     self.num_item_features = (item_attributes.num_features_cat +
       item_attributes.num_features_mulhot)
     self.reuse_item_tr = None
@@ -146,6 +149,9 @@ class EmbeddingAttribute(object):
     '''
     self.item_embs_cat, self.item_embs_mulhot = self.embedded(item_attributes, 
       prefix='item', transpose=False)
+    if item_output:
+      self.item_embs2_cat, self.item_embs2_mulhot = self.embedded(
+        item_attributes, prefix='item_output', transpose=False)
     self.i_biases_cat, self.i_biases_mulhot = self.bias_parameter(
       item_attributes, 'item')
 
@@ -194,7 +200,24 @@ class EmbeddingAttribute(object):
       self.i_mulhot_lengths.append(tf.placeholder(tf.float32, 
         shape= [self.n_sampled, 1], name = "i_mulhot_len{0}".format(i)))
     self.i_mappings['target'] = (self.i_cat_indices, self.i_mulhot_indices, 
-      self.i_mulhot_segids, self.i_mulhot_lengths)          
+      self.i_mulhot_segids, self.i_mulhot_lengths)
+
+    print("construct input item")
+    
+    for step in xrange(input_steps):      
+      i_in_cat_indices, i_in_mulhot_indices, i_in_mulhot_segids, i_in_mulhot_lengths = [],[], [], []
+      for i in xrange(user_attributes.num_features_cat):
+        i_in_cat_indices.append(tf.placeholder(tf.int32, 
+          shape =[mb], name = "i_in_cat_ind{}_{}".format(i, step)))
+      for i in xrange(user_attributes.num_features_mulhot):
+        i_in_mulhot_indices.append(tf.placeholder(tf.int32, shape = [None], 
+          name = "i_in_mulhot_ind{}_{}".format(i, step)))
+        i_in_mulhot_segids.append(tf.placeholder(tf.int32, shape = [None], 
+          name = "i_in_mulhot_seg{}_{}".format(i, step)))
+        i_in_mulhot_lengths.append(tf.placeholder(tf.float32, 
+          shape= [mb, 1], name = "i_in_mulhot_len{}_{}".format(i, step)))
+      self.i_mappings['input{}'.format(step)] = (i_in_cat_indices, 
+        i_in_mulhot_indices, i_in_mulhot_segids, i_in_mulhot_lengths)
     
     return
 
@@ -235,15 +258,19 @@ class EmbeddingAttribute(object):
     embedded_user = tf.nn.dropout(embedded_user, keep_prob)
     return embedded_user, user_b
 
-  def get_batch_item(self, name, batch_size, keep_prob=1.0):
+  def get_batch_item(self, name, batch_size, concat=False, keep_prob=1.0):
     assert(name in self.i_mappings)
-    i_mappings = self.i_mappings[name]
-    embs_item_cat, embs_item_mulhot, item_b = self.EmbeddingLayer(
-      self.item_embs_cat, self.item_embs_mulhot, self.i_biases_cat, 
-      self.i_biases_mulhot, i_mappings, batch_size, self.item_attributes, 
-      'item', False)
     assert(keep_prob == 1.0), 'otherwise not implemented'
-    return embs_item_cat + embs_item_mulhot, item_b
+    i_mappings = self.i_mappings[name]
+    if concat:
+      return self.EmbeddingLayer(self.item_embs_cat, self.item_embs_mulhot, 
+        self.i_biases_cat, self.i_biases_mulhot, i_mappings, batch_size, 
+        self.item_attributes, 'item', True)
+    else:
+      item_cat, item_mulhot, item_b = self.EmbeddingLayer(self.item_embs_cat, self.item_embs_mulhot, 
+        self.i_biases_cat, self.i_biases_mulhot, i_mappings, batch_size, 
+        self.item_attributes, 'item', False)
+      return item_cat + item_mulhot, item_b
 
   def get_user_model_size(self):
     return (sum(self.user_attributes._embedding_size_list_cat) + 
@@ -278,14 +305,17 @@ class EmbeddingAttribute(object):
     # compute inner product between item_hidden and {user_feature_embedding}
     # then lookup to compute logits
     innerps = []
+    
     for i in xrange(self.item_attributes.num_features_cat):
-      innerp = tf.matmul(self.item_embs_cat[i], tf.transpose(
+      item_emb_cat = self.item_embs2_cat[i] if self.item_output else self.item_embs_cat[i]
+      innerp = tf.matmul(item_emb_cat, tf.transpose(
         proj_user_drops[i])) + self.i_biases_cat[i] # Vf by mb
       innerps.append(embedding_ops.embedding_lookup(innerp, indices_cat[i], 
         name='emb_lookup_innerp_{0}'.format(i))) # V by mb
     offset = self.item_attributes.num_features_cat
     for i in xrange(self.item_attributes.num_features_mulhot):
-      innerp = tf.add(tf.matmul(self.item_embs_mulhot[i], 
+      item_embs_mulhot = self.item_embs2_mulhot[i] if self.item_output else self.item_embs_mulhot[i]
+      innerp = tf.add(tf.matmul(item_embs_mulhot,
         tf.transpose(proj_user_drops[i+offset])), self.i_biases_mulhot[i]) 
       innerps.append(tf.div(tf.unsorted_segment_sum(embedding_ops.embedding_lookup(
         innerp, indices_mulhot[i]), segids_mulhot[i], self.logit_size),
@@ -488,6 +518,23 @@ class EmbeddingAttribute(object):
         input_feed[self.i_mulhot_indices_neg[i].name] = vals2
         input_feed[self.i_mulhot_segids_neg[i].name] = i1_2
         input_feed[self.i_mulhot_lengths_neg[i].name] = np.reshape(Ls2, (l2, 1))
+
+        for step in xrange(self.input_steps):
+          for i in xrange(ia.num_features_cat):
+            input_feed[self.i_mappings['input{}'.format(0)][0][i].name] = ia.features_cat[i][item_input[step]]
+          for i in xrange(ia.num_features_mulhot):
+            v_i = ia.features_mulhot[i]
+            s_i = ia.mulhot_starts[i]
+            l_i = ia.mulhot_lengths[i]
+            vals = list(itertools.chain.from_iterable(
+              [v_i[s_i[u]:s_i[u]+l_i[u]] for u in item_input[step]]))
+            Ls = [l_i[u] for u in item_input[step]]
+            i1 = list(itertools.chain.from_iterable(
+              Ls[i] * [i] for i in range(len(Ls))))
+            input_feed[self.i_mappings['input{}'.format(step)][1][i].name] = vals
+            input_feed[self.i_mappings['input{}'.format(step)][2][i].name] = i1
+            input_feed[self.i_mappings['input{}'.format(step)][3][i].name] = np.reshape(Ls, (len(Ls), 1))
+
         if loss in ['mw', 'mce']:
           vals_s = list(itertools.chain.from_iterable(
             [v_i[s_i[u]:s_i[u]+l_i[u]] for u in item_sampled]))

@@ -70,7 +70,7 @@ class LatentProductModel(object):
     self.keep_prob = tf.placeholder(tf.float32, name='keep_prob')
 
     m = attribute.EmbeddingAttribute(user_attributes, item_attributes, mb, 
-      self.n_sampled, item_ind2logit_ind, logit_ind2item_ind)
+      self.n_sampled, 0, False, item_ind2logit_ind, logit_ind2item_ind)
     self.att_emb = m
     embedded_user, user_b = m.get_batch_user(self.keep_prob)
     user_model_size = m.get_user_model_size()
