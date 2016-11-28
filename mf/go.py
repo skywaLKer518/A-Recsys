@@ -2,11 +2,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import math
-import os, shutil
-import random
-import sys
-import time
+import math, os, shutil, sys
+import random, time
 import logging
 
 import numpy as np
@@ -14,8 +11,8 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 # from load_data import *    
 sys.path.insert(0, '../utils')
-from recsys_data import data_read
 
+from recsys_data import data_read
 import mf_model
 from eval2 import *
 from submit import *
@@ -25,7 +22,7 @@ from submit import *
 
 tf.app.flags.DEFINE_float("learning_rate", 0.1, "Learning rate.")
 tf.app.flags.DEFINE_float("keep_prob", 0.5, "dropout rate.")
-tf.app.flags.DEFINE_float("learning_rate_decay_factor", 0.99,
+tf.app.flags.DEFINE_float("learning_rate_decay_factor", 1.0,
 													"Learning rate decays by this much.")
 tf.app.flags.DEFINE_float("max_gradient_norm", 5.0,
 													"Clip gradients to this norm.")
@@ -119,7 +116,6 @@ def train():
 	with tf.Session(config=tf.ConfigProto(log_device_placement=FLAGS.device_log)) as sess:
 		# run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
 		# run_metadata = tf.RunMetadata()
-		# sess.run(res, options=run_options, run_metadata=run_metadata)
 
 		print("reading data")
 		logging.info("reading data")
@@ -127,6 +123,18 @@ def train():
 			logit_ind2item_ind) = read_data()
 		print("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 		logging.info("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
+
+		'''
+		remove some rare items in both train and valid set
+		this helps make train/valid set distribution similar 
+		to each other
+		'''
+		print("original train/dev size: %d/%d" %(len(data_tr),len(data_va)))
+		logging.info("original train/dev size: %d/%d" %(len(data_tr),len(data_va)))
+		data_tr = [p for p in data_tr if (item_ind2logit_ind[p[1]] != 0)]
+		data_va = [p for p in data_va if (item_ind2logit_ind[p[1]] != 0)]
+		print("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
+		logging.info("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
 		hist, hist_va, hist_withval = {}, {}, {}
 		for u, i, _ in data_tr:
@@ -148,13 +156,8 @@ def train():
 			else:
 				hist_withval[u].add(i)
 
-		indices_logits = range(len(logit_ind2item_ind))
-
-		'''
-		TODO:
-		item_population can be pre-specified to a narrower range
-		so that candidate pool is smaller
-		'''
+		# item_population can be pre-specified to a narrower range
+		# so that candidate pool is smaller
 		if FLAGS.use_more_train:
 			item_population = range(len(item_ind2logit_ind)) # todo
 		else:
@@ -162,7 +165,7 @@ def train():
 			for u, i, _ in data_tr:
 				item_population.add(i)
 			item_population = list(item_population)
-		print(len(item_ind2logit_ind))
+		print(len(item_population))
 
 		if FLAGS.use_item_feature:
 			print("using item attributes")
@@ -299,7 +302,7 @@ def train():
 					shutil.copy(current_model, new_filename)
 					patience = FLAGS.patience
 
-				if eval_loss > best_loss and eval_auc > best_auc:
+				if eval_loss > best_loss and eval_auc < best_auc:
 					patience -= 1
 
 				auc_dev.append(eval_auc)
@@ -319,7 +322,6 @@ def train():
 					logging.info("best loss %.4f" % best_loss)
 					sys.stdout.flush()
 					break
-
 	return
 
 def recommend():
@@ -341,11 +343,11 @@ def recommend():
 		Uatt, user_feature_names, Uid2ind = load_user_target_csv()
 		Iatt, item_feature_names, Iid2ind = load_item_active_csv()
 
-		item_population = range(len(item_ind2logit_ind)) # todo
+		# item_population = range(len(item_ind2logit_ind)) # todo
 		print(len(item_ind2logit_ind))
 		
 		model = create_model(sess, u_attributes, i_attributes, item_ind2logit_ind,
-			logit_ind2item_ind, loss=FLAGS.loss, ind_item=item_population, logit_size_test=len(Iatt))
+			logit_ind2item_ind, loss=FLAGS.loss, ind_item=None, logit_size_test=len(Iatt))
 
 		Uids = list(T.keys())
 		Uinds = [Uid2ind[v] for v in Uids]

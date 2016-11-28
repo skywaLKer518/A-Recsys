@@ -16,9 +16,9 @@ from tensorflow.python.ops import array_ops
 
 import time
 import sys
+import itertools
 sys.path.insert(0, '../utils')
 import attribute
-import itertools
 
 class LatentProductModel(object):
   def __init__(self, user_size, item_size, size,
@@ -61,8 +61,8 @@ class LatentProductModel(object):
     self.att_emb = None
 
     mb = self.batch_size
-    # self.user_input = tf.placeholder(tf.int32, shape = [mb], name = "user")
     self.item_target = tf.placeholder(tf.int32, shape = [mb], name = "item")
+    # self.user_input = tf.placeholder(tf.int32, shape = [mb], name = "user")    
     # self.neg_item_input = tf.placeholder(tf.int32, shape = [mb], 
     #   name = "neg_item")
     
@@ -92,21 +92,33 @@ class LatentProductModel(object):
     neg_pos = self.neg_score - self.pos_score
     self.auc = 0.5 - 0.5 * tf.reduce_mean(tf.sign(neg_pos))
 
-    ''' mini batch version. not ready'''
-    # print("construct mini-batch item candicate pool")
-    # embedded_item, item_b = m.get_batch_items('target', self.n_sampled)
-    # # compute sampled 'logits'/'scores'
-    # innerps = []
-    # for i in xrange(m.num_item_features):
-    #   innerps.append(tf.matmul(embedded_item[i], 
-    #     tf.transpose(proj_user_drops[i])))
-    # sampled_logits = tf.transpose(tf.reduce_sum(innerps, 0)) + item_b
+    # mini batch version
+    print("sampled prediction")
+    if self.n_sampled is not None:
+      embedded_item, item_b = m.get_batch_item('sampled', self.n_sampled)
+      # compute sampled 'logits'/'scores'
+      innerps = []
+      for i in xrange(m.num_item_features):
+        innerps.append(tf.matmul(embedded_item[i], 
+          tf.transpose(proj_user_drops[i])))
+      sampled_logits = tf.transpose(tf.reduce_sum(innerps, 0)) + item_b
 
-    print("prediction")
+    print("non-sampled prediction")
     logits = m.get_prediction(proj_user_drops)
 
-    batch_loss = m.compute_loss(logits, self.item_target, 
-      self.loss_function)
+    loss = self.loss_function
+    if loss in ['warp', 'ce']:
+      batch_loss = m.compute_loss(logits, self.item_target, loss)
+    elif loss in ['mw', 'mce']:
+      batch_loss = m.compute_loss(sampled_logits, self.item_target, loss)
+    elif loss in ['bpr', 'bpr-hinge']:
+      batch_loss = m.compute_loss(neg_pos, self.item_target, loss)
+    else:
+      print("not implemented!")
+      exit(-1)
+    if loss in ['warp', 'mw']:
+      self.set_mask, self.reset_mask = m.get_warp_mask()
+
     self.loss = tf.reduce_mean(batch_loss)
     # Gradients and SGD update operation for training the model.
     params = tf.trainable_variables()
@@ -115,9 +127,14 @@ class LatentProductModel(object):
     gradients = tf.gradients(self.loss, params)
     self.updates = opt.apply_gradients(
       zip(gradients, params), global_step=self.global_step)
+
     self.output = logits
     values, self.indices= tf.nn.top_k(self.output, 30, sorted=True)
     self.saver = tf.train.Saver(tf.all_variables())
+
+  def prepare_warp(self, pos_item_set, pos_item_set_eval):
+    self.att_emb.prepare_warp(pos_item_set, pos_item_set_eval)
+    return 
 
   def step(self, session, user_input, item_input, neg_item_input=None, 
     item_sampled = None, item_sampled_id2idx = None,
@@ -129,11 +146,14 @@ class LatentProductModel(object):
     else:
       input_feed[self.keep_prob.name] = self.dropout
     
-    if loss == 'ce':
-      input_feed[self.item_target.name] = [self.item_ind2logit_ind[v] for v in item_input] # logits indices    
+    if loss in ['warp', 'ce'] and recommend == False:
+      input_feed[self.item_target.name] = [self.item_ind2logit_ind[v] for v in item_input]
+    if loss in ['mw', 'mce'] and recommend == False:
+      input_feed[self.item_target.name] = [item_sampled_id2idx[v] for v in item_input]
+
     if self.att_emb is not None:
-      self.att_emb.add_input(input_feed, user_input, item_input, 
-        neg_item_input=neg_item_input, item_sampled = item_sampled, 
+      input_feed_warp = self.att_emb.add_input(input_feed, user_input, 
+        item_input, neg_item_input=neg_item_input, item_sampled = item_sampled, 
         item_sampled_id2idx = item_sampled_id2idx, 
         forward_only=forward_only, recommend=recommend, 
         recommend_new = recommend_new, loss = loss)
@@ -149,10 +169,16 @@ class LatentProductModel(object):
       else:
         output_feed = [self.indices]
 
+    if (loss == 'warp' or loss =='mw') and recommend is False:
+      session.run(self.set_mask, input_feed_warp)
+
     if run_op is not None and run_meta is not None:
       outputs = session.run(output_feed, input_feed, options=run_op, run_metadata=run_meta)
     else:
       outputs = session.run(output_feed, input_feed)
+
+    if (loss == 'warp' or loss =='mw') and recommend is False:
+      session.run(self.reset_mask, input_feed_warp)
 
     if not recommend:
       if not forward_only:

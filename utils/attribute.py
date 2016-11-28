@@ -76,20 +76,7 @@ class Attributes(object):
     self.mulhot_starts_tr = mulhot_starts_tr
     self.mulhot_lengs_tr = mulhot_lengs_tr
     return
-
-
-  # def view(self):
-  #   print("type of things")
-  #   print(type(self.features_cat))
-  #   for t in self.features_cat:
-  #     print(type(t))
-  #     print(len(t))
-  #     print("fdsafsadf")
-  #     sys.stdout.flush()
-  #     print(t.shape)
-  #   print(type(self.features_mulhot))
-  #   print("completed")
-  #   return
+    
 
 class EmbeddingAttribute(object):
   def __init__(self, user_attributes, item_attributes, mb, n_sampled, 
@@ -126,18 +113,20 @@ class EmbeddingAttribute(object):
     '''    
     self.user_embs_cat, self.user_embs_mulhot = self.embedded(user_attributes, 
       prefix='user')
-    self.u_cat_indices, self.u_mulhot_indices, self.u_mulhot_segids, self.u_mulhot_lengths = [],[], [], []
+    u_cat_indices, u_mulhot_indices, u_mulhot_segids, u_mulhot_lengths = [],[], [], []
     for i in xrange(user_attributes.num_features_cat):
-      self.u_cat_indices.append(tf.placeholder(tf.int32, shape = [mb], 
+      u_cat_indices.append(tf.placeholder(tf.int32, shape = [mb], 
         name = "u_cat_ind{0}".format(i)))
     for i in xrange(user_attributes.num_features_mulhot):
-      self.u_mulhot_indices.append(tf.placeholder(tf.int32, shape = [None], 
+      u_mulhot_indices.append(tf.placeholder(tf.int32, shape = [None], 
         name = "u_mulhot_ind{0}".format(i)))
-      self.u_mulhot_segids.append(tf.placeholder(tf.int32, shape = [None], 
+      u_mulhot_segids.append(tf.placeholder(tf.int32, shape = [None], 
         name = "u_mulhot_seg{0}".format(i)))
-      self.u_mulhot_lengths.append(tf.placeholder(tf.float32, shape= [mb, 1], 
+      u_mulhot_lengths.append(tf.placeholder(tf.float32, shape= [mb, 1], 
         name = "u_mulhot_len{0}".format(i)))
-
+    self.u_mappings = {}
+    self.u_mappings['input'] = (u_cat_indices, u_mulhot_indices, 
+      u_mulhot_segids, u_mulhot_lengths)
     '''
     item embeddings
       variables -
@@ -157,53 +146,52 @@ class EmbeddingAttribute(object):
 
     print("construct postive/negative items/scores ")    
     # positive/negative sample indices
-    self.i_cat_indices_pos, self.i_mulhot_indices_pos, self.i_mulhot_segids_pos, self.i_mulhot_lengths_pos = [],[], [], []
-    self.i_cat_indices_neg, self.i_mulhot_indices_neg, self.i_mulhot_segids_neg, self.i_mulhot_lengths_neg = [],[], [], []
+    i_cat_indices_pos, i_mulhot_indices_pos, i_mulhot_segids_pos, i_mulhot_lengths_pos = [],[], [], []
+    i_cat_indices_neg, i_mulhot_indices_neg, i_mulhot_segids_neg, i_mulhot_lengths_neg = [],[], [], []
     for i in xrange(user_attributes.num_features_cat):
-      self.i_cat_indices_pos.append(tf.placeholder(tf.int32, shape = [mb], 
+      i_cat_indices_pos.append(tf.placeholder(tf.int32, shape = [mb], 
         name = "i_cat_ind_pos{0}".format(i)))
-      self.i_cat_indices_neg.append(tf.placeholder(tf.int32, shape = [mb], 
+      i_cat_indices_neg.append(tf.placeholder(tf.int32, shape = [mb], 
         name = "i_cat_ind_neg{0}".format(i)))
     for i in xrange(user_attributes.num_features_mulhot):
-      self.i_mulhot_indices_pos.append(tf.placeholder(tf.int32, shape = [None], 
+      i_mulhot_indices_pos.append(tf.placeholder(tf.int32, shape = [None], 
         name = "i_mulhot_ind_pos{0}".format(i)))
-      self.i_mulhot_segids_pos.append(tf.placeholder(tf.int32, shape = [None], 
+      i_mulhot_segids_pos.append(tf.placeholder(tf.int32, shape = [None], 
         name = "i_mulhot_seg_pos{0}".format(i)))
-      self.i_mulhot_lengths_pos.append(tf.placeholder(tf.float32, shape= [mb, 1], 
+      i_mulhot_lengths_pos.append(tf.placeholder(tf.float32, shape= [mb, 1], 
         name = "i_mulhot_len_pos{0}".format(i)))
 
-      self.i_mulhot_indices_neg.append(tf.placeholder(tf.int32, shape = [None], 
+      i_mulhot_indices_neg.append(tf.placeholder(tf.int32, shape = [None], 
         name = "i_mulhot_ind_neg{0}".format(i)))
-      self.i_mulhot_segids_neg.append(tf.placeholder(tf.int32, shape = [None], 
+      i_mulhot_segids_neg.append(tf.placeholder(tf.int32, shape = [None], 
         name = "i_mulhot_seg_neg{0}".format(i)))
-      self.i_mulhot_lengths_neg.append(tf.placeholder(tf.float32, shape= [mb, 1], 
+      i_mulhot_lengths_neg.append(tf.placeholder(tf.float32, shape= [mb, 1], 
         name = "i_mulhot_len_neg{0}".format(i)))
 
     self.i_mappings = {}
-    self.i_mappings['pos'] = (self.i_cat_indices_pos, self.i_mulhot_indices_pos, 
-      self.i_mulhot_segids_pos, self.i_mulhot_lengths_pos)
-    self.i_mappings['neg'] = (self.i_cat_indices_neg, self.i_mulhot_indices_neg, 
-      self.i_mulhot_segids_neg, self.i_mulhot_lengths_neg)
+    self.i_mappings['pos'] = (i_cat_indices_pos, i_mulhot_indices_pos, 
+      i_mulhot_segids_pos, i_mulhot_lengths_pos)
+    self.i_mappings['neg'] = (i_cat_indices_neg, i_mulhot_indices_neg, 
+      i_mulhot_segids_neg, i_mulhot_lengths_neg)
 
     print("construct mini-batch item candicate pool")
     # mini-batch item candidate pool
-    self.item_sampled = tf.placeholder(tf.int32, shape=[None])
-    self.i_cat_indices, self.i_mulhot_indices, self.i_mulhot_segids, self.i_mulhot_lengths = [],[], [], []
+    # self.item_sampled = tf.placeholder(tf.int32, shape=[None])
+    i_cat_indices, i_mulhot_indices, i_mulhot_segids, i_mulhot_lengths = [],[], [], []
     for i in xrange(user_attributes.num_features_cat):
-      self.i_cat_indices.append(tf.placeholder(tf.int32, shape =[self.n_sampled], 
+      i_cat_indices.append(tf.placeholder(tf.int32, shape =[self.n_sampled], 
         name = "i_cat_ind{0}".format(i)))
     for i in xrange(user_attributes.num_features_mulhot):
-      self.i_mulhot_indices.append(tf.placeholder(tf.int32, shape = [None], 
+      i_mulhot_indices.append(tf.placeholder(tf.int32, shape = [None], 
         name = "i_mulhot_ind{0}".format(i)))
-      self.i_mulhot_segids.append(tf.placeholder(tf.int32, shape = [None], 
+      i_mulhot_segids.append(tf.placeholder(tf.int32, shape = [None], 
         name = "i_mulhot_seg{0}".format(i)))
-      self.i_mulhot_lengths.append(tf.placeholder(tf.float32, 
+      i_mulhot_lengths.append(tf.placeholder(tf.float32, 
         shape= [self.n_sampled, 1], name = "i_mulhot_len{0}".format(i)))
-    self.i_mappings['target'] = (self.i_cat_indices, self.i_mulhot_indices, 
-      self.i_mulhot_segids, self.i_mulhot_lengths)
+    self.i_mappings['sampled'] = (i_cat_indices, i_mulhot_indices, 
+      i_mulhot_segids, i_mulhot_lengths)
 
     print("construct input item")
-    
     for step in xrange(input_steps):      
       i_in_cat_indices, i_in_mulhot_indices, i_in_mulhot_segids, i_in_mulhot_lengths = [],[], [], []
       for i in xrange(user_attributes.num_features_cat):
@@ -249,8 +237,7 @@ class EmbeddingAttribute(object):
     return embs_cat, embs_mulhot
 
   def get_batch_user(self, keep_prob):
-    u_mappings = (self.u_cat_indices, self.u_mulhot_indices, 
-      self.u_mulhot_segids, self.u_mulhot_lengths)
+    u_mappings = self.u_mappings['input']
     embedded_user, user_b = self.EmbeddingLayer(self.user_embs_cat, 
       self.user_embs_mulhot, b_cat=None, b_mulhot=None, mappings=u_mappings, 
       mb=self.batch_size, attributes=self.user_attributes, prefix='user', 
@@ -275,6 +262,9 @@ class EmbeddingAttribute(object):
   def get_user_model_size(self):
     return (sum(self.user_attributes._embedding_size_list_cat) + 
         sum(self.user_attributes._embedding_size_list_mulhot))
+  def get_item_model_size(self):
+    return (sum(self.item_attributes._embedding_size_list_cat) + 
+        sum(self.item_attributes._embedding_size_list_mulhot))
 
   def get_user_proj(self, embedded_user, keep_prob, user_model_size, nonlinear):
     projs_cat, projs_mulhot, projs_cat_b, projs_mulhot_b = self.item_proj_layer(
@@ -455,144 +445,113 @@ class EmbeddingAttribute(object):
     return projs_cat, projs_mulhot, biases_cat, biases_mulhot
 
   def compute_loss(self, logits, item_target, loss='ce'):
-    assert(loss == 'ce')
-    return tf.nn.sparse_softmax_cross_entropy_with_logits(logits, item_target)
+    assert(loss in ['ce', 'mce', 'warp', 'mw', 'bpr', 'bpr-hinge'])
+    if loss in ['ce', 'mce']:
+      return tf.nn.sparse_softmax_cross_entropy_with_logits(logits, item_target)
+    elif loss in ['warp', 'mw']:
+      V = self.logit_size if loss == 'warp' else self.n_sampled
+      mb = self.batch_size
+      self.mask = tf.Variable([True] * V * mb, dtype=tf.bool, trainable=False)
+      zero_logits = tf.constant([[0.0] * V] * mb)
+      self.pos_indices = tf.placeholder(tf.int32, shape = [None])
+      self.l_true = tf.placeholder(tf.bool, shape = [None], name='l_true')
+      self.l_false = tf.placeholder(tf.bool, shape = [None], name='l_false')
+      self.set_mask = tf.scatter_update(self.mask, self.pos_indices, 
+        self.l_false)
+      self.reset_mask = tf.scatter_update(self.mask, self.pos_indices, 
+        self.l_true)
+      flat_matrix = tf.reshape(logits, [-1])
+      idx_flattened0 = tf.range(0, mb) * V
+      idx_flattened = idx_flattened0 + item_target
+      logits_ = tf.gather(flat_matrix, idx_flattened)
+      logits_ = tf.reshape(logits_, [mb, 1])
+      logits2 = tf.sub(logits, logits_) + 1
+      mask2 = tf.reshape(self.mask, [mb, V])
+      target = tf.select(mask2, logits2, zero_logits)
+      return tf.log(1 + tf.reduce_sum(tf.nn.relu(target), 1))
+    elif loss == 'bpr':
+      return tf.log(1 + tf.exp(logits))
+    elif loss == 'bpr-hinge':
+      return tf.maximum(1 + logits, 0)
+
+  def get_warp_mask(self):
+    return self.set_mask, self.reset_mask
+
+  def prepare_warp(self, pos_item_set, pos_item_set_eval):
+    self.pos_item_set = pos_item_set
+    self.pos_item_set_eval = pos_item_set_eval
+    return 
+
+  def _add_input(self, input_feed, opt, input_, name_):
+    if opt == 'user':
+      att = self.user_attributes
+      mappings = self.u_mappings[name_]
+    elif opt == 'item':
+      att = self.item_attributes
+      mappings = self.i_mappings[name_]
+    else:
+      exit(-1)
+
+    for i in xrange(att.num_features_cat):
+      input_feed[mappings[0][i].name] = att.features_cat[i][input_]
+        
+    for i in xrange(att.num_features_mulhot):
+      v_i, s_i, l_i = (att.features_mulhot[i], att.mulhot_starts[i], 
+        att.mulhot_lengths[i])
+      vals = list(itertools.chain.from_iterable(
+        [v_i[s_i[u]:s_i[u]+l_i[u]] for u in input_]))
+      Ls = [l_i[u] for u in input_]
+      l = len(Ls) 
+      i1 = list(itertools.chain.from_iterable(
+        Ls[i] * [i] for i in range(len(Ls))))
+      input_feed[mappings[1][i].name] = vals
+      input_feed[mappings[2][i].name] = i1
+      input_feed[mappings[3][i].name] = np.reshape(Ls, (l, 1))
 
   def add_input(self, input_feed, user_input, item_input, 
         neg_item_input=None, item_sampled = None, item_sampled_id2idx = None, 
         forward_only=False, recommend=False, recommend_new = False, loss=None):
-    # input indices of user/item
-
-    if loss in ['mw', 'warp', 'mce'] and recommend == False:      
-      input_feed[self.item_target.name] = [item_sampled_id2idx[v] for v in item_input]
-    if item_sampled is not None:
-      input_feed[self.item_sampled.name] = item_sampled
-    
-    # input mappings
+    # users
     if self.user_attributes is not None:
-      ua = self.user_attributes
-      for i in xrange(ua.num_features_cat):
-        input_feed[self.u_cat_indices[i].name] = ua.features_cat[i][user_input]
-      for i in xrange(ua.num_features_mulhot):
-        v_i = ua.features_mulhot[i]
-        s_i = ua.mulhot_starts[i]
-        l_i = ua.mulhot_lengths[i]
-        vals = list(itertools.chain.from_iterable(
-          [v_i[s_i[u]:s_i[u]+l_i[u]] for u in user_input]))
-        Ls = [l_i[u] for u in user_input]
-        i1 = list(itertools.chain.from_iterable(
-          Ls[i] * [i] for i in range(len(Ls))))
-        input_feed[self.u_mulhot_indices[i].name] = vals
-        input_feed[self.u_mulhot_segids[i].name] = i1
-        input_feed[self.u_mulhot_lengths[i].name] = np.reshape(Ls, (len(Ls), 1))
-      
-    if self.item_attributes is not None and recommend is False:
-      ia = self.item_attributes
-      for i in xrange(ia.num_features_cat):
-        input_feed[self.i_cat_indices_pos[i].name] = ia.features_cat[i][item_input]
-        input_feed[self.i_cat_indices_neg[i].name] = ia.features_cat[i][neg_item_input]
-        if loss in ['mw', 'mce']:
-          input_feed[self.i_cat_indices[i].name] = ia.features_cat[i][item_sampled]
-      for i in xrange(ia.num_features_mulhot):
-        v_i = ia.features_mulhot[i]
-        s_i = ia.mulhot_starts[i]
-        l_i = ia.mulhot_lengths[i]
-        vals = list(itertools.chain.from_iterable(
-          [v_i[s_i[u]:s_i[u]+l_i[u]] for u in item_input]))
-        vals2 = list(itertools.chain.from_iterable(
-          [v_i[s_i[u]:s_i[u]+l_i[u]] for u in neg_item_input]))
-        Ls = [l_i[u] for u in item_input]
-        Ls2= [l_i[u] for u in neg_item_input]
-        l = len(Ls)
-        l2 = len(Ls2)
+      self._add_input(input_feed, 'user', user_input, 'input')
+    # pos neg: when input_steps = 0 
+    if self.item_attributes is not None and recommend is False and self.input_steps == 0:
+      self._add_input(input_feed, 'item', item_input, 'pos')
+      self._add_input(input_feed, 'item', neg_item_input, 'neg')    
+    # sampled item: when sampled-loss is used
+    if self.item_attributes is not None and recommend is False and self.n_sampled is not None and loss in ['mw', 'mce']:
+      self._add_input(input_feed, 'item', item_sampled, 'sampled')
+    # input item: for lstm
+    if self.item_attributes is not None and self.input_steps > 0:
+      for step in xrange(self.input_steps):
+        self._add_input(input_feed, 'item', item_input[step], 
+          'input{}'.format(step))
+    # for warp loss.
+    input_feed_warp = {}
+    if loss in ['warp', 'mw'] and recommend is False:
+      V = self.logit_size if loss == 'warp' else self.n_sampled
+      mask_indices, c = [], 0
+      s_2idx = self.item_ind2logit_ind if loss == 'warp' else item_sampled_id2idx      
+      item_set = self.pos_item_set_eval if forward_only else self.pos_item_set
 
-        i1 = list(itertools.chain.from_iterable(
-          Ls[i] * [i] for i in range(len(Ls))))
-        i1_2 = list(itertools.chain.from_iterable(
-          Ls2[i] * [i] for i in range(len(Ls2))))
-
-        input_feed[self.i_mulhot_indices_pos[i].name] = vals
-        input_feed[self.i_mulhot_segids_pos[i].name] = i1
-        input_feed[self.i_mulhot_lengths_pos[i].name] = np.reshape(Ls, (l, 1))
-
-        input_feed[self.i_mulhot_indices_neg[i].name] = vals2
-        input_feed[self.i_mulhot_segids_neg[i].name] = i1_2
-        input_feed[self.i_mulhot_lengths_neg[i].name] = np.reshape(Ls2, (l2, 1))
-
-        for step in xrange(self.input_steps):
-          for i in xrange(ia.num_features_cat):
-            input_feed[self.i_mappings['input{}'.format(0)][0][i].name] = ia.features_cat[i][item_input[step]]
-          for i in xrange(ia.num_features_mulhot):
-            v_i = ia.features_mulhot[i]
-            s_i = ia.mulhot_starts[i]
-            l_i = ia.mulhot_lengths[i]
-            vals = list(itertools.chain.from_iterable(
-              [v_i[s_i[u]:s_i[u]+l_i[u]] for u in item_input[step]]))
-            Ls = [l_i[u] for u in item_input[step]]
-            i1 = list(itertools.chain.from_iterable(
-              Ls[i] * [i] for i in range(len(Ls))))
-            input_feed[self.i_mappings['input{}'.format(step)][1][i].name] = vals
-            input_feed[self.i_mappings['input{}'.format(step)][2][i].name] = i1
-            input_feed[self.i_mappings['input{}'.format(step)][3][i].name] = np.reshape(Ls, (len(Ls), 1))
-
-        if loss in ['mw', 'mce']:
-          vals_s = list(itertools.chain.from_iterable(
-            [v_i[s_i[u]:s_i[u]+l_i[u]] for u in item_sampled]))
-          Ls3 = [l_i[u] for u in item_sampled]
-          l3 = len(Ls3)
-          i1_3 = list(itertools.chain.from_iterable(
-            Ls3[i] * [i] for i in range(len(Ls3))))
-          input_feed[self.i_mulhot_indices[i].name] = vals_s
-          input_feed[self.i_mulhot_segids[i].name] = i1_3
-          input_feed[self.i_mulhot_lengths[i].name] = np.reshape(Ls3, (l3, 1))
-
-    if loss == 'warp' and recommend is False:
-      print("Error: not implemented yet!!")
-      exit(-1)
-      input_feed_warp = {}
-      V = self.logit_size
-      mask_indices = []
-      c = 0
-      # s_id2idx = 
-      for u in user_input:
-        offset = c * V
-        if forward_only:
-          mask_indices.extend([v + offset for v in self.pos_item_set_witheval[u]])  # v is logit ind
-        else:
-          mask_indices.extend([v + offset for v in self.pos_item_set[u]])  # v is logit ind
-        c += 1
+      if loss == 'warp':
+        for u in user_input:
+          offset = c * V
+          mask_indices.extend([s_2idx[v] + offset for v in item_set[u]])
+          c += 1
+      else:
+        for u in user_input:
+          offset = c * V
+          mask_indices.extend([s_2idx[v] + offset for v in item_set[u] 
+            if v in s_2idx])
+          c += 1          
       L = len(mask_indices)
       input_feed_warp[self.pos_indices.name] = mask_indices
       input_feed_warp[self.l_false.name] = [False] * L
       input_feed_warp[self.l_true.name] = [True] * L
 
-    if loss == 'mw' and recommend is False:
-      '''
-      how
-      '''
-      input_feed_warp = {}
-      V = self.n_sampled
-      mask_indices = []
-      c = 0
-      s_id2idx = item_sampled_id2idx
-      for u in user_input:
-        offset = c * V
-        if forward_only:
-          mask_indices.extend(
-            [s_id2idx[v] + offset for v in self.pos_item_set_witheval[u] if v in s_id2idx])
-        else:
-          mask_indices.extend(
-            [s_id2idx[v] + offset for v in self.pos_item_set[u] if v in s_id2idx])
-        c += 1
-      L = len(mask_indices)
-      input_feed_warp[self.pos_indices.name] = mask_indices
-      input_feed_warp[self.l_false.name] = [False] * L
-      input_feed_warp[self.l_true.name] = [True] * L
-    return
-  # def prepare_warp(self, pos_item_set, pos_item_set_witheval):
-  #   self.pos_item_set = pos_item_set
-  #   self.pos_item_set_witheval = pos_item_set_witheval
-  #   return 
+    return input_feed_warp
+
 
     # '''
     # test and recommend new items

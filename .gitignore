@@ -5,3 +5,6 @@ mf/log/*
 utils/*pyc
 mf/data*
 mf/test*
+mf/log*
+mf/*.sh
+mf/*.pbs
