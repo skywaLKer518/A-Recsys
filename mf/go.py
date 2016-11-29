@@ -173,8 +173,8 @@ def train():
 		else:
 			print("NOT using item attributes")
 			logging.info("NOT using item attributes")
+			i_attributes.num_features_cat = 1
 			i_attributes.num_features_mulhot = 0
-			u_attributes.num_features_mulhot = 0
 		print("completed")
 		logging.info("completed")
 

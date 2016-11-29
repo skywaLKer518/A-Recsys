@@ -74,7 +74,7 @@ class LatentProductModel(object):
     self.att_emb = m
     embedded_user, user_b = m.get_batch_user(self.keep_prob)
     user_model_size = m.get_user_model_size()
-    proj_user_drops = m.get_user_proj(embedded_user, self.keep_prob, 
+    proj_user_drops = self._get_user_proj(embedded_user, self.keep_prob, 
       user_model_size, self.nonlinear)
     
     pos_embs_item, pos_item_b = m.get_batch_item('pos', batch_size)
@@ -131,6 +131,49 @@ class LatentProductModel(object):
     self.output = logits
     values, self.indices= tf.nn.top_k(self.output, 30, sorted=True)
     self.saver = tf.train.Saver(tf.all_variables())
+
+  def _get_user_proj(self, embedded_user, keep_prob, user_model_size, nonlinear):
+    projs_cat, projs_mulhot, projs_cat_b, projs_mulhot_b = self._user_proj(
+      self.item_attributes, hidden_size=user_model_size)
+    # prepare projected version of user embedding
+    proj_user_drops_cat, proj_user_drops_mulhot = [],[]
+    for i in xrange(self.item_attributes.num_features_cat):
+      proj_user = tf.matmul(embedded_user, projs_cat[i]) + projs_cat_b[i] # mb by d_f
+      if nonlinear == 'relu':
+        proj_user = tf.nn.relu(proj_user)
+      elif nonlinear == 'tanh':
+        proj_user = tf.tanh(proj_user)
+      proj_user_drops_cat.append(tf.nn.dropout(proj_user, keep_prob))
+    for i in xrange(self.item_attributes.num_features_mulhot):  
+      proj_user = tf.matmul(embedded_user, projs_mulhot[i]) + projs_mulhot_b[i]
+      if nonlinear == 'relu':
+        proj_user = tf.nn.relu(proj_user)
+      elif nonlinear == 'tanh':
+        proj_user = tf.tanh(proj_user)
+      proj_user_drops_mulhot.append(tf.nn.dropout(proj_user, keep_prob))
+    return  proj_user_drops_cat + proj_user_drops_mulhot
+
+  def _user_proj(self, attributes, hidden_size):
+    biases_cat, biases_mulhot = [], []
+    projs_cat, projs_mulhot = [], []
+    
+    for i in range(attributes.num_features_cat):
+      size = attributes._embedding_size_list_cat[i]
+      w = tf.get_variable("out_proj_cat_{0}".format(i), [hidden_size, size], 
+        dtype=tf.float32)
+      projs_cat.append(w)
+      b = tf.get_variable("out_proj_cat_b_{0}".format(i), [size], 
+        dtype=tf.float32)
+      biases_cat.append(b)
+    for i in range(attributes.num_features_mulhot):
+      size = attributes._embedding_size_list_mulhot[i]
+      w = tf.get_variable("out_proj_mulhot_{0}".format(i), 
+        [hidden_size, size], dtype=tf.float32)
+      projs_mulhot.append(w)
+      b = tf.get_variable("out_proj_mulhot_b_{0}".format(i), [size], 
+        dtype=tf.float32)
+      biases_mulhot.append(b)
+    return projs_cat, projs_mulhot, biases_cat, biases_mulhot
 
   def prepare_warp(self, pos_item_set, pos_item_set_eval):
     self.att_emb.prepare_warp(pos_item_set, pos_item_set_eval)
