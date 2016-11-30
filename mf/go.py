@@ -53,7 +53,7 @@ tf.app.flags.DEFINE_boolean("eval", False,
 														"Set to True for evaluation.")
 tf.app.flags.DEFINE_boolean("use_more_train", False,
 														"Set true if use non-appearred items to train.")
-tf.app.flags.DEFINE_integer("top_N_items", 35,
+tf.app.flags.DEFINE_integer("top_N_items", 30,
 														"number of items output")
 tf.app.flags.DEFINE_string("loss", 'ce',
 														"loss function")
@@ -328,7 +328,7 @@ def recommend():
 
 	with tf.Session() as sess:
 		print("reading data")
-		(_, _, u_attributes, i_attributes, item_ind2logit_ind, 
+		(data_tr, data_va, u_attributes, i_attributes, item_ind2logit_ind, 
 			logit_ind2item_ind) = read_data()
 		print("completed")
 		# print("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
@@ -338,7 +338,9 @@ def recommend():
 		
 		T = load_submit('../submissions/res_T.csv')
 		print("length of active users in eval week: %d" % len(T))
-		
+		filename0 = '../submissions/historical_train.csv'
+		r0 = load_submit(filename0)
+				
 		from load_data import load_user_target_csv, load_item_active_csv
 		Uatt, user_feature_names, Uid2ind = load_user_target_csv()
 		Iatt, item_feature_names, Iid2ind = load_item_active_csv()
@@ -395,9 +397,23 @@ def recommend():
 		# filename = os.path.join(FLAGS.train_dir, 'rec')
 		filename = 'rec'
 		format_submit(R, filename)
-		R2 = load_submit(filename)		
+		R2 = load_submit(filename)
 		print(scores(R2, T))
 		logging.info(scores(R2, T))
+
+		rec = combine_sub(r0, R2)
+		format_submit(rec, filename)
+		rec = load_submit(filename)
+		print(scores(rec, T))
+		logging.info(scores(rec, T))
+
+		rec = combine_sub(r0, R2, 1)
+		format_submit(rec, filename)
+		rec = load_submit(filename)
+		print(scores(rec, T))
+		logging.info(scores(rec, T))
+
+
 		from eval_rank import eval_P5, eval_R20
 		print("R20")
 		logging.info("R20")
