@@ -166,7 +166,7 @@ class EmbeddingAttribute(object):
         name = "{}_{}_mulhot_len_{}".format(opt, name, i)))
     return (cat_indices, mulhot_indices, mulhot_segids, mulhot_lengths)
 
-  def get_prediction(self, proj_user_drops, full='prediction'):
+  def get_prediction(self, latent, full='prediction'):
     print("construct inner products between mb users and full item embeddings")  
     full_out_layer = self.i_mappings[full]
     # full_out_layer = self.full_output_layer(self.item_attributes)
@@ -174,19 +174,19 @@ class EmbeddingAttribute(object):
     # compute inner product between item_hidden and {user_feature_embedding}
     # then lookup to compute logits
     innerps = []
-    
     for i in xrange(self.item_attributes.num_features_cat):
       item_emb_cat = self.item_embs2_cat[i] if self.item_output else self.item_embs_cat[i]
       i_biases_cat = self.i_biases2_cat[i] if self.item_output else self.i_biases_cat[i]
-      innerp = tf.matmul(item_emb_cat, tf.transpose(
-        proj_user_drops[i])) + i_biases_cat # Vf by mb
+      u = latent[i] if isinstance(latent, list) else latent
+      innerp = tf.matmul(item_emb_cat, tf.transpose(u)) + i_biases_cat # Vf by mb
       innerps.append(lookup(innerp, indices_cat[i])) # V by mb
     offset = self.item_attributes.num_features_cat
     for i in xrange(self.item_attributes.num_features_mulhot):
       item_embs_mulhot = self.item_embs2_mulhot[i] if self.item_output else self.item_embs_mulhot[i]
       item_biases_mulhot = self.i_biases2_mulhot[i] if self.item_output else self.i_biases_mulhot[i]
-      innerp = tf.add(tf.matmul(item_embs_mulhot,
-        tf.transpose(proj_user_drops[i+offset])), item_biases_mulhot) 
+      u = latent[i+offset] if isinstance(latent, list) else latent
+      innerp = tf.add(tf.matmul(item_embs_mulhot, tf.transpose(u)), 
+        item_biases_mulhot) 
       innerps.append(tf.div(tf.unsorted_segment_sum(lookup(innerp, 
         indices_mulhot[i]), segids_mulhot[i], self.logit_size), lengths_mulhot[i]))
 
@@ -234,14 +234,21 @@ class EmbeddingAttribute(object):
       biases_mulhot.append(b)
     return biases_cat, biases_mulhot
 
-  def get_batch_user(self, keep_prob):
+  def get_batch_user(self, keep_prob, concat=True):
     u_mappings = self.u_mappings['input']
-    embedded_user, user_b = self._get_embedded(self.user_embs_cat, 
-      self.user_embs_mulhot, b_cat=None, b_mulhot=None, mappings=u_mappings, 
-      mb=self.batch_size, attributes=self.user_attributes, prefix='user', 
-      concatenation=True)
+    if concat:
+      embedded_user, user_b = self._get_embedded(self.user_embs_cat, 
+        self.user_embs_mulhot, b_cat=None, b_mulhot=None, mappings=u_mappings, 
+        mb=self.batch_size, attributes=self.user_attributes, prefix='user', 
+        concatenation=concat)
+    else:
+      user_cat, user_mulhot, user_b = self._get_embedded(
+        self.user_embs_cat, self.user_embs_mulhot, b_cat=None, b_mulhot=None, 
+        mappings=u_mappings, mb=self.batch_size, 
+        attributes=self.user_attributes, prefix='user', concatenation=concat)
+      embedded_user =  tf.reduce_mean(user_cat + user_mulhot, 0)
     embedded_user = tf.nn.dropout(embedded_user, keep_prob)
-    return embedded_user, user_b
+    return embedded_user, user_b  
 
   def get_batch_item(self, name, batch_size, concat=False, keep_prob=1.0):
     assert(name in self.i_mappings)
