@@ -21,26 +21,25 @@ class Attributes(object):
     self._embedding_classes_list_mulhot = v_sizes_mulhot
     return 
   
-  def set_model_size(self, sizes):
-
+  def set_model_size(self, sizes, opt=0):
     if isinstance(sizes, list):
-      assert(len(sizes) == self.num_features_cat)
-      self._embedding_size_list_cat = sizes
+      if opt == 0:
+        assert(len(sizes) == self.num_features_cat)
+        self._embedding_size_list_cat = sizes
+      else:
+        assert(len(sizes) == self.num_features_mulhot)
+        self._embedding_size_list_mulhot = sizes
     elif isinstance(sizes, int):
       self._embedding_size_list_cat = [sizes] * self.num_features_cat
-    # else:
-    #   self._embedding_size_list_cat = [sizes] * self.num_features_cat
-    if isinstance(sizes, list):
-      assert(len(embedding_size_list_mulhot) == self.num_features_mulhot)
-      self._embedding_size_list_mulhot = sizes
-    elif isinstance(sizes, int):
       self._embedding_size_list_mulhot = [sizes] * self.num_features_mulhot
-    # else:
-    #   self._embedding_size_list_mulhot = [sizes] * self.num_features_mulhot
+    else:
+      print('error: sizes need to be list or int')
+      exit(0)
+    return
   
   def set_target_prediction(self, features_cat_tr, full_values_tr, 
     full_segids_tr, full_lengths_tr):
-    # TODO: remove these indices outside this class
+    # TODO: move these indices outside this class
     self.full_cat_tr = features_cat_tr
     self.full_values_tr = full_values_tr
     self.full_segids_tr = full_segids_tr

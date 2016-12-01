@@ -107,7 +107,7 @@ class EmbeddingAttribute(object):
     return (cat_indices, mulhot_indices, mulhot_segids, mulhot_lengths)
 
   def get_prediction(self, latent, full='prediction'):
-    print("construct inner products between mb users and full item embeddings")  
+    # print("construct inner products between mb users and full item embeddings")  
     full_out_layer = self.i_mappings[full]
     # full_out_layer = self.full_output_layer(self.item_attributes)
     indices_cat, indices_mulhot, segids_mulhot, lengths_mulhot = full_out_layer

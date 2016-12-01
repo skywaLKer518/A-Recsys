@@ -99,20 +99,20 @@ def process_items_nan(items):
 
 def to_index(interact, user_index_all, item_index_all):
   l = len(interact)
-  interact_tr = np.zeros((l, 4), dtype=int)
-  interact_va = np.zeros((l, 4), dtype=int)
+  interact_tr = np.zeros((l, 5), dtype=int)
+  interact_va = np.zeros((l, 5), dtype=int)
   ind1, ind2 = 0,0
   for i in range(l):
-    uid, iid, itype, week, _ = interact[i, :]
+    uid, iid, itype, week, t = interact[i, :]
     if iid not in item_index_all:
       continue
     if itype == 4:
       continue
     if week <= 44:
-      interact_tr[ind1, :] = (user_index_all[uid], item_index_all[iid], itype, week)
+      interact_tr[ind1, :] = (user_index_all[uid], item_index_all[iid], itype, week, t)
       ind1 += 1
     elif week == 45:
-      interact_va[ind2, :] = (user_index_all[uid], item_index_all[iid], itype, week)
+      interact_va[ind2, :] = (user_index_all[uid], item_index_all[iid], itype, week, t)
       ind2 += 1
     else:
       exit(-1)
@@ -135,10 +135,15 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
   if ta == 1:
     users, user_feature_names, user_index_orig = load_user_target_csv()
     items, item_feature_names, item_index_orig = load_item_active_csv()
-
   else:
-    users, user_feature_names, user_index_orig = load_user_csv()
-    items, item_feature_names, item_index_orig = load_item_csv()
+    users, user_feature_names, user_index = load_user_target_csv()
+    items, item_feature_names, item_index = load_item_active_csv()
+
+    users_all, _, user_index_all = load_user_csv()
+    items_all, _, item_index_all = load_item_csv()
+    user_index_orig = user_index_all
+    item_index_orig = item_index
+    users = users_all
 
   N = len(user_index_orig)
   M = len(item_index_orig)
@@ -150,10 +155,13 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
   data_va = None
   if _submit == 1:    
     interact_tr = np.append(interact_tr, interact_va, 0)
-    data_tr = zip(list(interact_tr[:, 0]), list(interact_tr[:, 1]), list(interact_tr[:, 3]))
+    data_tr = zip(list(interact_tr[:, 0]), list(interact_tr[:, 1]), 
+      list(interact_tr[:, 4]))
   else:
-    data_tr = zip(list(interact_tr[:, 0]), list(interact_tr[:, 1]), list(interact_tr[:, 3]))
-    data_va = zip(list(interact_va[:, 0]), list(interact_va[:, 1]), list(interact_va[:, 3]))
+    data_tr = zip(list(interact_tr[:, 0]), list(interact_tr[:, 1]), 
+      list(interact_tr[:, 4]))
+    data_va = zip(list(interact_va[:, 0]), list(interact_va[:, 1]), 
+      list(interact_va[:, 4]))
 
   # clean data
   filename = 'processed_user' + '_ta_' + str(ta)

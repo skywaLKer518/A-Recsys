@@ -53,8 +53,7 @@ tf.app.flags.DEFINE_boolean("eval", False,
 														"Set to True for evaluation.")
 tf.app.flags.DEFINE_boolean("use_more_train", False,
 														"Set true if use non-appearred items to train.")
-tf.app.flags.DEFINE_integer("top_N_items", 30,
-														"number of items output")
+
 tf.app.flags.DEFINE_string("loss", 'ce',
 														"loss function")
 tf.app.flags.DEFINE_string("model_option", 'loss',
@@ -63,12 +62,17 @@ tf.app.flags.DEFINE_string("log", 'log/log0', "logfile")
 tf.app.flags.DEFINE_string("nonlinear", 'linear', "nonlinear activation")
 tf.app.flags.DEFINE_integer("gpu", -1, "gpu card number")
 
+# recsys16 related
+tf.app.flags.DEFINE_integer("ta", 1, "target_active")
+tf.app.flags.DEFINE_integer("top_N_items", 30,
+														"number of items output")
+
 FLAGS = tf.app.flags.FLAGS
 
 
 def read_data():
 	(data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
-		logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = 1, 
+		logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = FLAGS.ta, 
 		logits_size_tr=FLAGS.item_vocab_size)
 	print('length of item_ind2logit_ind', len(item_ind2logit_ind))
 	return (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
@@ -122,7 +126,7 @@ def train():
 		logging.info("reading data")
 		(data_tr, data_va, u_attributes, i_attributes,item_ind2logit_ind, 
 			logit_ind2item_ind) = read_data()
-		
+
 		print("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 		logging.info("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
