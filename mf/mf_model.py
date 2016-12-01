@@ -18,7 +18,8 @@ import time
 import sys
 import itertools
 sys.path.insert(0, '../utils')
-import attribute
+import embed_attribute
+
 
 class LatentProductModel(object):
   def __init__(self, user_size, item_size, size,
@@ -69,7 +70,7 @@ class LatentProductModel(object):
     self.dropout = dropout
     self.keep_prob = tf.placeholder(tf.float32, name='keep_prob')
 
-    m = attribute.EmbeddingAttribute(user_attributes, item_attributes, mb, 
+    m = embed_attribute.EmbeddingAttribute(user_attributes, item_attributes, mb, 
       self.n_sampled, 0, False, item_ind2logit_ind, logit_ind2item_ind)
     self.att_emb = m
     embedded_user, user_b = m.get_batch_user(self.keep_prob)

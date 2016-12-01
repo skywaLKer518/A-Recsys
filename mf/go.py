@@ -68,8 +68,9 @@ FLAGS = tf.app.flags.FLAGS
 
 def read_data():
 	(data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
-    logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = 1, 
-    logits_size_tr=FLAGS.item_vocab_size)
+		logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = 1, 
+		logits_size_tr=FLAGS.item_vocab_size)
+	print('length of item_ind2logit_ind', len(item_ind2logit_ind))
 	return (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
     logit_ind2item_ind)
 
@@ -121,6 +122,7 @@ def train():
 		logging.info("reading data")
 		(data_tr, data_va, u_attributes, i_attributes,item_ind2logit_ind, 
 			logit_ind2item_ind) = read_data()
+		
 		print("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 		logging.info("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
@@ -131,8 +133,8 @@ def train():
 		'''
 		print("original train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 		logging.info("original train/dev size: %d/%d" %(len(data_tr),len(data_va)))
-		data_tr = [p for p in data_tr if (item_ind2logit_ind[p[1]] != 0)]
-		data_va = [p for p in data_va if (item_ind2logit_ind[p[1]] != 0)]
+		data_tr = [p for p in data_tr if (p[1] in item_ind2logit_ind)]
+		data_va = [p for p in data_va if (p[1] in item_ind2logit_ind)]
 		print("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 		logging.info("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
@@ -340,7 +342,7 @@ def recommend():
 		print("length of active users in eval week: %d" % len(T))
 		filename0 = '../submissions/historical_train.csv'
 		r0 = load_submit(filename0)
-				
+
 		from load_data import load_user_target_csv, load_item_active_csv
 		Uatt, user_feature_names, Uid2ind = load_user_target_csv()
 		Iatt, item_feature_names, Iid2ind = load_item_active_csv()
