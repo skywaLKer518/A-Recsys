@@ -327,7 +327,7 @@ class EmbeddingAttribute(object):
       self._add_input(input_feed, 'item', item_sampled, 'sampled')
     # input item: for lstm
     if self.item_attributes is not None and self.input_steps > 0:
-      for step in xrange(self.input_steps):
+      for step in range(len(item_input)):
         self._add_input(input_feed, 'item', item_input[step], 
           'input{}'.format(step))
     # for warp loss.
