@@ -286,6 +286,13 @@ class EmbeddingAttribute(object):
     self.pos_item_set_eval = pos_item_set_eval
     return 
 
+  def target_mapping(self, item_target):
+    m = self.item_ind2logit_ind
+    target = []
+    for items in item_target:
+      target.append([m[v] for v in items])
+    return target
+
   def _add_input(self, input_feed, opt, input_, name_):
     if opt == 'user':
       att = self.user_attributes
@@ -314,7 +321,7 @@ class EmbeddingAttribute(object):
 
   def add_input(self, input_feed, user_input, item_input, 
         neg_item_input=None, item_sampled = None, item_sampled_id2idx = None, 
-        forward_only=False, recommend=False, recommend_new = False, loss=None):
+        forward_only=False, recommend=False, loss=None):
     # users
     if self.user_attributes is not None:
       self._add_input(input_feed, 'user', user_input, 'input')
