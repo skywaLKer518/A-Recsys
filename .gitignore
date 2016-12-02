@@ -8,3 +8,4 @@ mf/test*
 mf/log*
 mf/*.sh
 mf/*.pbs
+dataset/*

@@ -9,13 +9,11 @@ import logging
 import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
-# from load_data import *    
 sys.path.insert(0, '../utils')
 
-from recsys_data import data_read
-import mf_model2
-from eval2 import *
-from submit import *
+from xing_data import data_read
+from xing_eval import *
+from xing_submit import *
 
 # in order to profile
 # from tensorflow.python.client import timeline
@@ -77,6 +75,7 @@ def create_model(session, u_attributes=None, i_attributes=None,
   item_ind2logit_ind=None, logit_ind2item_ind=None, 
   loss = FLAGS.loss, logit_size_test=None, ind_item = None):  
   gpu = None if FLAGS.gpu == -1 else FLAGS.gpu
+  import mf_model2
   model = mf_model2.LatentProductModel(FLAGS.user_vocab_size, 
     FLAGS.item_vocab_size, FLAGS.size, FLAGS.num_layers, 
     FLAGS.batch_size, FLAGS.learning_rate, 
@@ -341,7 +340,7 @@ def recommend():
     filename0 = '../submissions/historical_train.csv'
     r0 = load_submit(filename0)
         
-    from load_data import load_user_target_csv, load_item_active_csv
+    from load_xing_data import load_user_target_csv, load_item_active_csv
     Uatt, user_feature_names, Uid2ind = load_user_target_csv()
     Iatt, item_feature_names, Iid2ind = load_item_active_csv()
 

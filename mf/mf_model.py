@@ -209,8 +209,7 @@ class LatentProductModel(object):
       input_feed_warp = self.att_emb.add_input(input_feed, user_input, 
         item_input, neg_item_input=neg_item_input, item_sampled = item_sampled, 
         item_sampled_id2idx = item_sampled_id2idx, 
-        forward_only=forward_only, recommend=recommend, 
-        recommend_new = recommend_new, loss = loss)
+        forward_only=forward_only, recommend=recommend, loss = loss)
 
     if not recommend:
       if not forward_only:

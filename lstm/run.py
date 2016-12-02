@@ -21,7 +21,7 @@ import env
 
 sys.path.insert(0, '../utils')
 import embed_attribute
-from recsys_data import data_read
+from xing_data import data_read
 import data_iterator
 from data_iterator import DataIterator
 from best_buckets import *

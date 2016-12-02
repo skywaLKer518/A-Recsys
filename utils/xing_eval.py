@@ -1,4 +1,4 @@
-from submit import *
+from xing_submit import *
 
 def scores(X, T, opt = 0):
     '''

@@ -286,7 +286,8 @@ class EmbeddingAttribute(object):
     self.pos_item_set_eval = pos_item_set_eval
     return 
 
-  def target_mapping(self, item_target):
+  def target_mapping(self, item_target, loss = 'ce'):
+    ''' TODO: does not work for sampled loss '''
     m = self.item_ind2logit_ind
     target = []
     for items in item_target:

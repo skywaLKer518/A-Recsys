@@ -1,5 +1,5 @@
 import sys
-from load_data import *
+from load_xing_data import *
 from preprocess import *
 from os import listdir, mkdir, path, rename
 from os.path import isfile, join
