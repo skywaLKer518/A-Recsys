@@ -38,6 +38,7 @@ class EmbeddingAttribute(object):
     else:
       self.indices_item = range(self.logit_size)
     # self.logit_size_test = logit_size_test
+    self.mask = None
 
     # user embeddings
     self.user_embs_cat, self.user_embs_mulhot = self.embedded(user_attributes, 
@@ -253,32 +254,38 @@ class EmbeddingAttribute(object):
     if loss in ['ce', 'mce']:
       return tf.nn.sparse_softmax_cross_entropy_with_logits(logits, item_target)
     elif loss in ['warp', 'mw']:
+      if self.mask == None:
+        self.prepare_warp_vars(loss)
       V = self.logit_size if loss == 'warp' else self.n_sampled
       mb = self.batch_size
-      self.mask = tf.Variable([True] * V * mb, dtype=tf.bool, trainable=False)
-      zero_logits = tf.constant([[0.0] * V] * mb)
-      self.pos_indices = tf.placeholder(tf.int32, shape = [None])
-      self.l_true = tf.placeholder(tf.bool, shape = [None], name='l_true')
-      self.l_false = tf.placeholder(tf.bool, shape = [None], name='l_false')
-      self.set_mask = tf.scatter_update(self.mask, self.pos_indices, 
-        self.l_false)
-      self.reset_mask = tf.scatter_update(self.mask, self.pos_indices, 
-        self.l_true)
       flat_matrix = tf.reshape(logits, [-1])
-      idx_flattened0 = tf.range(0, mb) * V
-      idx_flattened = idx_flattened0 + item_target
+      idx_flattened = self.idx_flattened0 + item_target
       logits_ = tf.gather(flat_matrix, idx_flattened)
       logits_ = tf.reshape(logits_, [mb, 1])
       logits2 = tf.sub(logits, logits_) + 1
       mask2 = tf.reshape(self.mask, [mb, V])
-      target = tf.select(mask2, logits2, zero_logits)
+      target = tf.select(mask2, logits2, self.zero_logits)
       return tf.log(1 + tf.reduce_sum(tf.nn.relu(target), 1))
     elif loss == 'bpr':
       return tf.log(1 + tf.exp(logits))
     elif loss == 'bpr-hinge':
       return tf.maximum(1 + logits, 0)
 
-  def get_warp_mask(self):
+  def prepare_warp_vars(self, loss= 'warp'):
+    V = self.logit_size if loss == 'warp' else self.n_sampled
+    mb = self.batch_size
+    self.idx_flattened0 = tf.range(0, mb) * V
+    self.mask = tf.Variable([True] * V * mb, dtype=tf.bool, trainable=False)
+    self.zero_logits = tf.constant([[0.0] * V] * mb)
+    self.pos_indices = tf.placeholder(tf.int32, shape = [None])
+    self.l_true = tf.placeholder(tf.bool, shape = [None], name='l_true')
+    self.l_false = tf.placeholder(tf.bool, shape = [None], name='l_false')
+
+  def get_warp_mask(self):    
+    self.set_mask = tf.scatter_update(self.mask, self.pos_indices, 
+      self.l_false)
+    self.reset_mask = tf.scatter_update(self.mask, self.pos_indices, 
+      self.l_true)
     return self.set_mask, self.reset_mask
 
   def prepare_warp(self, pos_item_set, pos_item_set_eval):
