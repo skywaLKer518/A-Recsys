@@ -39,31 +39,32 @@ tf.app.flags.DEFINE_boolean("fromScratch", True,
                             "withAdagrad.")
 tf.app.flags.DEFINE_boolean("saveCheckpoint", False,
                             "save Model at each checkpoint.")
-tf.app.flags.DEFINE_integer("batch_size", 4,
-                            "Batch size to use during training.")
-tf.app.flags.DEFINE_integer("size", 4, "Size of each model layer.")
-tf.app.flags.DEFINE_integer("num_layers", 2, "Number of layers in the model.")
-tf.app.flags.DEFINE_integer("user_vocab_size", 150000, "User vocabulary size.")
-tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
-tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
-tf.app.flags.DEFINE_string("data_dir", "../mf/data0", "Data directory")
 
+tf.app.flags.DEFINE_boolean("fulldata", False,
+                            "whether to use full dataset")
+
+tf.app.flags.DEFINE_integer("batch_size", 64,
+                            "Batch size to use during training.")
+tf.app.flags.DEFINE_integer("size", 256, "Size of each model layer.")
+tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
+tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
+
+tf.app.flags.DEFINE_string("data_dir", "../mf/data0", "Data directory")
 tf.app.flags.DEFINE_string("train_dir", "./train", "Training directory.")
 
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
                             "Limit on the size of training data (0: no limit).")
 
-tf.app.flags.DEFINE_integer("steps_per_checkpoint", 200,
-                            "How many training steps to do per checkpoint.")
+#tf.app.flags.DEFINE_integer("steps_per_checkpoint", 200,"How many training steps to do per checkpoint.")
+tf.app.flags.DEFINE_string("loss", 'ce', "loss function")
 
 tf.app.flags.DEFINE_integer("n_epoch", 20,
                             "How many epochs to train.")
 
 tf.app.flags.DEFINE_integer("patience", 5,"exit if the model can't improve for $patence evals")
 
-tf.app.flags.DEFINE_integer("L", 5,"max length")
-
-
+tf.app.flags.DEFINE_integer("L", 110,"max length")
+tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -120,8 +121,47 @@ def form_sequence(data):
             
     return dd
 
+
+def prepare_warp(embAttr, data_tr, data_va):
+    hist, hist_va, hist_withval = {}, {}, {}
+    for u, i, _ in data_tr:
+        if u not in hist:
+            hist[u] = set([i])
+        else:
+            hist[u].add(i)
+        if u not in hist_withval:
+            hist_withval[u] = set([i])
+        else:
+            hist_withval[u].add(i)
+
+    for u, i, _ in data_va:
+        if u not in hist_va:
+            hist_va[u] = set([i])
+        else:
+            hist_va[u].add(i)
+        if u not in hist_withval:
+            hist_withval[u] = set([i])
+        else:
+            hist_withval[u].add(i)
+
+    pos_item_list = {}
+    pos_item_list_val = {}
+    for u in hist:
+        pos_item_list[u] = list(hist[u])
+    for u in hist_va:
+        pos_item_list_val[u] = list(hist_va[u])
+
+    embAttr.prepare_warp(pos_item_set, pos_item_set_eval) 
+
+
+
 def read_data():
-    (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = 1, logits_size_tr=FLAGS.item_vocab_size)
+
+    ta = 1
+    if FLAGS.fulldata:
+        ta = 0
+
+    (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = ta, logits_size_tr=FLAGS.item_vocab_size)
 
     # remove unk
     data_tr = [p for p in data_tr if (p[1] in item_ind2logit_ind)]
@@ -134,7 +174,7 @@ def read_data():
 
     # calculate buckets
     global _buckets
-    _buckets = calculate_buckets(seq_tr+seq_va, 10, 10)
+    _buckets = calculate_buckets(seq_tr+seq_va, FLAGS.L, 10)
     _buckets = sorted(_buckets)
 
 
@@ -148,9 +188,10 @@ def read_data():
 
     embAttr = embed_attribute.EmbeddingAttribute(u_attr, i_attr, FLAGS.batch_size, FLAGS.n_sampled, _buckets[-1], False, item_ind2logit_ind, logit_ind2item_ind)
 
+    if FLAGS.loss == "warp":
+        prepare_warp(embAttr, data_tr, data_va)
 
-
-    return seq_tr, seq_va, embAttr, START_ID
+    return seq_tr, seq_va, embAttr, START_ID, len(data_tr), len(data_va)
 
 
 def create_model(session,embAttr,START_ID):
@@ -167,6 +208,7 @@ def create_model(session,embAttr,START_ID):
                      num_samples = FLAGS.n_sampled,
                      dropoutRate = FLAGS.keep_prob,
                      START_ID = START_ID,
+                     loss = FLAGS.loss,
                      dtype = dtype
                      )
 
@@ -193,7 +235,7 @@ def train():
 
     # Read Data
     log_it("Reading Data...")
-    train_set, dev_set, embAttr, START_ID = read_data()
+    train_set, dev_set, embAttr, START_ID, n_targets_train, n_targets_dev = read_data()
     train_bucket_sizes = [len(train_set[b]) for b in xrange(len(_buckets))]
     train_total_size = float(sum(train_bucket_sizes))
     train_buckets_scale = [sum(train_bucket_sizes[:i + 1]) / train_total_size for i in xrange(len(train_bucket_sizes))]
@@ -207,7 +249,7 @@ def train():
     steps_per_epoch = int(train_total_size / batch_size)
     steps_per_dev = int(dev_total_size / batch_size)
 
-    steps_per_checkpoint = 200 #steps_per_dev * 4
+    steps_per_checkpoint = steps_per_dev * 2
     total_steps = steps_per_epoch * n_epoch
 
     # reports
@@ -246,8 +288,11 @@ def train():
         current_step = 0
         previous_losses = []
         his = []
-        low_ppx = 10000000
+        low_ppx = float("inf")
         low_ppx_step = 0
+        steps_per_report = 300
+        n_targets_report = 0
+        report_time = 0
 
         while current_step < total_steps:
             
@@ -263,7 +308,15 @@ def train():
             
             loss += L / (steps_per_checkpoint * batch_size)
             current_step += 1
-        
+            
+            # for report
+            report_time += (time.time() - start_time)
+            n_targets_report += np.sum(weights)
+
+            if current_step % steps_per_report == 0:
+                log_it("--------------------"+"Report"+str(current_step)+"-------------------")
+                log_it("StepTime: {} Speed: {} targets / sec in total {} targets".format(report_time/steps_per_report, n_targets_report*1.0 / report_time, n_targets_train))
+
             if current_step % steps_per_checkpoint == 0:
                 log_it("--------------------"+"TRAIN"+str(current_step)+"-------------------")
                 # Print statistics for the previous epoch.
@@ -274,10 +327,6 @@ def train():
                 train_ppx = perplexity
                 
                 # Save checkpoint and zero timer and loss.
-                checkpoint_path = os.path.join(FLAGS.train_dir, "translate.ckpt")
-                if FLAGS.saveCheckpoint:
-                    log_it("Saving model....")
-                    model.saver.save(sess, checkpoint_path, global_step=model.global_step)
                 step_time, loss = 0.0, 0.0
                                 
                 # dev data
@@ -289,6 +338,10 @@ def train():
                 if eval_ppx < low_ppx:
                     low_ppx = eval_ppx
                     low_ppx_step = current_step
+                    checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
+                    log_it("Saving best model....")
+                    model.saver.save(sess, checkpoint_path, global_step=0)
+
 
                 sys.stdout.flush()
                 # Decrease learning rate if current eval ppl is larger

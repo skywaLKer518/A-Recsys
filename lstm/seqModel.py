@@ -39,6 +39,7 @@ class SeqModel(object):
                  dropoutRate = 1.0,
                  START_ID = 0,
                  PAD_ID = 0,
+                 loss = "ce",
                  dtype=tf.float32):
         """Create the model.
         
@@ -67,7 +68,7 @@ class SeqModel(object):
         self.START_ID = START_ID
         self.PAD_ID = PAD_ID
         self.batch_size = batch_size
-
+        self.loss = loss
         self.dropoutRate = tf.Variable(
             float(dropoutRate), trainable=False, dtype=dtype)
         
@@ -111,6 +112,10 @@ class SeqModel(object):
         # build loss
         self.outputs, self.losses = self.model_with_buckets(self.inputs, self.targets, self.target_weights, self.buckets, single_cell, self.embeddingAttribute, dtype)
         
+        # for warp
+        if self.loss == "warp":
+            self.set_mask, self.reset_mask = self.embeddingAttribute.get_warp_mask()
+
         # train
         params = tf.trainable_variables()
         if not forward_only:
@@ -132,7 +137,7 @@ class SeqModel(object):
                 
         self.saver = tf.train.Saver(tf.all_variables())
 
-    def step(self,session, user_input, item_inputs, targets, target_weights, bucket_id, forward_only = False):
+    def step(self,session, user_input, item_inputs, targets, target_weights, bucket_id, forward_only = False, recommend = False):
         #print(bucket_id)
 
 
@@ -151,7 +156,9 @@ class SeqModel(object):
             input_feed[self.targets[l].name] = targets[l]
             input_feed[self.target_weights[l].name] = target_weights[l]
         #print(input_feed)
-        self.embeddingAttribute.add_input(input_feed, user_input, item_inputs)
+        input_feed_warp = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = forward_only, recommend = recommend, loss = self.loss)
+        if self.loss == "warp":
+            session.run(self.set_mask, input_feed_warp)
         #print(input_feed)
 
         # output_feed
@@ -162,6 +169,10 @@ class SeqModel(object):
             output_feed.append(self.outputs[bucket_id][1])
 
         outputs = session.run(output_feed, input_feed)
+
+        if self.loss == "warp":
+            session.run(self.reset_mask, input_feed_warp)
+
 
         #if len(item_inputs) > 1:        
         #    print(outputs[-1].shape)
