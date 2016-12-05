@@ -12,6 +12,7 @@ import tensorflow as tf
 sys.path.insert(0, '../utils')
 
 from xing_data import data_read
+# from ml_data import data_read
 from xing_eval import *
 from xing_submit import *
 
@@ -20,6 +21,7 @@ from xing_submit import *
 
 tf.app.flags.DEFINE_float("learning_rate", 0.1, "Learning rate.")
 tf.app.flags.DEFINE_float("keep_prob", 0.5, "dropout rate.")
+tf.app.flags.DEFINE_float("power", 0.5, "related to sampling rate.")
 tf.app.flags.DEFINE_float("learning_rate_decay_factor", 1.0,
                           "Learning rate decays by this much.")
 tf.app.flags.DEFINE_float("max_gradient_norm", 5.0,
@@ -27,6 +29,7 @@ tf.app.flags.DEFINE_float("max_gradient_norm", 5.0,
 tf.app.flags.DEFINE_integer("batch_size", 64,
                             "Batch size to use during training.")
 tf.app.flags.DEFINE_integer("size", 20, "Size of each model layer.")
+tf.app.flags.DEFINE_integer("n_resample", 50, "iterations before resample.")
 tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
 tf.app.flags.DEFINE_integer("user_vocab_size", 150000, "User vocabulary size.")
 tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
@@ -37,7 +40,7 @@ tf.app.flags.DEFINE_integer("max_train_data_size", 0,
                             "Limit on the size of training data (0: no limit).")
 tf.app.flags.DEFINE_integer("patience", 30,
                             "exit if the model can't improve for $patience evals")
-tf.app.flags.DEFINE_integer("steps_per_checkpoint", 200,
+tf.app.flags.DEFINE_integer("steps_per_checkpoint", 4000,
                             "How many training steps to do per checkpoint.")
 tf.app.flags.DEFINE_boolean("use_item_feature", True,
                             "Set to True to use item features.")
@@ -51,8 +54,7 @@ tf.app.flags.DEFINE_boolean("eval", False,
                             "Set to True for evaluation.")
 tf.app.flags.DEFINE_boolean("use_more_train", False,
                             "Set true if use non-appearred items to train.")
-tf.app.flags.DEFINE_integer("top_N_items", 30,
-                            "number of items output")
+
 tf.app.flags.DEFINE_string("loss", 'ce',
                             "loss function")
 tf.app.flags.DEFINE_string("model_option", 'loss',
@@ -61,13 +63,23 @@ tf.app.flags.DEFINE_string("log", 'log/log0', "logfile")
 tf.app.flags.DEFINE_string("nonlinear", 'linear', "nonlinear activation")
 tf.app.flags.DEFINE_integer("gpu", -1, "gpu card number")
 
+# Xing related
+tf.app.flags.DEFINE_integer("ta", 1, "target_active")
+tf.app.flags.DEFINE_integer("top_N_items", 30,
+                            "number of items output")
+
 FLAGS = tf.app.flags.FLAGS
 
+def mylog(msg):
+  print(msg)
+  logging.info(msg)
+  return
 
 def read_data():
   (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
-    logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = 1, 
+    logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = FLAGS.ta, 
     logits_size_tr=FLAGS.item_vocab_size)
+  print('length of item_ind2logit_ind', len(item_ind2logit_ind))
   return (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
     logit_ind2item_ind)
 
@@ -75,14 +87,15 @@ def create_model(session, u_attributes=None, i_attributes=None,
   item_ind2logit_ind=None, logit_ind2item_ind=None, 
   loss = FLAGS.loss, logit_size_test=None, ind_item = None):  
   gpu = None if FLAGS.gpu == -1 else FLAGS.gpu
-  import mf_model2
+  n_sampled = FLAGS.n_sampled if FLAGS.loss in ['mw', 'mce'] else None
+  import mf_model2 
   model = mf_model2.LatentProductModel(FLAGS.user_vocab_size, 
     FLAGS.item_vocab_size, FLAGS.size, FLAGS.num_layers, 
     FLAGS.batch_size, FLAGS.learning_rate, 
     FLAGS.learning_rate_decay_factor, u_attributes, i_attributes, 
     item_ind2logit_ind, logit_ind2item_ind, loss_function = loss, GPU=gpu, 
     logit_size_test=logit_size_test, nonlinear=FLAGS.nonlinear, 
-    dropout=FLAGS.keep_prob, n_sampled=FLAGS.n_sampled, indices_item=ind_item)
+    dropout=FLAGS.keep_prob, n_sampled=n_sampled, indices_item=ind_item)
 
   if not os.path.isdir(FLAGS.train_dir):
     os.mkdir(FLAGS.train_dir)
@@ -120,6 +133,7 @@ def train():
     logging.info("reading data")
     (data_tr, data_va, u_attributes, i_attributes,item_ind2logit_ind, 
       logit_ind2item_ind) = read_data()
+
     print("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
     logging.info("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
@@ -130,8 +144,8 @@ def train():
     '''
     print("original train/dev size: %d/%d" %(len(data_tr),len(data_va)))
     logging.info("original train/dev size: %d/%d" %(len(data_tr),len(data_va)))
-    data_tr = [p for p in data_tr if (item_ind2logit_ind[p[1]] != 0)]
-    data_va = [p for p in data_va if (item_ind2logit_ind[p[1]] != 0)]
+    data_tr = [p for p in data_tr if (p[1] in item_ind2logit_ind)]
+    data_va = [p for p in data_va if (p[1] in item_ind2logit_ind)]
     print("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
     logging.info("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
@@ -157,14 +171,23 @@ def train():
 
     # item_population can be pre-specified to a narrower range
     # so that candidate pool is smaller
+    item_counts = {}
     if FLAGS.use_more_train:
       item_population = range(len(item_ind2logit_ind)) # todo
     else:
       item_population = set([])
       for u, i, _ in data_tr:
+        item_counts[i] = 1 if i not in item_counts else item_counts[i] + 1
         item_population.add(i)
       item_population = list(item_population)
+      counts = [item_counts[v] for v in item_population]
     print(len(item_population))
+
+    count_sum = sum(counts) * 1.0
+    power = FLAGS.power
+    p_item_unormalized = [np.power(c / count_sum, power) for c in counts]
+    p_item_sum = sum(p_item_unormalized)
+    p_item = [f / p_item_sum for f in p_item_unormalized]
 
     if FLAGS.use_item_feature:
       print("using item attributes")
@@ -212,26 +235,35 @@ def train():
     while True:
       ranndom_number_01 = np.random.random_sample()
       start_time = time.time()
-      (user_input, item_input, neg_item_input, item_sampled, 
-        item_sampled_id2idx) = model.get_batch(data_tr, loss=FLAGS.loss, 
-        hist=hist)
-      step_loss, step_auc = model.step(sess, user_input, item_input, 
+      (user_input, item_input, neg_item_input) = model.get_batch(data_tr, 
+        loss=FLAGS.loss, hist=hist)
+      if current_step % FLAGS.n_resample == 0:
+        item_sampled = np.random.choice(item_population, FLAGS.n_sampled, replace=False,
+          p=p_item)
+        item_sampled_id2idx = {}
+        i = 0
+        for item in item_sampled:
+          item_sampled_id2idx[item] = i
+          i += 1
+      else:
+        item_sampled = None
+
+
+      step_loss = model.step(sess, user_input, item_input, 
         neg_item_input, item_sampled, item_sampled_id2idx, loss=FLAGS.loss)
 
       step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
       loss += step_loss / FLAGS.steps_per_checkpoint
-      auc += step_auc / FLAGS.steps_per_checkpoint
+      # auc += step_auc / FLAGS.steps_per_checkpoint
       current_step += 1
       
       if current_step % FLAGS.steps_per_checkpoint == 0:
 
         if FLAGS.loss in ['ce', 'mce']:
           perplexity = math.exp(loss) if loss < 300 else float('inf')
-          print ("global step %d learning rate %.4f step-time %.2f perplexity %.2f auc %.2f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, perplexity, auc))
-          logging.info ("global step %d learning rate %.4f step-time %.2f perplexity %.2f auc %.2f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, perplexity, auc))
+          mylog("global step %d learning rate %.4f step-time %.3f perplexity %.2f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, perplexity))
         else:
-          print ("global step %d learning rate %.4f step-time %.2f loss %.3f auc %.4f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, loss, auc))
-          logging.info ("global step %d learning rate %.4f step-time %.2f loss %.3f auc %.4f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, loss, auc))
+          mylog("global step %d learning rate %.4f step-time %.3f loss %.3f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, loss))
         # Create the Timeline object, and write it to a json
         # tl = timeline.Timeline(run_metadata.step_stats)
         # ctf = tl.generate_chrome_trace_format()
@@ -265,27 +297,25 @@ def train():
           user_va = [x[0] for x in lt]
           item_va = [x[1] for x in lt]
           for _ in range(repeat):
-            item_va_neg, item_sampled, item_sampled_id2idx = model.get_eval_batch(
-              FLAGS.loss, user_va, item_va, hist_withval)
-            eval_loss0, auc0 = model.step(sess, user_va, item_va, item_va_neg,
-              item_sampled, item_sampled_id2idx, forward_only=True, 
-              loss=FLAGS.loss)
+            # item_va_neg = model.get_eval_batch(FLAGS.loss, user_va, item_va, 
+            #   hist_withval)
+            item_va_neg = None
+            the_loss = 'warp' if FLAGS.loss == 'mw' else FLAGS.loss
+            eval_loss0 = model.step(sess, user_va, item_va, item_va_neg,
+              None, None, forward_only=True, 
+              loss=the_loss)
             eval_loss += eval_loss0
-            eval_auc += auc0
+            # eval_auc += auc0
             count_va += 1
         eval_loss /= count_va
         eval_auc /= count_va
         step_time = (time.time() - start_time) / count_va
         if FLAGS.loss in ['ce', 'mce']:
           eval_ppx = math.exp(eval_loss) if eval_loss < 300 else float('inf')
-          print("  eval: perplexity %.2f eval_auc %.4f step-time %.2f" % (
-            eval_ppx, eval_auc, step_time))
-          logging.info("  eval: perplexity %.2f eval_auc %.4f step-time %.2f" % (
+          mylog("  eval: perplexity %.2f eval_auc %.4f step-time %.3f" % (
             eval_ppx, eval_auc, step_time))
         else:
-          print("  eval: loss %.3f eval_auc %.4f step-time %.2f" % (eval_loss, 
-            eval_auc, step_time))
-          logging.info("  eval: loss %.3f eval_auc %.4f step-time %.2f" % (eval_loss, 
+          mylog("  eval: loss %.3f eval_auc %.4f step-time %.3f" % (eval_loss, 
             eval_auc, step_time))
         sys.stdout.flush()
 
@@ -339,7 +369,7 @@ def recommend():
     print("length of active users in eval week: %d" % len(T))
     filename0 = '../submissions/historical_train.csv'
     r0 = load_submit(filename0)
-        
+
     from load_xing_data import load_user_target_csv, load_item_active_csv
     Uatt, user_feature_names, Uid2ind = load_user_target_csv()
     Iatt, item_feature_names, Iid2ind = load_item_active_csv()

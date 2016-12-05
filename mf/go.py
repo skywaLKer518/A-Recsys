@@ -81,14 +81,15 @@ def create_model(session, u_attributes=None, i_attributes=None,
 	item_ind2logit_ind=None, logit_ind2item_ind=None, 
 	loss = FLAGS.loss, logit_size_test=None, ind_item = None):	
 	gpu = None if FLAGS.gpu == -1 else FLAGS.gpu
-	import mf_model
+	n_sampled = FLAGS.n_sampled if FLAGS.loss in ['mw', 'mce'] else None
+	import mf_model	
 	model = mf_model.LatentProductModel(FLAGS.user_vocab_size, 
 		FLAGS.item_vocab_size, FLAGS.size, FLAGS.num_layers, 
 		FLAGS.batch_size, FLAGS.learning_rate, 
 		FLAGS.learning_rate_decay_factor, u_attributes, i_attributes, 
 		item_ind2logit_ind, logit_ind2item_ind, loss_function = loss, GPU=gpu, 
 		logit_size_test=logit_size_test, nonlinear=FLAGS.nonlinear, 
-		dropout=FLAGS.keep_prob, n_sampled=FLAGS.n_sampled, indices_item=ind_item)
+		dropout=FLAGS.keep_prob, n_sampled=n_sampled, indices_item=ind_item)
 
 	if not os.path.isdir(FLAGS.train_dir):
 		os.mkdir(FLAGS.train_dir)

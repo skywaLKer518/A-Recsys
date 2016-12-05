@@ -95,16 +95,6 @@ class LatentProductModel(object):
 
     # mini batch version
     # print("sampled prediction")
-    # if self.n_sampled is not None:
-    #   embedded_item, item_b = m.get_batch_item('sampled', self.n_sampled)
-    #   # compute sampled 'logits'/'scores'
-    #   innerps = []
-    #   for i in xrange(m.num_item_features):
-    #     innerps.append(tf.matmul(embedded_item[i], 
-    #       tf.transpose(proj_user_drops[i])))
-    #   sampled_logits = tf.transpose(tf.reduce_sum(innerps, 0)) + item_b
-
-    print("sampled prediction")
     if self.n_sampled is not None:
       embedded_item, item_b = m.get_batch_item('sampled', self.n_sampled)
       # compute sampled 'logits'/'scores'

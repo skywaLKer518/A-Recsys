@@ -9,3 +9,4 @@ mf/log*
 mf/*.sh
 mf/*.pbs
 dataset/*
+jobs/*

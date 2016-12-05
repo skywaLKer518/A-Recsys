@@ -38,20 +38,24 @@ class EmbeddingAttribute(object):
     else:
       self.indices_item = range(self.logit_size)
     # self.logit_size_test = logit_size_test
-    self.mask = None
+    self.mask = {}
+    self.zero_logits = {}
+    self.pos_indices = {}
+    self.l_true = {}
+    self.l_false = {}
 
     # user embeddings
-    self.user_embs_cat, self.user_embs_mulhot = self.embedded(user_attributes, 
+    self.user_embs_cat, self.user_embs_mulhot = self._embedded(user_attributes, 
       prefix='user')
     #item embeddings
-    self.item_embs_cat, self.item_embs_mulhot = self.embedded(item_attributes, 
+    self.item_embs_cat, self.item_embs_mulhot = self._embedded(item_attributes, 
       prefix='item', transpose=False)
-    self.i_biases_cat, self.i_biases_mulhot = self.embedded_bias(
+    self.i_biases_cat, self.i_biases_mulhot = self._embedded_bias(
       item_attributes, 'item')
     if item_output:
       self.item_embs2_cat, self.item_embs2_mulhot = self.embedded(
         item_attributes, prefix='item_output', transpose=False)
-      self.i_biases2_cat, self.i_biases2_mulhot = self.embedded_bias(
+      self.i_biases2_cat, self.i_biases2_mulhot = self._embedded_bias(
         item_attributes, 'item_output')
     # input users
     self.u_mappings = {}
@@ -69,7 +73,9 @@ class EmbeddingAttribute(object):
     ** ??use get_prediction to feed forward/backward
     '''
     print("construct mini-batch item candicate pool")
-    self.i_mappings['sampled'] = self._placeholders('item', 'sampled', self.n_sampled)
+    if self.n_sampled is not None:
+      self.i_mappings['sampled_pass'] = self._placeholders('item', 'sampled', 
+        self.n_sampled)
 
     # input items (for lstm etc)
     print("construct input item")
@@ -78,6 +84,7 @@ class EmbeddingAttribute(object):
       self.i_mappings[name_] = self._placeholders('item', name_, mb)
 
     # item for prediction
+    ''' full version'''
     ia = item_attributes
     print("construct full prediction layer")
     indices_cat, indices_mulhot, segids_mulhot, lengths_mulhot = [],[],[],[]
@@ -87,10 +94,36 @@ class EmbeddingAttribute(object):
       indices_mulhot.append(tf.constant(ia.full_values_tr[i]))
       segids_mulhot.append(tf.constant(ia.full_segids_tr[i]))
       lengths_mulhot.append(tf.constant(ia.full_lengths_tr[i]))
-    self.i_mappings['prediction'] = (indices_cat, indices_mulhot, segids_mulhot,
+    self.i_mappings['full'] = (indices_cat, indices_mulhot, segids_mulhot,
       lengths_mulhot)
-
+    ''' sampled version '''
+    print("sampled prediction layer")
+    if self.n_sampled is not None:
+      self.i_mappings['sampled'] = self._var_indices(self.n_sampled)
+      self.update_sampled = self._pass_sampled_items()
     return
+
+  def _var_indices(self, size, name='sampled', opt='item'):
+    cat_indices, mulhot_indices, mulhot_segids, mulhot_lengths = [],[], [], []
+    att = self.item_attributes
+    init_int32 = tf.constant(0)
+    for i in xrange(att.num_features_cat):
+      cat_indices.append(tf.get_variable(dtype = tf.int32,
+        name = "var{}_{}_cat_ind_{}".format(opt, name, i), trainable=False, 
+        initializer=tf.zeros([size],dtype=tf.int32)))
+    for i in xrange(att.num_features_mulhot):
+      l1 = len(att.full_values_tr[i])
+      mulhot_indices.append(tf.get_variable(dtype = tf.int32, trainable=False,
+        initializer=tf.zeros([l1],dtype=tf.int32), 
+        name = "var{}_{}_mulhot_ind_{}".format(opt, name, i)))
+      l2 = len(att.full_segids_tr[i])
+      assert(l1==l2), 'length of indices/segids should be the same %d/%d'%(l1,l2)
+      mulhot_segids.append(tf.get_variable(dtype = tf.int32, trainable=False,
+        initializer=tf.zeros([l2],dtype=tf.int32), 
+        name = "var{}_{}_mulhot_seg_{}".format(opt, name, i)))
+      mulhot_lengths.append(tf.get_variable(dtype =tf.float32, shape= [size, 1], 
+        name = "var{}_{}_mulhot_len_{}".format(opt, name, i), trainable=False))
+    return (cat_indices, mulhot_indices, mulhot_segids, mulhot_lengths)
 
   def _placeholders(self, opt, name, size):
     cat_indices, mulhot_indices, mulhot_segids, mulhot_lengths = [],[], [], []
@@ -107,34 +140,42 @@ class EmbeddingAttribute(object):
         name = "{}_{}_mulhot_len_{}".format(opt, name, i)))
     return (cat_indices, mulhot_indices, mulhot_segids, mulhot_lengths)
 
-  def get_prediction(self, latent, full='prediction'):
-    # print("construct inner products between mb users and full item embeddings")  
-    full_out_layer = self.i_mappings[full]
-    # full_out_layer = self.full_output_layer(self.item_attributes)
-    indices_cat, indices_mulhot, segids_mulhot, lengths_mulhot = full_out_layer
+  def get_prediction(self, latent, pool='full'):
     # compute inner product between item_hidden and {user_feature_embedding}
-    # then lookup to compute logits
+    # then lookup to compute logits    
+    full_out_layer = self.i_mappings[pool]
+    indices_cat, indices_mulhot, segids_mulhot, lengths_mulhot = full_out_layer
     innerps = []
     for i in xrange(self.item_attributes.num_features_cat):
       item_emb_cat = self.item_embs2_cat[i] if self.item_output else self.item_embs_cat[i]
       i_biases_cat = self.i_biases2_cat[i] if self.item_output else self.i_biases_cat[i]
       u = latent[i] if isinstance(latent, list) else latent
+      inds = indices_cat[i]
       innerp = tf.matmul(item_emb_cat, tf.transpose(u)) + i_biases_cat # Vf by mb
-      innerps.append(lookup(innerp, indices_cat[i])) # V by mb
+      innerps.append(lookup(innerp, inds)) # V by mb
     offset = self.item_attributes.num_features_cat
     for i in xrange(self.item_attributes.num_features_mulhot):
       item_embs_mulhot = self.item_embs2_mulhot[i] if self.item_output else self.item_embs_mulhot[i]
       item_biases_mulhot = self.i_biases2_mulhot[i] if self.item_output else self.i_biases_mulhot[i]
       u = latent[i+offset] if isinstance(latent, list) else latent
+      lengs = lengths_mulhot[i]
+      if pool == 'full':
+        inds = indices_mulhot[i]
+        segids = segids_mulhot[i]
+        V = self.logit_size
+      else:
+        inds = tf.slice(indices_mulhot[i], [0], [self.sampled_mulhot_l[i]])
+        segids = tf.slice(segids_mulhot[i], [0], [self.sampled_mulhot_l[i]])
+        V = self.n_sampled
       innerp = tf.add(tf.matmul(item_embs_mulhot, tf.transpose(u)), 
         item_biases_mulhot) 
       innerps.append(tf.div(tf.unsorted_segment_sum(lookup(innerp, 
-        indices_mulhot[i]), segids_mulhot[i], self.logit_size), lengths_mulhot[i]))
+        inds), segids, V), lengs))
 
-    logits = tf.transpose(tf.reduce_sum(innerps, 0))
+    logits = tf.transpose(tf.reduce_mean(innerps, 0))
     return logits
 
-  def embedded(self, attributes, prefix='', transpose=False):
+  def _embedded(self, attributes, prefix='', transpose=False):
     '''
     variables of full vocabulary for each type of features
     '''
@@ -161,7 +202,7 @@ class EmbeddingAttribute(object):
       embs_mulhot.append(embedding)
     return embs_cat, embs_mulhot
 
-  def embedded_bias(self, attributes, prefix):
+  def _embedded_bias(self, attributes, prefix):
     biases_cat, biases_mulhot = [], []
     for i in range(attributes.num_features_cat):
       V = attributes._embedding_classes_list_cat[i]
@@ -251,41 +292,95 @@ class EmbeddingAttribute(object):
 
   def compute_loss(self, logits, item_target, loss='ce'):
     assert(loss in ['ce', 'mce', 'warp', 'mw', 'bpr', 'bpr-hinge'])
-    if loss in ['ce', 'mce']:
+    if loss == 'ce':
       return tf.nn.sparse_softmax_cross_entropy_with_logits(logits, item_target)
-    elif loss in ['warp', 'mw']:
-      if self.mask == None:
-        self.prepare_warp_vars(loss)
-      V = self.logit_size if loss == 'warp' else self.n_sampled
-      mb = self.batch_size
-      flat_matrix = tf.reshape(logits, [-1])
-      idx_flattened = self.idx_flattened0 + item_target
-      logits_ = tf.gather(flat_matrix, idx_flattened)
-      logits_ = tf.reshape(logits_, [mb, 1])
-      logits2 = tf.sub(logits, logits_) + 1
-      mask2 = tf.reshape(self.mask, [mb, V])
-      target = tf.select(mask2, logits2, self.zero_logits)
-      return tf.log(1 + tf.reduce_sum(tf.nn.relu(target), 1))
+    elif loss == 'warp':
+      return self._compute_warp_loss(logits, item_target)
+    elif loss == 'mw':
+      return self._compute_mw_loss(logits, item_target)  
     elif loss == 'bpr':
       return tf.log(1 + tf.exp(logits))
     elif loss == 'bpr-hinge':
       return tf.maximum(1 + logits, 0)
+    else:
+      print('Error: not implemented other loss!!')
+      exit(1)
 
-  def prepare_warp_vars(self, loss= 'warp'):
+  def _compute_warp_loss(self, logits, item_target):
+    loss = 'warp'
+    if loss not in self.mask:
+      self._prepare_warp_vars(loss)
+    V = self.logit_size
+    mb = self.batch_size
+    flat_matrix = tf.reshape(logits, [-1])
+    idx_flattened = self.idx_flattened0 + item_target
+    logits_ = tf.gather(flat_matrix, idx_flattened)
+    logits_ = tf.reshape(logits_, [mb, 1])
+    logits2 = tf.sub(logits, logits_) + 1
+    mask2 = tf.reshape(self.mask[loss], [mb, V])
+    target = tf.select(mask2, logits2, self.zero_logits[loss])
+    return tf.log(1 + tf.reduce_sum(tf.nn.relu(target), 1))
+
+  def _compute_mw_loss(self, logits, item_target):
+    if 'mw' not in self.mask:
+      self._prepare_warp_vars('mw')
+    V = self.n_sampled
+    mb = self.batch_size
+    logits2 = tf.sub(logits, tf.reshape(item_target, [mb, 1])) + 1
+    mask2 = tf.reshape(self.mask['mw'], [mb, V])
+    target = tf.select(mask2, logits2, self.zero_logits['mw'])
+    return tf.log(1 + tf.reduce_sum(tf.nn.relu(target), 1)) # scale or not??
+
+  def _prepare_warp_vars(self, loss= 'warp'):
     V = self.logit_size if loss == 'warp' else self.n_sampled
     mb = self.batch_size
     self.idx_flattened0 = tf.range(0, mb) * V
-    self.mask = tf.Variable([True] * V * mb, dtype=tf.bool, trainable=False)
-    self.zero_logits = tf.constant([[0.0] * V] * mb)
-    self.pos_indices = tf.placeholder(tf.int32, shape = [None])
-    self.l_true = tf.placeholder(tf.bool, shape = [None], name='l_true')
-    self.l_false = tf.placeholder(tf.bool, shape = [None], name='l_false')
+    self.mask[loss] = tf.Variable([True] * V * mb, dtype=tf.bool, 
+      trainable=False)
+    self.zero_logits[loss] = tf.constant([[0.0] * V] * mb)
+    self.pos_indices[loss] = tf.placeholder(tf.int32, shape = [None])
+    self.l_true[loss] = tf.placeholder(tf.bool, shape = [None], name='l_true')
+    self.l_false[loss] = tf.placeholder(tf.bool, shape = [None], name='l_false')
+    
+  def _pass_sampled_items(self):
+    self.updated_indices = []
+    self.sampled_mulhot_l = []
+    self.sampled_mulhot_l_pass = []
+    res = []
+    var_s = self.i_mappings['sampled']
 
-  def get_warp_mask(self):    
-    self.set_mask = tf.scatter_update(self.mask, self.pos_indices, 
-      self.l_false)
-    self.reset_mask = tf.scatter_update(self.mask, self.pos_indices, 
-      self.l_true)
+    att = self.item_attributes
+    for i in xrange(att.num_features_cat):
+      vals = self.i_mappings['sampled_pass'][0][i]
+      res.append(tf.assign(var_s[0][i], vals))
+    for i in xrange(att.num_features_mulhot):
+      indices = tf.placeholder(tf.int32, shape=[None])
+      self.updated_indices.append(indices)
+
+      vals = self.i_mappings['sampled_pass'][1][i]
+      res.append(tf.scatter_update(var_s[1][i], indices, vals))
+      segs = self.i_mappings['sampled_pass'][2][i]
+      res.append(tf.scatter_update(var_s[2][i], indices, segs))
+      lengs = self.i_mappings['sampled_pass'][3][i]
+      res.append(tf.assign(var_s[3][i], lengs))
+      
+      l = tf.get_variable(name='sampled_l_mulhot_{}'.format(i), dtype=tf.int32, 
+        initializer=tf.constant(0), trainable=False)      
+      self.sampled_mulhot_l.append(l)
+      l_pass = tf.placeholder(tf.int32, shape=[])
+      self.sampled_mulhot_l_pass.append(l_pass)
+      res.append(tf.assign(l, l_pass))
+    return res
+
+  def get_warp_mask(self):
+    self.set_mask, self.reset_mask = {}, {}
+    for loss in ['mw', 'warp']:
+      if loss not in self.mask:
+        continue
+      self.set_mask[loss] = tf.scatter_update(self.mask[loss], 
+        self.pos_indices[loss], self.l_false[loss])
+      self.reset_mask[loss] = tf.scatter_update(self.mask[loss], 
+        self.pos_indices[loss], self.l_true[loss])
     return self.set_mask, self.reset_mask
 
   def prepare_warp(self, pos_item_set, pos_item_set_eval):
@@ -313,7 +408,8 @@ class EmbeddingAttribute(object):
 
     for i in xrange(att.num_features_cat):
       input_feed[mappings[0][i].name] = att.features_cat[i][input_]
-        
+    
+    l_mulhot = []    
     for i in xrange(att.num_features_mulhot):
       v_i, s_i, l_i = (att.features_mulhot[i], att.mulhot_starts[i], 
         att.mulhot_lengths[i])
@@ -326,25 +422,38 @@ class EmbeddingAttribute(object):
       input_feed[mappings[1][i].name] = vals
       input_feed[mappings[2][i].name] = i1
       input_feed[mappings[3][i].name] = np.reshape(Ls, (l, 1))
+      l_mulhot.append(len(vals))
+    return l_mulhot
 
   def add_input(self, input_feed, user_input, item_input, 
         neg_item_input=None, item_sampled = None, item_sampled_id2idx = None, 
         forward_only=False, recommend=False, loss=None):
+    
     # users
     if self.user_attributes is not None:
       self._add_input(input_feed, 'user', user_input, 'input')
     # pos neg: when input_steps = 0 
     if self.item_attributes is not None and recommend is False and self.input_steps == 0:
       self._add_input(input_feed, 'item', item_input, 'pos')
-      self._add_input(input_feed, 'item', neg_item_input, 'neg')    
-    # sampled item: when sampled-loss is used
-    if self.item_attributes is not None and recommend is False and self.n_sampled is not None and loss in ['mw', 'mce']:
-      self._add_input(input_feed, 'item', item_sampled, 'sampled')
+      # self._add_input(input_feed, 'item', neg_item_input, 'neg')    
+
     # input item: for lstm
     if self.item_attributes is not None and self.input_steps > 0:
       for step in range(len(item_input)):
         self._add_input(input_feed, 'item', item_input[step], 
           'input{}'.format(step))
+
+    # sampled item: when sampled-loss is used
+    input_feed_sampled = {}
+    update_sampled = []
+    if self.item_attributes is not None and recommend is False and item_sampled is not None and loss in ['mw', 'mce']:      
+      l_mulhot = self._add_input(input_feed_sampled, 'item', item_sampled, 
+        'sampled_pass')
+      for i in range(self.item_attributes.num_features_mulhot):
+        input_feed_sampled[self.updated_indices[i].name] = range(l_mulhot[i])
+        input_feed_sampled[self.sampled_mulhot_l_pass[i].name] = l_mulhot[i]
+      update_sampled = self.update_sampled
+
     # for warp loss.
     input_feed_warp = {}
     if loss in ['warp', 'mw'] and recommend is False:
@@ -365,11 +474,11 @@ class EmbeddingAttribute(object):
             if v in s_2idx])
           c += 1          
       L = len(mask_indices)
-      input_feed_warp[self.pos_indices.name] = mask_indices
-      input_feed_warp[self.l_false.name] = [False] * L
-      input_feed_warp[self.l_true.name] = [True] * L
+      input_feed_warp[self.pos_indices[loss].name] = mask_indices
+      input_feed_warp[self.l_false[loss].name] = [False] * L
+      input_feed_warp[self.l_true[loss].name] = [True] * L
 
-    return input_feed_warp
+    return update_sampled, input_feed_sampled, input_feed_warp
 
 
 

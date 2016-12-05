@@ -91,19 +91,22 @@ class LatentProductModel(object):
     # mini batch version
     print("sampled prediction")
     if self.n_sampled is not None:
-      embedded_item, item_b = m.get_batch_item('sampled', self.n_sampled)
-      embedded_item = tf.reduce_mean(embedded_item, 0)
-      # compute sampled 'logits'/'scores'
-      sampled_logits = tf.matmul(embedded_user, tf.transpose(embedded_item)) + item_b
-   
+      sampled_logits = m.get_prediction(embedded_user, 'sampled')
+    # if self.n_sampled is not None:
+    #   embedded_item, item_b = m.get_batch_item('sampled', self.n_sampled)
+    #   embedded_item = tf.reduce_mean(embedded_item, 0)
+    #   sampled_logits = tf.matmul(embedded_user, tf.transpose(embedded_item)) + item_b
+
     print("non-sampled prediction")
     logits = m.get_prediction(embedded_user)
 
     loss = self.loss_function
     if loss in ['warp', 'ce']:
       batch_loss = m.compute_loss(logits, self.item_target, loss)
-    elif loss in ['mw', 'mce']:
-      batch_loss = m.compute_loss(sampled_logits, self.item_target, loss)
+    elif loss in ['mw']:
+      batch_loss = m.compute_loss(sampled_logits, self.pos_score, loss)
+      batch_loss_eval = m.compute_loss(logits, self.item_target, 'warp')
+
     elif loss in ['bpr', 'bpr-hinge']:
       batch_loss = m.compute_loss(neg_pos, self.item_target, loss)
     else:
@@ -113,6 +116,7 @@ class LatentProductModel(object):
       self.set_mask, self.reset_mask = m.get_warp_mask()
 
     self.loss = tf.reduce_mean(batch_loss)
+    self.loss_eval = tf.reduce_mean(batch_loss_eval) if loss == 'mw' else self.loss
     # Gradients and SGD update operation for training the model.
     params = tf.trainable_variables()
     opt = tf.train.AdagradOptimizer(self.learning_rate)
@@ -141,28 +145,34 @@ class LatentProductModel(object):
     
     if loss in ['warp', 'ce'] and recommend == False:
       input_feed[self.item_target.name] = [self.item_ind2logit_ind[v] for v in item_input]
-    if loss in ['mw', 'mce'] and recommend == False:
-      input_feed[self.item_target.name] = [item_sampled_id2idx[v] for v in item_input]
+    # if loss in ['mw', 'mce'] and recommend == False:
+      # input_feed[self.item_target.name] = [item_sampled_id2idx[v] for v in item_input]
 
     if self.att_emb is not None:
-      input_feed_warp = self.att_emb.add_input(input_feed, user_input, 
-        item_input, neg_item_input=neg_item_input, item_sampled = item_sampled, 
-        item_sampled_id2idx = item_sampled_id2idx, 
+      (update_sampled, input_feed_sampled, 
+        input_feed_warp) = self.att_emb.add_input(input_feed, user_input, 
+        item_input, neg_item_input=neg_item_input, 
+        item_sampled = item_sampled, item_sampled_id2idx = item_sampled_id2idx, 
         forward_only=forward_only, recommend=recommend, loss = loss)
 
     if not recommend:
       if not forward_only:
-        output_feed = [self.updates, self.loss, self.auc]
+        # output_feed = [self.updates, self.loss, self.auc]
+        output_feed = [self.updates, self.loss]        
       else:
-        output_feed = [self.loss, self.auc]
+        # output_feed = [self.loss_eval, self.auc]
+        output_feed = [self.loss_eval]
     else:
       if recommend_new:
         output_feed = [self.indices_test]
       else:
         output_feed = [self.indices]
 
+    if item_sampled is not None:
+      session.run(update_sampled, input_feed_sampled)
+
     if (loss == 'warp' or loss =='mw') and recommend is False:
-      session.run(self.set_mask, input_feed_warp)
+      session.run(self.set_mask[loss], input_feed_warp)
 
     if run_op is not None and run_meta is not None:
       outputs = session.run(output_feed, input_feed, options=run_op, run_metadata=run_meta)
@@ -170,13 +180,13 @@ class LatentProductModel(object):
       outputs = session.run(output_feed, input_feed)
 
     if (loss == 'warp' or loss =='mw') and recommend is False:
-      session.run(self.reset_mask, input_feed_warp)
+      session.run(self.reset_mask[loss], input_feed_warp)
 
     if not recommend:
       if not forward_only:
-        return outputs[1], outputs[2] #, outputs[3], outputs[4]
+        return outputs[1]#, outputs[2]#, outputs[3] #, outputs[3], outputs[4]
       else:
-        return outputs[0], outputs[1]
+        return outputs[0]#, outputs[1]
     else:
       return outputs[0]
 
@@ -190,54 +200,23 @@ class LatentProductModel(object):
       batch_user_input.append(u)
       batch_item_input.append(i)
       
-      i2 = random.choice(self.indices_item)
-      while i2 in hist[u]:
-        i2 = random.choice(self.indices_item)
-      batch_neg_item_input.append(i2)
+      # i2 = random.choice(self.indices_item)
+      # while i2 in hist[u]:
+      #   i2 = random.choice(self.indices_item)
+      # batch_neg_item_input.append(i2)
       count += 1
-
-    if loss in  ['mw', 'mce']:
-      pos_item_set = set(batch_item_input)
-      l0 = len(pos_item_set)
-      pos_item_set.union(random.sample(self.indices_item, self.n_sampled - l0))
-      l = len(pos_item_set)
-      while l < self.n_sampled:
-        pos_item_set.add(random.choice(self.indices_item))
-        l = len(pos_item_set)
-      item_sampled = list(pos_item_set)
-      id2idx = {}
-      i = 0
-      for item in item_sampled:
-        id2idx[item] = i
-        i += 1
-      return (batch_user_input, batch_item_input, batch_neg_item_input, 
-        item_sampled, id2idx)
         
-    return batch_user_input, batch_item_input, batch_neg_item_input, None, None
+    return batch_user_input, batch_item_input, batch_neg_item_input
 
-  def get_eval_batch(self, loss, users, items, hist = None):
-    neg_items = []
-    l, i = len(users), 0
-    while i < l:
-      u = users[i]
-      i2 = random.choice(self.indices_item)
-      while i2 in hist[u]:
-        i2 = random.choice(self.indices_item)
-      neg_items.append(i2)
-      i += 1
-    if loss in ['mw', 'mce']:
-      pos_item_set = set(items)
-      l0 = len(pos_item_set)
-      pos_item_set.union(random.sample(self.indices_item, self.n_sampled - l0))
-      l = len(pos_item_set)
-      while l < self.n_sampled:
-        pos_item_set.add(random.choice(self.indices_item))
-        l = len(pos_item_set)
-      item_sampled = list(pos_item_set)
-      id2idx, i = {}, 0
-      for item in item_sampled:
-        id2idx[item] = i
-        i += 1
-      return (neg_items, item_sampled, id2idx)
+  # def get_eval_batch(self, loss, users, items, hist = None):
+  #   neg_items = []
+  #   l, i = len(users), 0
+  #   while i < l:
+  #     u = users[i]
+  #     i2 = random.choice(self.indices_item)
+  #     while i2 in hist[u]:
+  #       i2 = random.choice(self.indices_item)
+  #     neg_items.append(i2)
+  #     i += 1
         
-    return neg_items, None, None
+  #   return neg_items #, None, None
