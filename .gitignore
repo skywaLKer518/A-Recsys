@@ -10,3 +10,5 @@ mf/*.sh
 mf/*.pbs
 dataset/*
 jobs/*
+mf/*.json
+*.json

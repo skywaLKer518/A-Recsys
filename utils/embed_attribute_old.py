@@ -13,7 +13,7 @@ from tensorflow.python.ops import embedding_ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops.embedding_ops import embedding_lookup as lookup
 import itertools
-from mulhot_index import *
+
 
 class EmbeddingAttribute(object):
   def __init__(self, user_attributes, item_attributes, mb, n_sampled, 
@@ -44,10 +44,6 @@ class EmbeddingAttribute(object):
     self.l_true = {}
     self.l_false = {}
 
-    self.att = {}
-    self._init_attributes(user_attributes, name='user')
-    self._init_attributes(item_attributes, name='item')
-
     # user embeddings
     self.user_embs_cat, self.user_embs_mulhot = self._embedded(user_attributes, 
       prefix='user')
@@ -62,26 +58,30 @@ class EmbeddingAttribute(object):
       self.i_biases2_cat, self.i_biases2_mulhot = self._embedded_bias(
         item_attributes, 'item_output')
     # input users
-    self.u_indices = {}
-    self.u_indices['input'] = self._placeholders('user', 'input', mb)
+    self.u_mappings = {}
+    self.u_mappings['input'] = self._placeholders('user', 'input', mb)
 
     # item -- positive/negative sample indices
     print("construct postive/negative items/scores ")        
-    self.i_indices = {}
-    self.i_indices['pos'] = self._placeholders('item', 'pos', mb)
-    self.i_indices['neg'] = self._placeholders('item', 'neg', mb)
+    self.i_mappings = {}
+    self.i_mappings['pos'] = self._placeholders('item', 'pos', mb)
+    self.i_mappings['neg'] = self._placeholders('item', 'neg', mb)
 
     # mini-batch item candidate pool
+    ''' TODO: 
+    ** change to variables, sampled every now and then 
+    ** ??use get_prediction to feed forward/backward
+    '''
     print("construct mini-batch item candicate pool")
     if self.n_sampled is not None:
-      self.i_indices['sampled_pass'] = self._placeholders('item', 'sampled', 
+      self.i_mappings['sampled_pass'] = self._placeholders('item', 'sampled', 
         self.n_sampled)
 
     # input items (for lstm etc)
     print("construct input item")
     for step in xrange(input_steps):
       name_ = 'input{}'.format(step)
-      self.i_indices[name_] = self._placeholders('item', name_, mb)
+      self.i_mappings[name_] = self._placeholders('item', name_, mb)
 
     # item for prediction
     ''' full version'''
@@ -94,12 +94,12 @@ class EmbeddingAttribute(object):
       indices_mulhot.append(tf.constant(ia.full_values_tr[i]))
       segids_mulhot.append(tf.constant(ia.full_segids_tr[i]))
       lengths_mulhot.append(tf.constant(ia.full_lengths_tr[i]))
-    self.i_indices['full'] = (indices_cat, indices_mulhot, segids_mulhot,
+    self.i_mappings['full'] = (indices_cat, indices_mulhot, segids_mulhot,
       lengths_mulhot)
     ''' sampled version '''
     print("sampled prediction layer")
     if self.n_sampled is not None:
-      self.i_indices['sampled'] = self._var_indices(self.n_sampled)
+      self.i_mappings['sampled'] = self._var_indices(self.n_sampled)
       self.update_sampled = self._pass_sampled_items()
     return
 
@@ -126,13 +126,24 @@ class EmbeddingAttribute(object):
     return (cat_indices, mulhot_indices, mulhot_segids, mulhot_lengths)
 
   def _placeholders(self, opt, name, size):
-    return tf.placeholder(tf.int32, shape=[size], name = "{}_{}_ind".format(opt,
-      name))
+    cat_indices, mulhot_indices, mulhot_segids, mulhot_lengths = [],[], [], []
+    att = self.user_attributes if opt =='user' else self.item_attributes
+    for i in xrange(att.num_features_cat):
+      cat_indices.append(tf.placeholder(tf.int32, shape = [size], 
+        name = "{}_{}_cat_ind_{}".format(opt, name, i)))
+    for i in xrange(att.num_features_mulhot):
+      mulhot_indices.append(tf.placeholder(tf.int32, shape = [None], 
+        name = "{}_{}_mulhot_ind_{}".format(opt, name, i)))
+      mulhot_segids.append(tf.placeholder(tf.int32, shape = [None], 
+        name = "{}_{}_mulhot_seg_{}".format(opt, name, i)))
+      mulhot_lengths.append(tf.placeholder(tf.float32, shape= [size, 1], 
+        name = "{}_{}_mulhot_len_{}".format(opt, name, i)))
+    return (cat_indices, mulhot_indices, mulhot_segids, mulhot_lengths)
 
   def get_prediction(self, latent, pool='full'):
     # compute inner product between item_hidden and {user_feature_embedding}
     # then lookup to compute logits    
-    full_out_layer = self.i_indices[pool]
+    full_out_layer = self.i_mappings[pool]
     indices_cat, indices_mulhot, segids_mulhot, lengths_mulhot = full_out_layer
     innerps = []
     for i in xrange(self.item_attributes.num_features_cat):
@@ -164,36 +175,6 @@ class EmbeddingAttribute(object):
     logits = tf.transpose(tf.reduce_mean(innerps, 0))
     return logits
 
-  def get_batch_user(self, keep_prob, concat=True):
-    u_inds = self.u_indices['input']
-    if concat:
-      embedded_user, user_b = self._get_embedded(self.user_embs_cat, 
-        self.user_embs_mulhot, b_cat=None, b_mulhot=None, inds=u_inds, 
-        mb=self.batch_size, attributes=self.user_attributes, prefix='user', 
-        concatenation=concat)
-    else:
-      user_cat, user_mulhot, user_b = self._get_embedded(
-        self.user_embs_cat, self.user_embs_mulhot, b_cat=None, b_mulhot=None, 
-        inds=u_inds, mb=self.batch_size, 
-        attributes=self.user_attributes, prefix='user', concatenation=concat)
-      embedded_user =  tf.reduce_mean(user_cat + user_mulhot, 0)
-    embedded_user = tf.nn.dropout(embedded_user, keep_prob)
-    return embedded_user, user_b  
-
-  def get_batch_item(self, name, batch_size, concat=False, keep_prob=1.0):
-    assert(name in self.i_indices)
-    assert(keep_prob == 1.0), 'otherwise not implemented'
-    i_inds = self.i_indices[name]
-    if concat:
-      return self._get_embedded(self.item_embs_cat, self.item_embs_mulhot, 
-        self.i_biases_cat, self.i_biases_mulhot, i_inds, batch_size, 
-        self.item_attributes, 'item', True)
-    else:
-      item_cat, item_mulhot, item_b = self._get_embedded(self.item_embs_cat, self.item_embs_mulhot, 
-        self.i_biases_cat, self.i_biases_mulhot, i_inds, batch_size, 
-        self.item_attributes, 'item', False)
-      return item_cat + item_mulhot, item_b
-  
   def _embedded(self, attributes, prefix='', transpose=False):
     '''
     variables of full vocabulary for each type of features
@@ -235,87 +216,68 @@ class EmbeddingAttribute(object):
       biases_mulhot.append(b)
     return biases_cat, biases_mulhot
 
-  def _init_attributes(self, att, name='user'):
-    features_cat, features_mulhot, mulhot_starts, mulhot_lengths=[],[],[],[]
-    for i in range(att.num_features_cat):
-      features_cat.append(tf.constant(att.features_cat[i], dtype=tf.int32))
-    for i in range(att.num_features_mulhot):
-      features_mulhot.append(tf.constant(att.features_mulhot[i], dtype=tf.int32))
-      mulhot_starts.append(tf.constant(att.mulhot_starts[i], dtype=tf.int32))
-      mulhot_lengths.append(tf.constant(att.mulhot_lengths[i], dtype=tf.int32))
-    self.att[name] = (features_cat, features_mulhot, mulhot_starts, 
-      mulhot_lengths)
+  def get_batch_user(self, keep_prob, concat=True):
+    u_mappings = self.u_mappings['input']
+    if concat:
+      embedded_user, user_b = self._get_embedded(self.user_embs_cat, 
+        self.user_embs_mulhot, b_cat=None, b_mulhot=None, mappings=u_mappings, 
+        mb=self.batch_size, attributes=self.user_attributes, prefix='user', 
+        concatenation=concat)
+    else:
+      user_cat, user_mulhot, user_b = self._get_embedded(
+        self.user_embs_cat, self.user_embs_mulhot, b_cat=None, b_mulhot=None, 
+        mappings=u_mappings, mb=self.batch_size, 
+        attributes=self.user_attributes, prefix='user', concatenation=concat)
+      embedded_user =  tf.reduce_mean(user_cat + user_mulhot, 0)
+    embedded_user = tf.nn.dropout(embedded_user, keep_prob)
+    return embedded_user, user_b  
 
-  def _pass_sampled_items(self):
-    self.sampled_mulhot_l = []
-    res = []
-    var_s = self.i_indices['sampled']
+  def get_batch_item(self, name, batch_size, concat=False, keep_prob=1.0):
+    assert(name in self.i_mappings)
+    assert(keep_prob == 1.0), 'otherwise not implemented'
+    i_mappings = self.i_mappings[name]
+    if concat:
+      return self._get_embedded(self.item_embs_cat, self.item_embs_mulhot, 
+        self.i_biases_cat, self.i_biases_mulhot, i_mappings, batch_size, 
+        self.item_attributes, 'item', True)
+    else:
+      item_cat, item_mulhot, item_b = self._get_embedded(self.item_embs_cat, self.item_embs_mulhot, 
+        self.i_biases_cat, self.i_biases_mulhot, i_mappings, batch_size, 
+        self.item_attributes, 'item', False)
+      return item_cat + item_mulhot, item_b
 
-    att = self.item_attributes
-    inds = self.i_indices['sampled_pass']
-
-    for i in xrange(att.num_features_cat):
-      vals = lookup(self.att['item'][0][i], inds)      
-      res.append(tf.assign(var_s[0][i], vals))
-    for i in xrange(att.num_features_mulhot):
-      begin_ = lookup(self.att['item'][2][i], inds)
-      size_ = lookup(self.att['item'][3][i], inds)
-      b = tf.unpack(begin_)
-      s = tf.unpack(size_)
-      mulhot_indices = batch_slice2(self.att['item'][1][i], b, s, self.n_sampled)
-      mulhot_segids = batch_segids2(s, self.n_sampled)
-
-      l0 = tf.reduce_sum(size_)
-      indices = tf.range(l0)
-      res.append(tf.scatter_update(var_s[1][i], indices, mulhot_indices))
-      res.append(tf.scatter_update(var_s[2][i], indices, mulhot_segids))
-      res.append(tf.assign(var_s[3][i], tf.reshape(tf.to_float(size_), [self.n_sampled, 1])))
-
-      l = tf.get_variable(name='sampled_l_mulhot_{}'.format(i), dtype=tf.int32, 
-        initializer=tf.constant(0), trainable=False)      
-      self.sampled_mulhot_l.append(l)
-      res.append(tf.assign(l, l0))
-    return res
+  def get_user_model_size(self):
+    return (sum(self.user_attributes._embedding_size_list_cat) + 
+        sum(self.user_attributes._embedding_size_list_mulhot))
+  def get_item_model_size(self):
+    return (sum(self.item_attributes._embedding_size_list_cat) + 
+        sum(self.item_attributes._embedding_size_list_mulhot))
 
   def _get_embedded(self, embs_cat, embs_mulhot, b_cat, b_mulhot, 
-    inds, mb, attributes, prefix='', concatenation=True):
+    mappings, mb, attributes, prefix='', concatenation=True):
+    cat_indices, mulhot_indices, mulhot_segids, mulhot_lengths = mappings
     cat_list, mulhot_list = [], []
     bias_cat_list, bias_mulhot_list = [], []
 
     for i in xrange(attributes.num_features_cat):
-      cat_indices = lookup(self.att[prefix][0][i], inds)
-      embedded = lookup(embs_cat[i], cat_indices, 
-        name='emb_lookup_item_{0}'.format(i))  # on cpu?
+      embedded = lookup(embs_cat[i], cat_indices[i], 
+        name='emb_lookup_item_{0}'.format(i))  # on cpu
       cat_list.append(embedded)
       if b_cat is not None:
-        b = lookup(b_cat[i], cat_indices, 
+        b = lookup(b_cat[i], cat_indices[i], 
           name = 'emb_lookup_item_b_{0}'.format(i))
         bias_cat_list.append(b)
     for i in xrange(attributes.num_features_mulhot):
-      begin_ = lookup(self.att[prefix][2][i], inds)
-      size_ = lookup(self.att[prefix][3][i], inds)
-      # mulhot_indices, mulhot_segids = batch_slice_segids(
-      #   self.att[prefix][1][i], begin_, size_, mb)
-
-      # mulhot_indices = batch_slice(self.att[prefix][1][i], begin_, 
-      #   size_, mb)
-      # mulhot_segids = batch_segids(size_, mb)
-
-      b = tf.unpack(begin_)
-      s = tf.unpack(size_)
-      mulhot_indices = batch_slice2(self.att[prefix][1][i], b, 
-        s, mb)
-      mulhot_segids = batch_segids2(s, mb)
-      embedded_flat = lookup(embs_mulhot[i], mulhot_indices)
-      embedded_sum = tf.unsorted_segment_sum(embedded_flat, mulhot_segids, mb)
-      lengs = tf.reshape(tf.to_float(size_), [mb, 1])
-      embedded = tf.div(embedded_sum, lengs)
+      embedded_flat = lookup(embs_mulhot[i], mulhot_indices[i])
+      embedded_sum = tf.unsorted_segment_sum(embedded_flat, mulhot_segids[i], 
+        mb)
+      embedded = tf.div(embedded_sum, mulhot_lengths[i])
       mulhot_list.append(embedded)
       if b_mulhot is not None:
-        b_embedded_flat = lookup(b_mulhot[i], mulhot_indices)
-        b_embedded_sum = tf.unsorted_segment_sum(b_embedded_flat, mulhot_segids, 
-          mb)
-        b_embedded = tf.div(b_embedded_sum, lengs)
+        b_embedded_flat = lookup(b_mulhot[i], mulhot_indices[i])
+        b_embedded_sum = tf.unsorted_segment_sum(b_embedded_flat, 
+          mulhot_segids[i], mb)
+        b_embedded = tf.div(b_embedded_sum, mulhot_lengths[i])
         bias_mulhot_list.append(b_embedded)
     
     if b_cat is None and b_mulhot is None:
@@ -327,16 +289,6 @@ class EmbeddingAttribute(object):
       return tf.concat(1, cat_list + mulhot_list), bias
     else:
       return cat_list, mulhot_list, bias
-
-  def get_user_model_size(self):
-    '''
-    TODO: deprecated
-    '''
-    return (sum(self.user_attributes._embedding_size_list_cat) + 
-        sum(self.user_attributes._embedding_size_list_mulhot))
-  def get_item_model_size(self):
-    return (sum(self.item_attributes._embedding_size_list_cat) + 
-        sum(self.item_attributes._embedding_size_list_mulhot))
 
   def compute_loss(self, logits, item_target, loss='ce'):
     assert(loss in ['ce', 'mce', 'warp', 'mw', 'bpr', 'bpr-hinge'])
@@ -390,6 +342,36 @@ class EmbeddingAttribute(object):
     self.l_true[loss] = tf.placeholder(tf.bool, shape = [None], name='l_true')
     self.l_false[loss] = tf.placeholder(tf.bool, shape = [None], name='l_false')
     
+  def _pass_sampled_items(self):
+    self.updated_indices = []
+    self.sampled_mulhot_l = []
+    self.sampled_mulhot_l_pass = []
+    res = []
+    var_s = self.i_mappings['sampled']
+
+    att = self.item_attributes
+    for i in xrange(att.num_features_cat):
+      vals = self.i_mappings['sampled_pass'][0][i]
+      res.append(tf.assign(var_s[0][i], vals))
+    for i in xrange(att.num_features_mulhot):
+      indices = tf.placeholder(tf.int32, shape=[None])
+      self.updated_indices.append(indices)
+
+      vals = self.i_mappings['sampled_pass'][1][i]
+      res.append(tf.scatter_update(var_s[1][i], indices, vals))
+      segs = self.i_mappings['sampled_pass'][2][i]
+      res.append(tf.scatter_update(var_s[2][i], indices, segs))
+      lengs = self.i_mappings['sampled_pass'][3][i]
+      res.append(tf.assign(var_s[3][i], lengs))
+      
+      l = tf.get_variable(name='sampled_l_mulhot_{}'.format(i), dtype=tf.int32, 
+        initializer=tf.constant(0), trainable=False)      
+      self.sampled_mulhot_l.append(l)
+      l_pass = tf.placeholder(tf.int32, shape=[])
+      self.sampled_mulhot_l_pass.append(l_pass)
+      res.append(tf.assign(l, l_pass))
+    return res
+
   def get_warp_mask(self):
     self.set_mask, self.reset_mask = {}, {}
     for loss in ['mw', 'warp']:
@@ -417,22 +399,41 @@ class EmbeddingAttribute(object):
   def _add_input(self, input_feed, opt, input_, name_):
     if opt == 'user':
       att = self.user_attributes
-      mappings = self.u_indices[name_]
+      mappings = self.u_mappings[name_]
     elif opt == 'item':
       att = self.item_attributes
-      mappings = self.i_indices[name_]
+      mappings = self.i_mappings[name_]
     else:
       exit(-1)
-    input_feed[mappings.name] = input_
+
+    for i in xrange(att.num_features_cat):
+      input_feed[mappings[0][i].name] = att.features_cat[i][input_]
+    
+    l_mulhot = []    
+    for i in xrange(att.num_features_mulhot):
+      v_i, s_i, l_i = (att.features_mulhot[i], att.mulhot_starts[i], 
+        att.mulhot_lengths[i])
+      vals = list(itertools.chain.from_iterable(
+        [v_i[s_i[u]:s_i[u]+l_i[u]] for u in input_]))
+      Ls = [l_i[u] for u in input_]
+      l = len(Ls) 
+      i1 = list(itertools.chain.from_iterable(
+        Ls[i] * [i] for i in range(len(Ls))))
+      input_feed[mappings[1][i].name] = vals
+      input_feed[mappings[2][i].name] = i1
+      input_feed[mappings[3][i].name] = np.reshape(Ls, (l, 1))
+      l_mulhot.append(len(vals))
+    return l_mulhot
 
   def add_input(self, input_feed, user_input, item_input, 
         neg_item_input=None, item_sampled = None, item_sampled_id2idx = None, 
         forward_only=False, recommend=False, loss=None):
+    
     # users
     if self.user_attributes is not None:
       self._add_input(input_feed, 'user', user_input, 'input')
-    # pos
-    if self.item_attributes is not None and recommend is False:
+    # pos neg: when input_steps = 0 
+    if self.item_attributes is not None and recommend is False and self.input_steps == 0:
       self._add_input(input_feed, 'item', item_input, 'pos')
       # self._add_input(input_feed, 'item', neg_item_input, 'neg')    
 
@@ -446,7 +447,11 @@ class EmbeddingAttribute(object):
     input_feed_sampled = {}
     update_sampled = []
     if self.item_attributes is not None and recommend is False and item_sampled is not None and loss in ['mw', 'mce']:      
-      self._add_input(input_feed_sampled, 'item', item_sampled, 'sampled_pass')
+      l_mulhot = self._add_input(input_feed_sampled, 'item', item_sampled, 
+        'sampled_pass')
+      for i in range(self.item_attributes.num_features_mulhot):
+        input_feed_sampled[self.updated_indices[i].name] = range(l_mulhot[i])
+        input_feed_sampled[self.sampled_mulhot_l_pass[i].name] = l_mulhot[i]
       update_sampled = self.update_sampled
 
     # for warp loss.
@@ -475,4 +480,91 @@ class EmbeddingAttribute(object):
 
     return update_sampled, input_feed_sampled, input_feed_warp
 
-    
+
+
+  # def full_output_layer(self, attributes, test=False):
+  #   indices_cat, indices_mulhot, segids_mulhot, lengths_mulhot = [],[],[],[]    
+  #   prefix = 'item'
+  #   if not test:
+  #     # indices_cat, _, _ , _, _ = self.mapped_item_tr(attributes, False, 
+  #     #   prefix=prefix)
+  #     # indices_cat = []
+  #     for i in xrange(attributes.num_features_cat):
+  #       indices_cat.append(tf.constant(attributes.features_cat_tr[i]))
+  #     for i in range(attributes.num_features_mulhot):
+  #       indices_mulhot.append(attributes.full_values_tr[i])
+  #       segids_mulhot.append(attributes.full_segids_tr[i])
+  #       lengths_mulhot.append(attributes.full_lengths_tr[i])
+  #   else:
+  #     for i in xrange(attributes.num_features_cat):
+  #       indices_cat.append(tf.constant(attributes.features_cat[i], 
+  #         dtype=tf.int32))
+  #     for i in range(attributes.num_features_mulhot):
+  #       indices_mulhot.append(attributes.full_values[i])
+  #       segids_mulhot.append(attributes.full_segids[i])
+  #       lengths_mulhot.append(attributes.full_lengths[i])    
+  #   return indices_cat, indices_mulhot, segids_mulhot, lengths_mulhot
+  
+  # def mapped_item_tr(self, attributes, mulhot=False, prefix='item'):
+  #   feats_cat, feats_mulhot, mulhot_starts, mulhot_lengths = [], [], [], []
+  #   mtls = []
+  #   with vs.variable_scope('item_map_tr', reuse=self.reuse_item_tr) as scope:
+  #     for i in xrange(attributes.num_features_cat):
+  #       init = tf.constant_initializer(value = attributes.features_cat_tr[i])
+  #       feats_cat.append(tf.get_variable(name=prefix + "_tr_map1_{0}".format(i), 
+  #         shape=attributes.features_cat_tr[i].shape, dtype=tf.int32, 
+  #         initializer=init, trainable=False))
+      
+  #     if mulhot:
+  #       for i in xrange(attributes.num_features_mulhot):
+  #         init = tf.constant_initializer(value = attributes.features_mulhot_tr[i])
+  #         feats_mulhot.append(tf.get_variable(
+  #           name=prefix + "_tr_map2_{0}".format(i), 
+  #           shape=attributes.features_mulhot_tr[i].shape, dtype=tf.int32, 
+  #           initializer=init, trainable=False))
+          
+  #         init_s = tf.constant_initializer(value = attributes.mulhot_starts_tr[i])
+  #         mulhot_starts.append(tf.get_variable(
+  #           name=prefix + "_tr_map2_starts{0}".format(i), 
+  #           shape=attributes.mulhot_starts_tr[i].shape, dtype=tf.int32, 
+  #           initializer=init_s, trainable=False))
+
+  #         init_l = tf.constant_initializer(
+  #           value = attributes.mulhot_lengs_tr[i])
+  #         mulhot_lengths.append(tf.get_variable(
+  #           name=prefix + "_tr_map2_lengs{0}".format(i), 
+  #           shape=attributes.mulhot_lengs_tr[i].shape, dtype=tf.int32, 
+  #           initializer=init_l, trainable=False))
+  #         mtls.append(attributes.mulhot_max_leng_tr[i])
+  #     self.reuse_item_tr = True
+
+  #   return feats_cat, feats_mulhot, mulhot_starts, mulhot_lengths, mtls
+
+
+    '''
+    test and recommend new items
+    '''
+    # if self.logit_size_test is not None:
+    #   (indices_cat2, indices_mulhot2, segids_mulhot2, 
+    #     lengths_mulhot2) = self.full_output_layer(item_attributes, True)
+    #   innerps_test = []
+    #   for i in xrange(item_attributes.num_features_cat):
+    #     innerp = tf.matmul(item_embs_cat[i], tf.transpose(
+    #       proj_user_drops_cat[i])) + i_biases_cat[i] # Vf by mb
+    #     innerps_test.append(lookup(innerp, 
+    #       indices_cat2[i], name='emb_lookup_innerp_test_{0}'.format(i))) # V by mb
+    #   for i in xrange(item_attributes.num_features_mulhot):
+    #     innerp = tf.add(tf.matmul(item_embs_mulhot[i], 
+    #       tf.transpose(proj_user_drops_mulhot[i])), i_biases_mulhot[i]) # Vf by mb
+    #     innerps_test.append(tf.div(tf.unsorted_segment_sum(
+    #       lookup(
+    #       innerp, indices_mulhot2[i]), segids_mulhot2[i], self.logit_size_test),
+    #       lengths_mulhot2[i]))
+      
+    #   if self.use_user_bias:
+    #     logits_test = tf.add(tf.transpose(tf.reduce_sum(innerps_test, 0)), user_b)
+    #   else:
+    #     logits_test = tf.transpose(tf.reduce_sum(innerps_test, 0))
+      
+    #   _, self.indices_test= tf.nn.top_k(logits_test, 30, sorted=True)
+

@@ -17,7 +17,7 @@ from xing_eval import *
 from xing_submit import *
 
 # in order to profile
-# from tensorflow.python.client import timeline
+from tensorflow.python.client import timeline
 
 tf.app.flags.DEFINE_float("learning_rate", 0.1, "Learning rate.")
 tf.app.flags.DEFINE_float("keep_prob", 0.5, "dropout rate.")
@@ -50,7 +50,7 @@ tf.app.flags.DEFINE_boolean("recommend_new", False,
                             "Set to True for recommend new items that were not used to train.")
 tf.app.flags.DEFINE_boolean("device_log", False,
                             "Set to True for logging device usages.")
-tf.app.flags.DEFINE_boolean("eval", False,
+tf.app.flags.DEFINE_boolean("eval", True,
                             "Set to True for evaluation.")
 tf.app.flags.DEFINE_boolean("use_more_train", False,
                             "Set true if use non-appearred items to train.")
@@ -126,9 +126,11 @@ def create_model(session, u_attributes=None, i_attributes=None,
 
 def train():
   with tf.Session(config=tf.ConfigProto(log_device_placement=FLAGS.device_log)) as sess:
+    run_options = None
+    run_metadata = None
     # run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
     # run_metadata = tf.RunMetadata()
-
+    
     print("reading data")
     logging.info("reading data")
     (data_tr, data_va, u_attributes, i_attributes,item_ind2logit_ind, 
@@ -232,12 +234,13 @@ def train():
       previous_losses, auc_train, auc_dev, losses_dev = [], [], [], []
       best_auc, best_loss = -1, 1000000
 
+    item_sampled, item_sampled_id2idx = None, None
     while True:
       ranndom_number_01 = np.random.random_sample()
       start_time = time.time()
       (user_input, item_input, neg_item_input) = model.get_batch(data_tr, 
         loss=FLAGS.loss, hist=hist)
-      if current_step % FLAGS.n_resample == 0:
+      if current_step % FLAGS.n_resample == 0 and FLAGS.loss in ['mw', 'mce']:
         item_sampled = np.random.choice(item_population, FLAGS.n_sampled, replace=False,
           p=p_item)
         item_sampled_id2idx = {}
@@ -248,9 +251,8 @@ def train():
       else:
         item_sampled = None
 
-
       step_loss = model.step(sess, user_input, item_input, 
-        neg_item_input, item_sampled, item_sampled_id2idx, loss=FLAGS.loss)
+        neg_item_input, item_sampled, item_sampled_id2idx, loss=FLAGS.loss,run_op=run_options, run_meta=run_metadata)
 
       step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
       loss += step_loss / FLAGS.steps_per_checkpoint
@@ -261,13 +263,13 @@ def train():
 
         if FLAGS.loss in ['ce', 'mce']:
           perplexity = math.exp(loss) if loss < 300 else float('inf')
-          mylog("global step %d learning rate %.4f step-time %.3f perplexity %.2f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, perplexity))
+          mylog("global step %d learning rate %.4f step-time %.4f perplexity %.2f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, perplexity))
         else:
-          mylog("global step %d learning rate %.4f step-time %.3f loss %.3f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, loss))
+          mylog("global step %d learning rate %.4f step-time %.4f loss %.3f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, loss))
         # Create the Timeline object, and write it to a json
         # tl = timeline.Timeline(run_metadata.step_stats)
         # ctf = tl.generate_chrome_trace_format()
-        # with open('timeline.json', 'w') as f:
+        # with open('timeline2.json', 'w') as f:
         #     f.write(ctf)
         # exit()
 
@@ -312,10 +314,10 @@ def train():
         step_time = (time.time() - start_time) / count_va
         if FLAGS.loss in ['ce', 'mce']:
           eval_ppx = math.exp(eval_loss) if eval_loss < 300 else float('inf')
-          mylog("  eval: perplexity %.2f eval_auc %.4f step-time %.3f" % (
+          mylog("  eval: perplexity %.2f eval_auc %.4f step-time %.4f" % (
             eval_ppx, eval_auc, step_time))
         else:
-          mylog("  eval: loss %.3f eval_auc %.4f step-time %.3f" % (eval_loss, 
+          mylog("  eval: loss %.3f eval_auc %.4f step-time %.4f" % (eval_loss, 
             eval_auc, step_time))
         sys.stdout.flush()
 

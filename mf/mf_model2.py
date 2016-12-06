@@ -19,6 +19,7 @@ import sys
 import itertools
 sys.path.insert(0, '../utils')
 import embed_attribute
+# import embed_attribute_old
 
 class LatentProductModel(object):
   def __init__(self, user_size, item_size, size,
@@ -62,9 +63,6 @@ class LatentProductModel(object):
 
     mb = self.batch_size
     self.item_target = tf.placeholder(tf.int32, shape = [mb], name = "item")
-    # self.user_input = tf.placeholder(tf.int32, shape = [mb], name = "user")    
-    # self.neg_item_input = tf.placeholder(tf.int32, shape = [mb], 
-    #   name = "neg_item")
     
     self.dropout = dropout
     self.keep_prob = tf.placeholder(tf.float32, name='keep_prob')
@@ -79,8 +77,7 @@ class LatentProductModel(object):
 
     neg_embs_item, neg_item_b = m.get_batch_item('neg', batch_size)
     neg_embs_item = tf.reduce_mean(neg_embs_item, 0)
-
-    print('debug: user, item dim', embedded_user.get_shape(), neg_embs_item.get_shape())
+    # print('debug: user, item dim', embedded_user.get_shape(), neg_embs_item.get_shape())
 
     print("construct postive/negative items/scores \n(for bpr loss, AUC)")
     self.pos_score = tf.reduce_sum(tf.mul(embedded_user, pos_embs_item), 1) + pos_item_b
@@ -158,7 +155,8 @@ class LatentProductModel(object):
     if not recommend:
       if not forward_only:
         # output_feed = [self.updates, self.loss, self.auc]
-        output_feed = [self.updates, self.loss]        
+        output_feed = [self.updates, self.loss]
+        # output_feed = [self.embedded_user, self.pos_embs_item]
       else:
         # output_feed = [self.loss_eval, self.auc]
         output_feed = [self.loss_eval]
@@ -168,7 +166,7 @@ class LatentProductModel(object):
       else:
         output_feed = [self.indices]
 
-    if item_sampled is not None:
+    if item_sampled is not None and loss in ['mw', 'mce']:
       session.run(update_sampled, input_feed_sampled)
 
     if (loss == 'warp' or loss =='mw') and recommend is False:
