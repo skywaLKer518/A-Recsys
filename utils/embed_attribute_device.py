@@ -178,19 +178,19 @@ class EmbeddingAttribute(object):
       logits = tf.transpose(tf.reduce_mean(innerps, 0))
     return logits
 
-  def get_batch_user(self, keep_prob, concat=True, device='/gpu:0'):
+  def get_batch_user(self, keep_prob, concat=True, no_id=False, device='/gpu:0'):
     u_inds = self.u_indices['input']
     with tf.device(device):
       if concat:
         embedded_user, user_b = self._get_embedded(self.user_embs_cat, 
           self.user_embs_mulhot, b_cat=None, b_mulhot=None, inds=u_inds, 
           mb=self.batch_size, attributes=self.user_attributes, prefix='user', 
-          concatenation=concat, device=device)
+          concatenation=concat, no_id=no_id, device=device)
       else:
         user_cat, user_mulhot, user_b = self._get_embedded(
           self.user_embs_cat, self.user_embs_mulhot, b_cat=None, b_mulhot=None, 
           inds=u_inds, mb=self.batch_size, attributes=self.user_attributes, 
-          prefix='user', concatenation=concat, device=device)
+          prefix='user', concatenation=concat, no_id=no_id, device=device)
         embedded_user =  tf.reduce_mean(user_cat + user_mulhot, 0)
       embedded_user = tf.nn.dropout(embedded_user, keep_prob)
     return embedded_user, user_b  
@@ -296,11 +296,14 @@ class EmbeddingAttribute(object):
     return res
 
   def _get_embedded(self, embs_cat, embs_mulhot, b_cat, b_mulhot, 
-    inds, mb, attributes, prefix='', concatenation=True, device='/gpu:0'):
+    inds, mb, attributes, prefix='', concatenation=True, no_id=False, 
+    device='/gpu:0'):
     cat_list, mulhot_list = [], []
     bias_cat_list, bias_mulhot_list = [], []
     with tf.device(device):
       for i in xrange(attributes.num_features_cat):
+        if no_id and i == 0:
+          continue
         cat_indices = lookup(self.att[prefix][0][i], inds)
         embedded = lookup(embs_cat[i], cat_indices, 
           name='emb_lookup_item_{0}'.format(i))  # on cpu?
@@ -346,11 +349,12 @@ class EmbeddingAttribute(object):
       else:
         return cat_list, mulhot_list, bias
 
-  def get_user_model_size(self):
+  def get_user_model_size(self, no_id=False):
     '''
     TODO: deprecated: only work for concatenation case
     '''
-    return (sum(self.user_attributes._embedding_size_list_cat[0:self.user_attributes.num_features_cat]) + 
+    cat_start = 1 if no_id else 0
+    return (sum(self.user_attributes._embedding_size_list_cat[cat_start:self.user_attributes.num_features_cat]) + 
             sum(self.user_attributes._embedding_size_list_mulhot[0:self.user_attributes.num_features_mulhot]))
 
   def get_item_model_size(self):
