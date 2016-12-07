@@ -45,9 +45,9 @@ tf.app.flags.DEFINE_boolean("saveCheckpoint", False,
 tf.app.flags.DEFINE_boolean("fulldata", False,
                             "whether to use full dataset")
 
-tf.app.flags.DEFINE_integer("batch_size", 64,
+tf.app.flags.DEFINE_integer("batch_size", 100,
                             "Batch size to use during training.")
-tf.app.flags.DEFINE_integer("size", 256, "Size of each model layer.")
+tf.app.flags.DEFINE_integer("size", 128, "Size of each model layer.")
 tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
 tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
 
@@ -61,7 +61,7 @@ tf.app.flags.DEFINE_integer("max_train_data_size", 0,
 #tf.app.flags.DEFINE_integer("steps_per_checkpoint", 200,"How many training steps to do per checkpoint.")
 tf.app.flags.DEFINE_string("loss", 'ce', "loss function")
 
-tf.app.flags.DEFINE_integer("n_epoch", 20,
+tf.app.flags.DEFINE_integer("n_epoch", 40,
                             "How many epochs to train.")
 
 tf.app.flags.DEFINE_integer("n_bucket", 10,
@@ -71,10 +71,10 @@ tf.app.flags.DEFINE_integer("n_bucket", 10,
 
 tf.app.flags.DEFINE_integer("patience", 5,"exit if the model can't improve for $patence evals")
 
-tf.app.flags.DEFINE_integer("L", 10,"max length")
+tf.app.flags.DEFINE_integer("L", 30,"max length")
 tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
 
-tf.app.flags.DEFINE_boolean("profile", True, "False = no profile, True = profile")
+tf.app.flags.DEFINE_boolean("profile", False, "False = no profile, True = profile")
 
 tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
@@ -108,7 +108,7 @@ def get_buckets_id(l, buckets):
 
     return id
 
-def form_sequence(data):
+def form_sequence(data, maxlen = 100):
     """
     Args:
       data = [(u,i,week)]
@@ -131,7 +131,7 @@ def form_sequence(data):
         
     for u in d:
         tmp = sorted(d[u],key = lambda x: x[1])
-        tmp =  [x[0] for x in tmp]
+        tmp =  [x[0] for x in tmp][-maxlen:]
         dd.append((u,tmp))
             
     return dd
@@ -198,8 +198,8 @@ def read_data():
     
     # UNK and START
     START_ID = i_attr.get_item_last_index()
-    seq_tr = form_sequence(data_tr)
-    seq_va = form_sequence(data_va)
+    seq_tr = form_sequence(data_tr,maxlen = FLAGS.L)
+    seq_va = form_sequence(data_va,maxlen = FLAGS.L)
 
     # calculate buckets
     global _buckets
@@ -313,7 +313,7 @@ def train():
     log_it("Steps_per_checkpoint: {}".format(steps_per_checkpoint))
 
 
-    with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement = True)) as sess:
+    with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement = False)) as sess:
         
         # runtime profile
         if FLAGS.profile:

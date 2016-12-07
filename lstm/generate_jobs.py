@@ -41,7 +41,7 @@ def main():
         return "", "--n_epoch {}".format(val)
 
     def loss(val):
-        return "L{}".format(val), "--loss {}".format(val)
+        return "{}".format(val), "--loss {}".format(val)
 
     def fulldata(val):
         return "", "--fulldata {}".format(val)
@@ -49,12 +49,31 @@ def main():
     def num_layers(val):
         return "n{}".format(val), "--num_layers {}".format(val)
     
+    def L(val):
+        return "L{}".format(val), "--L {}".format(val)
 
+    def N(val):
+        return "", "--N {}".format(val)
 
-    funcs = [data_dir, batch_size, size, dropout, learning_rate, n_epoch, loss, fulldata, num_layers]
+    funcs = [data_dir, batch_size, size, dropout, learning_rate, n_epoch, loss, fulldata, num_layers, L, N]
     
-    paras = [["$data_part", 64, 256, 0.5, 0.5, 20, "ce", "False", 1]
-             ]
+    template = ["$data_part", 64, 128, 0.5, 0.5, 40, "ce", "False", 1, 30, "001"]
+    params = []
+
+    _dropout = [0.4,0.6,0.8]
+    _learning_rate = [0.3,0.5,1.0]
+    
+    for lr in _learning_rate:
+        for dr in _dropout:
+            temp = list(template)
+            temp[4] = lr
+            temp[3] = dr
+            params.append(temp)
+    
+
+
+
+
 
     def get_name_cmd(para):
         name = ""
@@ -71,7 +90,7 @@ def main():
         cmd = " ".join(cmd)
         return name, cmd
 
-    for para in paras:
+    for para in params:
         name, cmd = get_name_cmd(para)
         cmd = "python run.py " + cmd
         fn = "../jobs/{}.sh".format(name)
