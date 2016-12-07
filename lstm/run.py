@@ -20,11 +20,13 @@ import configparser
 import env
 
 sys.path.insert(0, '../utils')
-import embed_attribute
+import embed_attribute_device
 from xing_data import data_read
 import data_iterator
 from data_iterator import DataIterator
 from best_buckets import *
+from tensorflow.python.client import timeline
+
 
 tf.app.flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
 tf.app.flags.DEFINE_float("learning_rate_decay_factor", 0.83,
@@ -51,6 +53,7 @@ tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
 
 tf.app.flags.DEFINE_string("data_dir", "../mf/data0", "Data directory")
 tf.app.flags.DEFINE_string("train_dir", "./train", "Training directory.")
+tf.app.flags.DEFINE_string("N", "000", "GPU layer distribution: [input_embedding, lstm, output_embedding]")
 
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
                             "Limit on the size of training data (0: no limit).")
@@ -61,10 +64,22 @@ tf.app.flags.DEFINE_string("loss", 'ce', "loss function")
 tf.app.flags.DEFINE_integer("n_epoch", 20,
                             "How many epochs to train.")
 
+tf.app.flags.DEFINE_integer("n_bucket", 10,
+                            "num of buckets to run.")
+
+
+
 tf.app.flags.DEFINE_integer("patience", 5,"exit if the model can't improve for $patence evals")
 
-tf.app.flags.DEFINE_integer("L", 110,"max length")
+tf.app.flags.DEFINE_integer("L", 10,"max length")
 tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
+
+tf.app.flags.DEFINE_boolean("profile", True, "False = no profile, True = profile")
+
+tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
+tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
+
+
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -154,9 +169,23 @@ def prepare_warp(embAttr, data_tr, data_va):
     embAttr.prepare_warp(pos_item_set, pos_item_set_eval) 
 
 
+def get_device_address(s):
+
+    add = []
+    if s == "":
+        for i in xrange(3):
+            add.append("/cpu:0")
+    else:
+        add = ["/gpu:{}".format(int(x)) for x in s]
+    add
+    print(add)
+    return add
+
+
+
+
 
 def read_data():
-
     ta = 1
     if FLAGS.fulldata:
         ta = 0
@@ -174,7 +203,7 @@ def read_data():
 
     # calculate buckets
     global _buckets
-    _buckets = calculate_buckets(seq_tr+seq_va, FLAGS.L, 10)
+    _buckets = calculate_buckets(seq_tr+seq_va, FLAGS.L, FLAGS.n_bucket)
     _buckets = sorted(_buckets)
 
 
@@ -183,18 +212,32 @@ def read_data():
     seq_va = split_buckets(seq_va,_buckets)
 
     # create embedAttr
-    u_attr.set_model_size(FLAGS.size)
-    i_attr.set_model_size(FLAGS.size)
 
-    embAttr = embed_attribute.EmbeddingAttribute(u_attr, i_attr, FLAGS.batch_size, FLAGS.n_sampled, _buckets[-1], False, item_ind2logit_ind, logit_ind2item_ind)
+    devices = get_device_address(FLAGS.N)
+    with tf.device(devices[0]):
+        u_attr.set_model_size(FLAGS.size)
+        i_attr.set_model_size(FLAGS.size)
 
-    if FLAGS.loss == "warp":
-        prepare_warp(embAttr, data_tr, data_va)
+        if not FLAGS.use_item_feature:
+            log_it("NOT using item attributes")
+            i_attr.num_features_cat = 1
+            i_attr.num_features_mulhot = 0 
+
+        if not FLAGS.use_user_feature:
+            log_it("NOT using user attributes")
+            u_attr.num_features_cat = 1
+            u_attr.num_features_mulhot = 0 
+
+        embAttr = embed_attribute_device.EmbeddingAttribute(u_attr, i_attr, FLAGS.batch_size, FLAGS.n_sampled, _buckets[-1], False, item_ind2logit_ind, logit_ind2item_ind, devices=devices)
+
+        if FLAGS.loss == "warp":
+            prepare_warp(embAttr, data_tr, data_va)
 
     return seq_tr, seq_va, embAttr, START_ID, len(data_tr), len(data_va)
 
 
-def create_model(session,embAttr,START_ID):
+def create_model(session,embAttr,START_ID, run_options, run_metadata):
+    devices = get_device_address(FLAGS.N)
     dtype = tf.float32
     model = SeqModel(_buckets,
                      FLAGS.size,
@@ -209,7 +252,10 @@ def create_model(session,embAttr,START_ID):
                      dropoutRate = FLAGS.keep_prob,
                      START_ID = START_ID,
                      loss = FLAGS.loss,
-                     dtype = dtype
+                     dtype = dtype,
+                     devices = devices,
+                     run_options = run_options,
+                     run_metadata = run_metadata
                      )
 
     ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
@@ -223,6 +269,7 @@ def create_model(session,embAttr,START_ID):
 
 def log_it(msg):
     print(msg)
+    sys.stdout.flush()
     logging.info(msg)
 
 def show_all_variables():
@@ -266,10 +313,19 @@ def train():
     log_it("Steps_per_checkpoint: {}".format(steps_per_checkpoint))
 
 
-    with tf.Session() as sess:
+    with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement = True)) as sess:
         
+        # runtime profile
+        if FLAGS.profile:
+            run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+            run_metadata = tf.RunMetadata()
+        else:
+            run_options = None
+            run_metadata = None
+        
+
         log_it("Creating Model")
-        model = create_model(sess, embAttr, START_ID)
+        model = create_model(sess, embAttr, START_ID, run_options, run_metadata)
         show_all_variables()
     
         # Data Iterators
@@ -290,7 +346,7 @@ def train():
         his = []
         low_ppx = float("inf")
         low_ppx_step = 0
-        steps_per_report = 300
+        steps_per_report = 30
         n_targets_report = 0
         report_time = 0
 
@@ -316,6 +372,17 @@ def train():
             if current_step % steps_per_report == 0:
                 log_it("--------------------"+"Report"+str(current_step)+"-------------------")
                 log_it("StepTime: {} Speed: {} targets / sec in total {} targets".format(report_time/steps_per_report, n_targets_report*1.0 / report_time, n_targets_train))
+                report_time = 0
+                n_targets_report = 0
+                # Create the Timeline object, and write it to a json
+                if FLAGS.profile:
+                    tl = timeline.Timeline(run_metadata.step_stats)
+                    ctf = tl.generate_chrome_trace_format()
+                    with open('timeline.json', 'w') as f:
+                        f.write(ctf)
+                    exit()
+
+
 
             if current_step % steps_per_checkpoint == 0:
                 log_it("--------------------"+"TRAIN"+str(current_step)+"-------------------")

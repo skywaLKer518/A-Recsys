@@ -40,6 +40,9 @@ class SeqModel(object):
                  START_ID = 0,
                  PAD_ID = 0,
                  loss = "ce",
+                 devices = "",
+                 run_options = None,
+                 run_metadata = None,
                  dtype=tf.float32):
         """Create the model.
         
@@ -69,72 +72,85 @@ class SeqModel(object):
         self.PAD_ID = PAD_ID
         self.batch_size = batch_size
         self.loss = loss
-        self.dropoutRate = tf.Variable(
-            float(dropoutRate), trainable=False, dtype=dtype)
-        
-        self.learning_rate = tf.Variable(
-            float(learning_rate), trainable=False, dtype=dtype)
-        self.learning_rate_decay_op = self.learning_rate.assign(
-            self.learning_rate * learning_rate_decay_factor)
-        self.global_step = tf.Variable(0, trainable=False)
+        self.devices = devices
+        self.run_options = run_options
+        self.run_metadata = run_metadata
 
-        single_cell = tf.nn.rnn_cell.LSTMCell(size, state_is_tuple=True)
-        single_cell = rnn_cell.DropoutWrapper(single_cell,input_keep_prob = self.dropoutRate)
-        if num_layers > 1:
-            cell = tf.nn.rnn_cell.MultiRNNCell([single_cell] * num_layers, state_is_tuple=True)
+        with tf.device(devices[0]):
+            self.dropoutRate = tf.Variable(
+                float(dropoutRate), trainable=False, dtype=dtype)        
+            self.learning_rate = tf.Variable(
+                float(learning_rate), trainable=False, dtype=dtype)
+            self.learning_rate_decay_op = self.learning_rate.assign(
+                self.learning_rate * learning_rate_decay_factor)
+            self.global_step = tf.Variable(0, trainable=False)
+
+        with tf.device(devices[1]):
+            single_cell = tf.nn.rnn_cell.LSTMCell(size, state_is_tuple=True)
+            single_cell = rnn_cell.DropoutWrapper(single_cell,input_keep_prob = self.dropoutRate)
+            if num_layers > 1:
+                cell = tf.nn.rnn_cell.MultiRNNCell([single_cell] * num_layers, state_is_tuple=True)
+        
         
         # Feeds for inputs.
-        self.targets = []
-        self.target_weights = []
+        with tf.device(devices[2]):
+            self.targets = []
+            self.target_weights = []
 
-        # target: 1  2  3  4 
-        # inputs: go 1  2  3
-        # weights:1  1  1  1
-        for i in xrange(buckets[-1]):
-            self.targets.append(tf.placeholder(tf.int32, shape=[self.batch_size], name = "target{}".format(i)))
-            self.target_weights.append(tf.placeholder(dtype, shape = [self.batch_size], name="target_weight{}".format(i)))
+            # target: 1  2  3  4 
+            # inputs: go 1  2  3
+            # weights:1  1  1  1
 
-        self.inputs = []
+            for i in xrange(buckets[-1]):
+                self.targets.append(tf.placeholder(tf.int32, shape=[self.batch_size], name = "target{}".format(i)))
+                self.target_weights.append(tf.placeholder(dtype, shape = [self.batch_size], name="target_weight{}".format(i)))
+
+        with tf.device(devices[0]):
+
+            self.inputs = []
+
+            user_embed, _ = self.embeddingAttribute.get_batch_user(1.0, concat = True)
+            user_embed_size = self.embeddingAttribute.get_user_model_size()
+            item_embed_size = self.embeddingAttribute.get_item_model_size()
+            w_input_user = tf.get_variable("w_input_user",[user_embed_size, size], dtype = dtype)
+            w_input_item = tf.get_variable("w_input_item",[item_embed_size, size], dtype = dtype)
+            user_embed_transform = tf.matmul(user_embed, w_input_user)
+
+            for i in xrange(buckets[-1]):
+                name = "input{}".format(i)
+                item_embed, _ = self.embeddingAttribute.get_batch_item(name,self.batch_size, concat = True)
+                item_embed_transform = tf.matmul(item_embed, w_input_item)
+                input_embed = user_embed_transform + item_embed_transform
+                self.inputs.append(input_embed)
+
         
-        user_embed, _ = self.embeddingAttribute.get_batch_user(1.0, concat = True)
-        user_embed_size = self.embeddingAttribute.get_user_model_size()
-        item_embed_size = self.embeddingAttribute.get_item_model_size()
-        w_input_user = tf.get_variable("w_input_user",[user_embed_size, size], dtype = dtype)
-        w_input_item = tf.get_variable("w_input_item",[item_embed_size, size], dtype = dtype)
-        user_embed_transform = tf.matmul(user_embed, w_input_user)
-        for i in xrange(buckets[-1]):
-            name = "input{}".format(i)
-            item_embed, _ = self.embeddingAttribute.get_batch_item(name,self.batch_size, concat = True)
-            item_embed_transform = tf.matmul(item_embed, w_input_item)
-            input_embed = user_embed_transform + item_embed_transform
-            self.inputs.append(input_embed)
-        
-        # build loss
-        self.outputs, self.losses = self.model_with_buckets(self.inputs, self.targets, self.target_weights, self.buckets, single_cell, self.embeddingAttribute, dtype)
-        
-        # for warp
+        self.outputs, self.losses = self.model_with_buckets(self.inputs, self.targets, self.target_weights, self.buckets, single_cell, self.embeddingAttribute, dtype, devices = devices)
+
+            # for warp
         if self.loss == "warp":
-            self.set_mask, self.reset_mask = self.embeddingAttribute.get_warp_mask()
+            self.set_mask, self.reset_mask = self.embeddingAttribute.get_warp_mask(device = self.devices[2])
 
+        #with tf.device(devices[0]):
         # train
-        params = tf.trainable_variables()
-        if not forward_only:
-            self.gradient_norms = []
-            self.updates = []
-            self.gradient_norms = []
-            self.updates = []
-            if withAdagrad:
-                opt = tf.train.AdagradOptimizer(self.learning_rate)
-            else:
-                opt = tf.train.GradientDescentOptimizer(self.learning_rate)
+        with tf.device(devices[0]):
+            params = tf.trainable_variables()
+            if not forward_only:
+                self.gradient_norms = []
+                self.updates = []
+                self.gradient_norms = []
+                self.updates = []
+                if withAdagrad:
+                    opt = tf.train.AdagradOptimizer(self.learning_rate)
+                else:
+                    opt = tf.train.GradientDescentOptimizer(self.learning_rate)
 
-            for b in xrange(len(buckets)):
-                gradients = tf.gradients(self.losses[b], params)
-                clipped_gradients, norm = tf.clip_by_global_norm(gradients,
-                                                             max_gradient_norm)
-                self.gradient_norms.append(norm)
-                self.updates.append(opt.apply_gradients(zip(clipped_gradients, params), global_step=self.global_step))
-                
+                for b in xrange(len(buckets)):
+                    gradients = tf.gradients(self.losses[b], params, colocate_gradients_with_ops=True)
+                    clipped_gradients, norm = tf.clip_by_global_norm(gradients,
+                                                                 max_gradient_norm)
+                    self.gradient_norms.append(norm)
+                    self.updates.append(opt.apply_gradients(zip(clipped_gradients, params), global_step=self.global_step))
+
         self.saver = tf.train.Saver(tf.all_variables())
 
     def step(self,session, user_input, item_inputs, targets, target_weights, bucket_id, forward_only = False, recommend = False):
@@ -150,6 +166,7 @@ class SeqModel(object):
         #print(targets)
         #print(target_weights)
         
+
         targets = self.embeddingAttribute.target_mapping(targets)
         input_feed = {}
         for l in xrange(length):
@@ -168,7 +185,7 @@ class SeqModel(object):
         if len(item_inputs) > 1:
             output_feed.append(self.outputs[bucket_id][1])
 
-        outputs = session.run(output_feed, input_feed)
+        outputs = session.run(output_feed, input_feed, options = self.run_options, run_metadata = self.run_metadata)
 
         if self.loss == "warp":
             session.run(self.reset_mask, input_feed_warp)
@@ -234,31 +251,34 @@ class SeqModel(object):
         
     def model_with_buckets(self, inputs, targets, weights,
                            buckets, cell, embeddingAttribute, dtype,
-                           per_example_loss=False, name=None):
+                           per_example_loss=False, name=None, devices = None):
 
         all_inputs = inputs + targets + weights
         losses = []
         outputs = []
-        init_state = cell.zero_state(self.batch_size, dtype)
-        softmax_loss_function = lambda x,y: self.embeddingAttribute.compute_loss(x ,y)
+        softmax_loss_function = lambda x,y: self.embeddingAttribute.compute_loss(x ,y, device = devices[2])
+
+        with tf.device(devices[1]):
+            init_state = cell.zero_state(self.batch_size, dtype)
         
         with ops.op_scope(all_inputs, name, "model_with_buckets"):
             for j, bucket in enumerate(buckets):
                 with variable_scope.variable_scope(variable_scope.get_variable_scope(),reuse=True if j > 0 else None):
+                    
+                    with tf.device(devices[1]):
+                        bucket_outputs, _ = rnn.rnn(cell,inputs[:bucket],initial_state = init_state)
+                    with tf.device(devices[2]):
+                        bucket_outputs = [self.embeddingAttribute.get_prediction(x, device=devices[2]) for x in bucket_outputs]
 
-                    bucket_outputs, _ = rnn.rnn(cell,inputs[:bucket],initial_state = init_state)
-
-                    bucket_outputs = [self.embeddingAttribute.get_prediction(x) for x in bucket_outputs]
-
-                    outputs.append(bucket_outputs)
-                    if per_example_loss:
-                        losses.append(sequence_loss_by_example(
-                                outputs[-1], targets[:bucket], weights[:bucket],
-                                softmax_loss_function=softmax_loss_function))
-                    else:
-                        losses.append(sequence_loss(
-                                outputs[-1], targets[:bucket], weights[:bucket],
-                                softmax_loss_function=softmax_loss_function))
+                        outputs.append(bucket_outputs)
+                        if per_example_loss:
+                            losses.append(sequence_loss_by_example(
+                                    outputs[-1], targets[:bucket], weights[:bucket],
+                                    softmax_loss_function=softmax_loss_function))
+                        else:
+                            losses.append(sequence_loss(
+                                    outputs[-1], targets[:bucket], weights[:bucket],
+                                    softmax_loss_function=softmax_loss_function))
                   
         return outputs, losses
 

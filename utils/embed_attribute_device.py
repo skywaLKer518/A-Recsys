@@ -348,13 +348,14 @@ class EmbeddingAttribute(object):
 
   def get_user_model_size(self):
     '''
-    TODO: deprecated
+    TODO: deprecated: only work for concatenation case
     '''
-    return (sum(self.user_attributes._embedding_size_list_cat) + 
-        sum(self.user_attributes._embedding_size_list_mulhot))
+    return (sum(self.user_attributes._embedding_size_list_cat[0:self.user_attributes.num_features_cat]) + 
+            sum(self.user_attributes._embedding_size_list_mulhot[0:self.user_attributes.num_features_mulhot]))
+
   def get_item_model_size(self):
-    return (sum(self.item_attributes._embedding_size_list_cat) + 
-        sum(self.item_attributes._embedding_size_list_mulhot))
+    return (sum(self.item_attributes._embedding_size_list_cat[0:self.item_attributes.num_features_cat]) + 
+            sum(self.item_attributes._embedding_size_list_mulhot[0:self.item_attributes.num_features_mulhot]))
 
   def compute_loss(self, logits, item_target, loss='ce', device='/gpu:0'):
     assert(loss in ['ce', 'mce', 'warp', 'mw', 'bpr', 'bpr-hinge'])
@@ -452,7 +453,7 @@ class EmbeddingAttribute(object):
     if self.user_attributes is not None:
       self._add_input(input_feed, 'user', user_input, 'input')
     # pos
-    if self.item_attributes is not None and recommend is False:
+    if self.item_attributes is not None and recommend is False and self.input_steps == 0:
       self._add_input(input_feed, 'item', item_input, 'pos')
       # self._add_input(input_feed, 'item', neg_item_input, 'neg')    
 
