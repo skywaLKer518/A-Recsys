@@ -55,20 +55,32 @@ def main():
     def N(val):
         return "", "--N {}".format(val)
 
-    funcs = [data_dir, batch_size, size, dropout, learning_rate, n_epoch, loss, fulldata, num_layers, L, N]
+    def use_concat(val):
+        if val:
+            name = "Cc"
+        else:
+            name = "Mn"
+        return name, "--use_concat {}".format(val)
+
+    funcs = [data_dir, batch_size, size,       #0
+             dropout, learning_rate, n_epoch,  #3
+             loss, fulldata, num_layers,       #6
+             L, N, use_concat]                 #9
     
-    template = ["$data_part", 64, 128, 0.5, 0.5, 40, "ce", "False", 1, 30, "001"]
+    template = ["$data_part", 64, 128, 0.5, 0.5, 40, "ce", "False", 1, 30, "001",True]
     params = []
 
     _dropout = [0.4,0.6,0.8]
-    _learning_rate = [0.1,0.3,0.5,0.7]
-    
+    _learning_rate = [0.1,0.3,0.5]
+    _use_concat = [True, False]
     for lr in _learning_rate:
         for dr in _dropout:
-            temp = list(template)
-            temp[4] = lr
-            temp[3] = dr
-            params.append(temp)
+            for uc in _use_concat:
+                temp = list(template)
+                temp[4] = lr
+                temp[3] = dr
+                temp[11] = uc
+                params.append(temp)
     
 
 

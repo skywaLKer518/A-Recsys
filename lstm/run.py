@@ -20,7 +20,7 @@ import configparser
 import env
 
 sys.path.insert(0, '../utils')
-import embed_attribute_device
+import embed_attribute_device as embed_attribute
 from xing_data import data_read
 import data_iterator
 from data_iterator import DataIterator
@@ -78,6 +78,7 @@ tf.app.flags.DEFINE_boolean("profile", False, "False = no profile, True = profil
 
 tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
+tf.app.flags.DEFINE_boolean("use_concat", True, "use concat or mean")
 
 
 
@@ -232,7 +233,7 @@ def read_data():
             u_attr.num_features_cat = 1
             u_attr.num_features_mulhot = 0 
 
-        embAttr = embed_attribute_device.EmbeddingAttribute(u_attr, i_attr, FLAGS.batch_size, FLAGS.n_sampled, _buckets[-1], False, item_ind2logit_ind, logit_ind2item_ind, devices=devices)
+        embAttr = embed_attribute.EmbeddingAttribute(u_attr, i_attr, FLAGS.batch_size, FLAGS.n_sampled, _buckets[-1], False, item_ind2logit_ind, logit_ind2item_ind, devices=devices)
 
         if FLAGS.loss == "warp":
             prepare_warp(embAttr, data_tr, data_va)
@@ -258,6 +259,7 @@ def create_model(session,embAttr,START_ID, run_options, run_metadata):
                      loss = FLAGS.loss,
                      dtype = dtype,
                      devices = devices,
+                     use_concat = FLAGS.use_concat,
                      run_options = run_options,
                      run_metadata = run_metadata
                      )

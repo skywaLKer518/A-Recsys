@@ -43,6 +43,7 @@ class SeqModel(object):
                  devices = "",
                  run_options = None,
                  run_metadata = None,
+                 use_concat = True,
                  dtype=tf.float32):
         """Create the model.
         
@@ -111,32 +112,39 @@ class SeqModel(object):
 
             self.inputs = []
 
-            user_embed, _ = self.embeddingAttribute.get_batch_user(1.0, 
-                concat = False, no_id = True)
-            # user_embed_size = self.embeddingAttribute.get_user_model_size(
-                # no_id = True, concat = False)
-            # item_embed_size = self.embeddingAttribute.get_item_model_size(
-                # concat=False)
-            # w_input_user = tf.get_variable("w_input_user",[user_embed_size, size], dtype = dtype)
-            # w_input_item = tf.get_variable("w_input_item",[item_embed_size, size], dtype = dtype)
-            # user_embed_transform = tf.matmul(user_embed, w_input_user)
+            if use_concat:
+                user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,concat = True, no_id = True)
+                user_embed_size = self.embeddingAttribute.get_user_model_size(
+                    no_id = True, concat = True)
+                item_embed_size = self.embeddingAttribute.get_item_model_size(
+                    concat=True)
+                w_input_user = tf.get_variable("w_input_user",[user_embed_size, size], dtype = dtype)
+                w_input_item = tf.get_variable("w_input_item",[item_embed_size, size], dtype = dtype)
+                user_embed_transform = tf.matmul(user_embed, w_input_user)
 
-            for i in xrange(buckets[-1]):
-                name = "input{}".format(i)
-                item_embed, _ = self.embeddingAttribute.get_batch_item(name,
-                    self.batch_size, concat = False)
-                item_embed = tf.reduce_mean(item_embed, 0)
-                # item_embed_transform = tf.matmul(item_embed, w_input_item)
-                # input_embed = user_embed_transform + item_embed_transform
-                input_embed = tf.reduce_mean([user_embed, item_embed], 0)
-                self.inputs.append(input_embed)
-
+                for i in xrange(buckets[-1]):
+                    name = "input{}".format(i)
+                    item_embed, _ = self.embeddingAttribute.get_batch_item(name,
+                        self.batch_size, concat = True)
+                    item_embed_transform = tf.matmul(item_embed, w_input_item)
+                    input_embed = user_embed_transform + item_embed_transform
+                    self.inputs.append(input_embed)
+            else:
+                user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,concat = False, no_id = True)
+                
+                for i in xrange(buckets[-1]):
+                    name = "input{}".format(i)
+                    item_embed, _ = self.embeddingAttribute.get_batch_item(name,
+                        self.batch_size, concat = False)
+                    item_embed = tf.reduce_mean(item_embed, 0)
+                    input_embed = tf.reduce_mean([user_embed, item_embed], 0)
+                    self.inputs.append(input_embed)
         
         self.outputs, self.losses = self.model_with_buckets(self.inputs, 
             self.targets, self.target_weights, self.buckets, single_cell, 
             self.embeddingAttribute, dtype, devices = devices)
 
-            # for warp
+        # for warp
         if self.loss in ["warp", "mw"]:
             self.set_mask, self.reset_mask = self.embeddingAttribute.get_warp_mask(
                 device = self.devices[2])
