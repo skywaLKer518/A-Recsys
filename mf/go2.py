@@ -15,6 +15,7 @@ from xing_data import data_read
 # from ml_data import data_read
 from xing_eval import *
 from xing_submit import *
+from prepare_train import positive_items, item_frequency, sample_items
 
 # in order to profile
 from tensorflow.python.client import timeline
@@ -42,8 +43,8 @@ tf.app.flags.DEFINE_integer("patience", 20,
                             "exit if the model can't improve for $patience evals")
 tf.app.flags.DEFINE_integer("steps_per_checkpoint", 4000,
                             "How many training steps to do per checkpoint.")
-tf.app.flags.DEFINE_boolean("use_item_feature", True,
-                            "Set to True to use item features.")
+tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
+tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("recommend", False,
                             "Set to True for recommend items.")
 tf.app.flags.DEFINE_boolean("recommend_new", False,
@@ -54,6 +55,7 @@ tf.app.flags.DEFINE_boolean("eval", True,
                             "Set to True for evaluation.")
 tf.app.flags.DEFINE_boolean("use_more_train", False,
                             "Set true if use non-appearred items to train.")
+tf.app.flags.DEFINE_boolean("profile", False, "False = no profile, True = profile")
 
 tf.app.flags.DEFINE_string("loss", 'ce',
                             "loss function")
@@ -125,12 +127,14 @@ def create_model(session, u_attributes=None, i_attributes=None,
   return model
 
 def train():
-  with tf.Session(config=tf.ConfigProto(log_device_placement=FLAGS.device_log)) as sess:
+  with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, 
+    log_device_placement=FLAGS.device_log)) as sess:
     run_options = None
     run_metadata = None
-
-    # run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-    # run_metadata = tf.RunMetadata()
+    if FLAGS.profile:
+      run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+      run_metadata = tf.RunMetadata()
+      FLAGS.steps_per_checkpoint = 30
     
     print("reading data")
     logging.info("reading data")
@@ -152,72 +156,32 @@ def train():
     print("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
     logging.info("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
-    hist, hist_va, hist_withval = {}, {}, {}
-    for u, i, _ in data_tr:
-      if u not in hist:
-        hist[u] = set([i])
-      else:
-        hist[u].add(i)
-      if u not in hist_withval:
-        hist_withval[u] = set([i])
-      else:
-        hist_withval[u].add(i)
-    for u, i, _ in data_va:
-      if u not in hist_va:
-        hist_va[u] = set([i])
-      else:
-        hist_va[u].add(i)
-      if u not in hist_withval:
-        hist_withval[u] = set([i])
-      else:
-        hist_withval[u].add(i)
-
-    # item_population can be pre-specified to a narrower range
-    # so that candidate pool is smaller
-    item_counts = {}
-    if FLAGS.use_more_train:
-      item_population = range(len(item_ind2logit_ind)) # todo
-    else:
-      item_population = set([])
-      for u, i, _ in data_tr:
-        item_counts[i] = 1 if i not in item_counts else item_counts[i] + 1
-        item_population.add(i)
-      item_population = list(item_population)
-      counts = [item_counts[v] for v in item_population]
-    print(len(item_population))
-
-    count_sum = sum(counts) * 1.0
     power = FLAGS.power
-    p_item_unormalized = [np.power(c / count_sum, power) for c in counts]
-    p_item_sum = sum(p_item_unormalized)
-    p_item = [f / p_item_sum for f in p_item_unormalized]
+    item_pop, p_item = item_frequency(data_tr, power)
 
-    if FLAGS.use_item_feature:
-      print("using item attributes")
-      logging.info("using item attributes")
+    if FLAGS.use_more_train:
+      item_population = range(len(item_ind2logit_ind))
     else:
-      print("NOT using item attributes")
-      logging.info("NOT using item attributes")
+      item_population = item_pop
+
+    if not FLAGS.use_item_feature:
+      mylog("NOT using item attributes")
       i_attributes.num_features_cat = 1
       i_attributes.num_features_mulhot = 0
-    print("completed")
-    logging.info("completed")
+    if not FLAGS.use_user_feature:
+      mylog("NOT using user attributes")
+      u_attributes.num_features_cat = 1
+      u_attributes.num_features_mulhot = 0
 
     model = create_model(sess, u_attributes, i_attributes, item_ind2logit_ind,
       logit_ind2item_ind, loss=FLAGS.loss, ind_item=item_population)
 
     pos_item_list, pos_item_list_val = None, None
     if FLAGS.loss == 'warp' or FLAGS.loss == 'mw':
-      pos_item_list, pos_item_list_withval = {}, {}
-      pos_item_list_val = {}
-      for u in hist:
-        pos_item_list[u] = list(hist[u])
-      for u in hist_va:
-        pos_item_list_val[u] = list(hist_va[u])
+      pos_item_list, pos_item_list_val = positive_items(data_tr, data_va)
       model.prepare_warp(pos_item_list, pos_item_list_val)
 
-    print('started training')
-    logging.info('started training')
+    mylog('started training')
     step_time, loss, current_step, auc = 0.0, 0.0, 0, 0.0
     
     repeat = 5 if FLAGS.loss.startswith('bpr') else 1   
@@ -240,15 +204,11 @@ def train():
       ranndom_number_01 = np.random.random_sample()
       start_time = time.time()
       (user_input, item_input, neg_item_input) = model.get_batch(data_tr, 
-        loss=FLAGS.loss, hist=hist)
-      if current_step % FLAGS.n_resample == 0 and FLAGS.loss in ['mw', 'mce']:
-        item_sampled = np.random.choice(item_population, FLAGS.n_sampled, replace=False,
-          p=p_item)
-        item_sampled_id2idx = {}
-        i = 0
-        for item in item_sampled:
-          item_sampled_id2idx[item] = i
-          i += 1
+        loss=FLAGS.loss)
+      
+      if FLAGS.loss in ['mw', 'mce'] and current_step % FLAGS.n_resample == 0:
+        item_sampled, item_sampled_id2idx = sample_items(item_population, 
+          FLAGS.n_sampled, p_item)
       else:
         item_sampled = None
 
@@ -267,12 +227,13 @@ def train():
           mylog("global step %d learning rate %.4f step-time %.4f perplexity %.2f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, perplexity))
         else:
           mylog("global step %d learning rate %.4f step-time %.4f loss %.3f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, loss))
-        # Create the Timeline object, and write it to a json
-        # tl = timeline.Timeline(run_metadata.step_stats)
-        # ctf = tl.generate_chrome_trace_format()
-        # with open('timeline3.json', 'w') as f:
-        #     f.write(ctf)
-        # exit()
+        if FLAGS.profile:
+          # Create the Timeline object, and write it to a json
+          tl = timeline.Timeline(run_metadata.step_stats)
+          ctf = tl.generate_chrome_trace_format()
+          with open('timeline.json', 'w') as f:
+              f.write(ctf)
+          exit()
 
         # Decrease learning rate if no improvement was seen over last 3 times.
         if len(previous_losses) > 2 and loss > max(previous_losses[-3:]):

@@ -20,12 +20,13 @@ import configparser
 import env
 
 sys.path.insert(0, '../utils')
-import embed_attribute_device as embed_attribute
+import embed_attribute
 from xing_data import data_read
 import data_iterator
 from data_iterator import DataIterator
 from best_buckets import *
 from tensorflow.python.client import timeline
+from prepare_train import positive_items, item_frequency, sample_items
 
 
 tf.app.flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
@@ -34,6 +35,7 @@ tf.app.flags.DEFINE_float("learning_rate_decay_factor", 0.83,
 tf.app.flags.DEFINE_float("max_gradient_norm", 5.0,
                           "Clip gradients to this norm.")
 tf.app.flags.DEFINE_float("keep_prob", 0.5, "dropout rate.")
+tf.app.flags.DEFINE_float("power", 0.5, "related to sampling rate.")
 
 tf.app.flags.DEFINE_boolean("withAdagrad", True,
                             "withAdagrad.")
@@ -50,7 +52,7 @@ tf.app.flags.DEFINE_integer("batch_size", 100,
 tf.app.flags.DEFINE_integer("size", 128, "Size of each model layer.")
 tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
 tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
-
+tf.app.flags.DEFINE_integer("n_resample", 30, "iterations before resample.")
 tf.app.flags.DEFINE_string("data_dir", "../mf/data0", "Data directory")
 tf.app.flags.DEFINE_string("train_dir", "./train", "Training directory.")
 tf.app.flags.DEFINE_string("N", "000", "GPU layer distribution: [input_embedding, lstm, output_embedding]")
@@ -78,7 +80,7 @@ tf.app.flags.DEFINE_boolean("profile", False, "False = no profile, True = profil
 
 tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
-tf.app.flags.DEFINE_boolean("use_concat", True, "use concat or mean")
+tf.app.flags.DEFINE_boolean("use_concat", False, "use concat or mean")
 
 
 
@@ -137,34 +139,13 @@ def form_sequence(data, maxlen = 100):
     return dd
 
 def prepare_warp(embAttr, data_tr, data_va):
-    hist, hist_va, hist_withval = {}, {}, {}
-    for u, i, _ in data_tr:
-        if u not in hist:
-            hist[u] = set([i])
-        else:
-            hist[u].add(i)
-        if u not in hist_withval:
-            hist_withval[u] = set([i])
-        else:
-            hist_withval[u].add(i)
-
-    for u, i, _ in data_va:
-        if u not in hist_va:
-            hist_va[u] = set([i])
-        else:
-            hist_va[u].add(i)
-        if u not in hist_withval:
-            hist_withval[u] = set([i])
-        else:
-            hist_withval[u].add(i)
-
-    pos_item_list = {}
-    pos_item_list_val = {}
-    for u in hist:
-        pos_item_list[u] = list(hist[u])
-    for u in hist_va:
-        pos_item_list_val[u] = list(hist_va[u])
-
+    pos_item_list, pos_item_list_val = {}, {}
+    for t in data_tr:
+        u, i_list = t
+        pos_item_list[u] = list(set(i_list))
+    for t in data_va:
+        u, i_list = t
+        pos_item_list_val[u] = list(set(i_list))
     embAttr.prepare_warp(pos_item_list, pos_item_list_val) 
 
 def get_device_address(s):
@@ -202,19 +183,22 @@ def read_data():
     # remove unk
     data_tr = [p for p in data_tr if (p[1] in item_ind2logit_ind)]
     
+    # item frequency (for sampling)
+    item_population, p_item = item_frequency(data_tr, FLAGS.power)
+
     # UNK and START
     START_ID = i_attr.get_item_last_index()
     seq_all = form_sequence(data_tr,maxlen = FLAGS.L)
-    seq_tr, seq_va = split_train_dev(seq_all,ratio=0.05)
+    seq_tr0, seq_va0 = split_train_dev(seq_all,ratio=0.05)
 
     # calculate buckets
     global _buckets
-    _buckets = calculate_buckets(seq_tr+seq_va, FLAGS.L, FLAGS.n_bucket)
+    _buckets = calculate_buckets(seq_tr0+seq_va0, FLAGS.L, FLAGS.n_bucket)
     _buckets = sorted(_buckets)
 
     # split_buckets
-    seq_tr = split_buckets(seq_tr,_buckets)
-    seq_va = split_buckets(seq_va,_buckets)
+    seq_tr = split_buckets(seq_tr0,_buckets)
+    seq_va = split_buckets(seq_va0,_buckets)
 
     # create embedAttr
 
@@ -235,10 +219,11 @@ def read_data():
 
         embAttr = embed_attribute.EmbeddingAttribute(u_attr, i_attr, FLAGS.batch_size, FLAGS.n_sampled, _buckets[-1], False, item_ind2logit_ind, logit_ind2item_ind, devices=devices)
 
-        if FLAGS.loss == "warp":
-            prepare_warp(embAttr, data_tr, data_va)
+        if FLAGS.loss in ["warp", 'mw']:
+            prepare_warp(embAttr, seq_tr0, seq_va0)
+            # prepare_warp(embAttr, data_tr, data_va)
 
-    return seq_tr, seq_va, embAttr, START_ID, len(data_tr), len(data_va)
+    return seq_tr, seq_va, embAttr, START_ID, len(data_tr), len(data_va), item_population, p_item
 
 
 def create_model(session,embAttr,START_ID, run_options, run_metadata):
@@ -288,7 +273,7 @@ def train():
 
     # Read Data
     log_it("Reading Data...")
-    train_set, dev_set, embAttr, START_ID, n_targets_train, n_targets_dev = read_data()
+    train_set, dev_set, embAttr, START_ID, n_targets_train, n_targets_dev, item_population, p_item = read_data()
     train_bucket_sizes = [len(train_set[b]) for b in xrange(len(_buckets))]
     train_total_size = float(sum(train_bucket_sizes))
     train_buckets_scale = [sum(train_bucket_sizes[:i + 1]) / train_total_size for i in xrange(len(train_bucket_sizes))]
@@ -328,7 +313,6 @@ def train():
         else:
             run_options = None
             run_metadata = None
-        
 
         log_it("Creating Model")
         model = create_model(sess, embAttr, START_ID, run_options, run_metadata)
@@ -356,14 +340,21 @@ def train():
         n_targets_report = 0
         report_time = 0
 
+        item_sampled, item_sampled_id2idx = None, None
         while current_step < total_steps:
             
             # start
             start_time = time.time()
             
+            # re-sample every once a while
+            if FLAGS.loss in ['mw', 'mce'] and current_step % FLAGS.n_resample == 0 :
+                item_sampled, item_sampled_id2idx = sample_items(item_population, FLAGS.n_sampled, p_item)
+            else:
+                item_sampled = None
+
             # data and train
             users, inputs, outputs, weights, bucket_id = ite.next()
-            L = model.step(sess, users, inputs, outputs, weights, bucket_id)
+            L = model.step(sess, users, inputs, outputs, weights, bucket_id, item_sampled=item_sampled, item_sampled_id2idx=item_sampled_id2idx)
             
             # loss and time
             step_time += (time.time() - start_time) / steps_per_checkpoint
@@ -404,7 +395,7 @@ def train():
                                 
                 # dev data
                 log_it("--------------------" + "DEV" + str(current_step) + "-------------------")
-                eval_loss, eval_ppx = evaluate(sess, model, dev_set)
+                eval_loss, eval_ppx = evaluate(sess, model, dev_set, item_sampled_id2idx=item_sampled_id2idx)
                 log_it("dev: ppx: {}".format(eval_ppx))
 
                 his.append([current_step, train_ppx, eval_ppx])
@@ -430,7 +421,7 @@ def train():
         df.columns=["step""Train_ppx","Dev_ppx"]
         df.to_csv(os.path.join(FLAGS.train_dir,"log.csv"))
 
-def evaluate(sess, model, data_set):
+def evaluate(sess, model, data_set, item_sampled_id2idx=None):
     # Run evals on development set and print their perplexity.
     dropoutRateRaw = FLAGS.keep_prob
     
@@ -446,7 +437,7 @@ def evaluate(sess, model, data_set):
     ite = dite.next_sequence(stop = True)
 
     for users, inputs, outputs, weights, bucket_id in ite:
-        L = model.step(sess, users, inputs, outputs, weights, bucket_id, forward_only = True)
+        L = model.step(sess, users, inputs, outputs, weights, bucket_id, forward_only = True, item_sampled_id2idx=item_sampled_id2idx)
         loss += L
         n_steps += 1
         if n_steps > 50:

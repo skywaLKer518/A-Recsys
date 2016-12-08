@@ -19,7 +19,6 @@ import sys
 import itertools
 sys.path.insert(0, '../utils')
 import embed_attribute
-# import embed_attribute_old
 
 class LatentProductModel(object):
   def __init__(self, user_size, item_size, size,
@@ -62,8 +61,10 @@ class LatentProductModel(object):
     self.att_emb = None
 
     mb = self.batch_size
+    ''' this is mapped item target '''
     self.item_target = tf.placeholder(tf.int32, shape = [mb], name = "item")
-    
+    self.item_id_target = tf.placeholder(tf.int32, shape = [mb], name = "item_id")
+
     self.dropout = dropout
     self.keep_prob = tf.placeholder(tf.float32, name='keep_prob')
 
@@ -91,6 +92,7 @@ class LatentProductModel(object):
       sampled_logits = m.get_prediction(embedded_user, 'sampled')
       # embedded_item, item_b = m.get_sampled_item(self.n_sampled)
       # sampled_logits = tf.matmul(embedded_user, tf.transpose(embedded_item)) + item_b
+      target_score = m.get_target_score(embedded_user, self.item_id_target)
 
     print("non-sampled prediction")
     logits = m.get_prediction(embedded_user)
@@ -99,7 +101,8 @@ class LatentProductModel(object):
     if loss in ['warp', 'ce']:
       batch_loss = m.compute_loss(logits, self.item_target, loss)
     elif loss in ['mw']:
-      batch_loss = m.compute_loss(sampled_logits, self.pos_score, loss)
+      # batch_loss = m.compute_loss(sampled_logits, self.pos_score, loss)
+      batch_loss = m.compute_loss(sampled_logits, target_score, loss)
       batch_loss_eval = m.compute_loss(logits, self.item_target, 'warp')
 
     elif loss in ['bpr', 'bpr-hinge']:
@@ -137,9 +140,13 @@ class LatentProductModel(object):
       input_feed[self.keep_prob.name] = 1.0
     else:
       input_feed[self.keep_prob.name] = self.dropout
-    
-    if loss in ['warp', 'ce'] and recommend == False:
-      input_feed[self.item_target.name] = [self.item_ind2logit_ind[v] for v in item_input]
+        
+    if recommend == False:
+      targets = self.att_emb.target_mapping([item_input])
+      input_feed[self.item_target.name] = targets[0]
+      if loss in ['mw']:
+        input_feed[self.item_id_target.name] = item_input
+      
     # if loss in ['mw', 'mce'] and recommend == False:
       # input_feed[self.item_target.name] = [item_sampled_id2idx[v] for v in item_input]
 

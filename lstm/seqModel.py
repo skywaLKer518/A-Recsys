@@ -96,6 +96,7 @@ class SeqModel(object):
         # Feeds for inputs.
         with tf.device(devices[2]):
             self.targets = []
+            self.target_ids = []
             self.target_weights = []
 
             # target: 1  2  3  4 
@@ -105,6 +106,8 @@ class SeqModel(object):
             for i in xrange(buckets[-1]):
                 self.targets.append(tf.placeholder(tf.int32, 
                     shape=[self.batch_size], name = "target{}".format(i)))
+                self.target_ids.append(tf.placeholder(tf.int32, 
+                    shape=[self.batch_size], name = "target_id{}".format(i)))
                 self.target_weights.append(tf.placeholder(dtype, 
                     shape = [self.batch_size], name="target_weight{}".format(i)))
 
@@ -172,21 +175,25 @@ class SeqModel(object):
         self.saver = tf.train.Saver(tf.all_variables())
 
     def step(self,session, user_input, item_inputs, targets, target_weights, 
-        bucket_id, item_sampled=None, forward_only = False, recommend = False):
-        #print(bucket_id)
+        bucket_id, item_sampled=None, item_sampled_id2idx = None, forward_only = False, recommend = False):
 
         length = self.buckets[bucket_id]
 
-        targets = self.embeddingAttribute.target_mapping(targets)
+        target_inds = self.embeddingAttribute.target_mapping(targets)
         input_feed = {}
         for l in xrange(length):
-            input_feed[self.targets[l].name] = targets[l]
+            input_feed[self.targets[l].name] = target_inds[l]
             input_feed[self.target_weights[l].name] = target_weights[l]
+            if self.loss in ['mw', 'ce']:
+                input_feed[self.target_ids[l].name] = targets[l]
+
         #print(input_feed)
-        (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = forward_only, recommend = recommend, loss = self.loss)
+        (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = forward_only, recommend = recommend, loss = self.loss, item_sampled_id2idx=item_sampled_id2idx)
         if self.loss in ["warp", "mw"]:
             session.run(self.set_mask[self.loss], input_feed_warp)
-        #print(input_feed)
+        
+        if item_sampled is not None and self.loss in ['mw', 'mce']:
+            session.run(update_sampled, input_feed_sampled)
 
         # output_feed
         output_feed = [self.losses[bucket_id]]
@@ -195,10 +202,10 @@ class SeqModel(object):
         if len(item_inputs) > 1:
             output_feed.append(self.outputs[bucket_id][1])
 
-        outputs = session.run(output_feed, input_feed, options = self.run_options, run_metadata = self.run_metadata)
+        if self.loss in ["warp", "mw"]:
+            session.run(self.set_mask[self.loss], input_feed_warp)
 
-        if item_sampled is not None and loss in ['mw', 'mce']:
-            session.run(update_sampled, input_feed_sampled)
+        outputs = session.run(output_feed, input_feed, options = self.run_options, run_metadata = self.run_metadata)
 
         if self.loss in ["warp", "mw"]:
             session.run(self.reset_mask[self.loss], input_feed_warp)
@@ -275,16 +282,29 @@ class SeqModel(object):
                     with tf.device(devices[1]):
                         bucket_outputs, _ = rnn.rnn(cell,inputs[:bucket],initial_state = init_state)
                     with tf.device(devices[2]):
-                        bucket_outputs = [self.embeddingAttribute.get_prediction(x, device=devices[2]) for x in bucket_outputs]
+                        if self.loss in ['warp', 'ce']:
+                            t = targets
+                            bucket_outputs = [self.embeddingAttribute.get_prediction(x, device=devices[2]) for x in bucket_outputs]
+                        elif self.loss in ['mw']:
+                            # bucket_outputs0 = [self.embeddingAttribute.get_prediction(x, pool='sampled', device=devices[2]) for x in bucket_outputs]
+                            t, bucket_outputs0 = [], []
+
+                            for i in xrange(len(bucket_outputs)):
+                                x = bucket_outputs[i]
+                                ids = self.target_ids[i]
+                                bucket_outputs0.append(self.embeddingAttribute.get_prediction(x, pool='sampled', device=devices[2]))
+                                t.append(self.embeddingAttribute.get_target_score(x, ids, device=devices[2]))
+                            bucket_outputs = bucket_outputs0
 
                         outputs.append(bucket_outputs)
+
                         if per_example_loss:
                             losses.append(sequence_loss_by_example(
-                                    outputs[-1], targets[:bucket], weights[:bucket],
+                                    outputs[-1], t[:bucket], weights[:bucket],
                                     softmax_loss_function=softmax_loss_function))
                         else:
                             losses.append(sequence_loss(
-                                    outputs[-1], targets[:bucket], weights[:bucket],
+                                    outputs[-1], t[:bucket], weights[:bucket],
                                     softmax_loss_function=softmax_loss_function))
                   
         return outputs, losses
