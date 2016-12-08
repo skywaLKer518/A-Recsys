@@ -105,7 +105,6 @@ def get_buckets_id(l, buckets):
         if l <= buckets[i]:
              id = i
              break
-
     return id
 
 def form_sequence(data, maxlen = 100):
@@ -179,8 +178,17 @@ def get_device_address(s):
     print(add)
     return add
 
+def split_train_dev(seq_all, ratio = 0.05):
+    random.seed(0)
+    seq_tr, seq_va = [],[]
+    for item in seq_all:
+        r = random.random()
+        if r < ratio:
+            seq_va.append(item)
+        else:
+            seq_tr.append(item)
 
-
+    return seq_tr, seq_va
 
 
 def read_data():
@@ -192,18 +200,16 @@ def read_data():
 
     # remove unk
     data_tr = [p for p in data_tr if (p[1] in item_ind2logit_ind)]
-    data_va = [p for p in data_va if (p[1] in item_ind2logit_ind)]
     
     # UNK and START
     START_ID = i_attr.get_item_last_index()
-    seq_tr = form_sequence(data_tr,maxlen = FLAGS.L)
-    seq_va = form_sequence(data_va,maxlen = FLAGS.L)
+    seq_all = form_sequence(data_tr,maxlen = FLAGS.L)
+    seq_tr, seq_va = split_train_dev(seq_all,ratio=0.05)
 
     # calculate buckets
     global _buckets
     _buckets = calculate_buckets(seq_tr+seq_va, FLAGS.L, FLAGS.n_bucket)
     _buckets = sorted(_buckets)
-
 
     # split_buckets
     seq_tr = split_buckets(seq_tr,_buckets)
@@ -294,7 +300,7 @@ def train():
     steps_per_epoch = int(train_total_size / batch_size)
     steps_per_dev = int(dev_total_size / batch_size)
 
-    steps_per_checkpoint = steps_per_dev * 2
+    steps_per_checkpoint = int(steps_per_epoch / 2)
     total_steps = steps_per_epoch * n_epoch
 
     # reports

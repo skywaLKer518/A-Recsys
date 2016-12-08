@@ -109,8 +109,8 @@ class SeqModel(object):
 
             self.inputs = []
 
-            user_embed, _ = self.embeddingAttribute.get_batch_user(1.0, concat = True)
-            user_embed_size = self.embeddingAttribute.get_user_model_size()
+            user_embed, _ = self.embeddingAttribute.get_batch_user(1.0, concat = True, no_id = True)
+            user_embed_size = self.embeddingAttribute.get_user_model_size(no_id = True)
             item_embed_size = self.embeddingAttribute.get_item_model_size()
             w_input_user = tf.get_variable("w_input_user",[user_embed_size, size], dtype = dtype)
             w_input_item = tf.get_variable("w_input_item",[item_embed_size, size], dtype = dtype)
@@ -146,8 +146,7 @@ class SeqModel(object):
 
                 for b in xrange(len(buckets)):
                     gradients = tf.gradients(self.losses[b], params, colocate_gradients_with_ops=True)
-                    clipped_gradients, norm = tf.clip_by_global_norm(gradients,
-                                                                 max_gradient_norm)
+                    clipped_gradients, norm = tf.clip_by_global_norm(gradients, max_gradient_norm)
                     self.gradient_norms.append(norm)
                     self.updates.append(opt.apply_gradients(zip(clipped_gradients, params), global_step=self.global_step))
 
@@ -157,7 +156,6 @@ class SeqModel(object):
         bucket_id, item_sampled=None, forward_only = False, recommend = False):
         #print(bucket_id)
 
-
         length = self.buckets[bucket_id]
 
         targets = self.embeddingAttribute.target_mapping(targets)
@@ -166,10 +164,7 @@ class SeqModel(object):
             input_feed[self.targets[l].name] = targets[l]
             input_feed[self.target_weights[l].name] = target_weights[l]
         #print(input_feed)
-        (update_sampled, input_feed_sampled, input_feed_warp
-            ) = self.embeddingAttribute.add_input(input_feed, user_input, 
-            item_inputs, forward_only = forward_only, recommend = recommend, 
-            loss = self.loss)
+        (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = forward_only, recommend = recommend, loss = self.loss)
         if self.loss in ["warp", "mw"]:
             session.run(self.set_mask[self.loss], input_feed_warp)
         #print(input_feed)

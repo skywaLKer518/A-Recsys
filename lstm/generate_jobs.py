@@ -61,7 +61,7 @@ def main():
     params = []
 
     _dropout = [0.4,0.6,0.8]
-    _learning_rate = [0.3,0.5,1.0]
+    _learning_rate = [0.1,0.3,0.5,0.7]
     
     for lr in _learning_rate:
         for dr in _dropout:
