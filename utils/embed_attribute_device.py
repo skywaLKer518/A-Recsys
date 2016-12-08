@@ -349,17 +349,23 @@ class EmbeddingAttribute(object):
       else:
         return cat_list, mulhot_list, bias
 
-  def get_user_model_size(self, no_id=False):
+  def get_user_model_size(self, no_id=False, concat=True):
     '''
     TODO: deprecated: only work for concatenation case
     '''
-    cat_start = 1 if no_id else 0
-    return (sum(self.user_attributes._embedding_size_list_cat[cat_start:self.user_attributes.num_features_cat]) + 
-            sum(self.user_attributes._embedding_size_list_mulhot[0:self.user_attributes.num_features_mulhot]))
+    if concat == True:
+      cat_start = 1 if no_id else 0
+      return (sum(self.user_attributes._embedding_size_list_cat[cat_start:self.user_attributes.num_features_cat]) + 
+              sum(self.user_attributes._embedding_size_list_mulhot[0:self.user_attributes.num_features_mulhot]))
+    else:      
+      return self.user_attributes._embedding_size_list_cat[0]
 
-  def get_item_model_size(self):
-    return (sum(self.item_attributes._embedding_size_list_cat[0:self.item_attributes.num_features_cat]) + 
-            sum(self.item_attributes._embedding_size_list_mulhot[0:self.item_attributes.num_features_mulhot]))
+  def get_item_model_size(self, concat=True):
+    if concat:
+      return (sum(self.item_attributes._embedding_size_list_cat[0:self.item_attributes.num_features_cat]) + 
+              sum(self.item_attributes._embedding_size_list_mulhot[0:self.item_attributes.num_features_mulhot]))
+    else:
+      return self.item_attributes._embedding_size_list_cat[0]
 
   def compute_loss(self, logits, item_target, loss='ce', device='/gpu:0'):
     assert(loss in ['ce', 'mce', 'warp', 'mw', 'bpr', 'bpr-hinge'])
