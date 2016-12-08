@@ -127,7 +127,7 @@ class SeqModel(object):
         self.outputs, self.losses = self.model_with_buckets(self.inputs, self.targets, self.target_weights, self.buckets, single_cell, self.embeddingAttribute, dtype, devices = devices)
 
             # for warp
-        if self.loss == "warp":
+        if self.loss in ["warp", "mw"]:
             self.set_mask, self.reset_mask = self.embeddingAttribute.get_warp_mask(device = self.devices[2])
 
         #with tf.device(devices[0]):
@@ -153,19 +153,12 @@ class SeqModel(object):
 
         self.saver = tf.train.Saver(tf.all_variables())
 
-    def step(self,session, user_input, item_inputs, targets, target_weights, bucket_id, forward_only = False, recommend = False):
+    def step(self,session, user_input, item_inputs, targets, target_weights, 
+        bucket_id, item_sampled=None, forward_only = False, recommend = False):
         #print(bucket_id)
 
 
         length = self.buckets[bucket_id]
-        
-        # input_feed
-        
-        #print(user_input)
-        #print(item_inputs)
-        #print(targets)
-        #print(target_weights)
-        
 
         targets = self.embeddingAttribute.target_mapping(targets)
         input_feed = {}
@@ -173,9 +166,12 @@ class SeqModel(object):
             input_feed[self.targets[l].name] = targets[l]
             input_feed[self.target_weights[l].name] = target_weights[l]
         #print(input_feed)
-        input_feed_warp = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = forward_only, recommend = recommend, loss = self.loss)
-        if self.loss == "warp":
-            session.run(self.set_mask, input_feed_warp)
+        (update_sampled, input_feed_sampled, input_feed_warp
+            ) = self.embeddingAttribute.add_input(input_feed, user_input, 
+            item_inputs, forward_only = forward_only, recommend = recommend, 
+            loss = self.loss)
+        if self.loss in ["warp", "mw"]:
+            session.run(self.set_mask[self.loss], input_feed_warp)
         #print(input_feed)
 
         # output_feed
@@ -187,14 +183,11 @@ class SeqModel(object):
 
         outputs = session.run(output_feed, input_feed, options = self.run_options, run_metadata = self.run_metadata)
 
-        if self.loss == "warp":
-            session.run(self.reset_mask, input_feed_warp)
+        if item_sampled is not None and loss in ['mw', 'mce']:
+            session.run(update_sampled, input_feed_sampled)
 
-
-        #if len(item_inputs) > 1:        
-        #    print(outputs[-1].shape)
-        #    print(outputs[-1][:,:30])
-        #    print(outputs[0])
+        if self.loss in ["warp", "mw"]:
+            session.run(self.reset_mask[self.loss], input_feed_warp)
 
         return outputs[0]
     
@@ -256,7 +249,7 @@ class SeqModel(object):
         all_inputs = inputs + targets + weights
         losses = []
         outputs = []
-        softmax_loss_function = lambda x,y: self.embeddingAttribute.compute_loss(x ,y, device = devices[2])
+        softmax_loss_function = lambda x,y: self.embeddingAttribute.compute_loss(x ,y, loss=self.loss, device = devices[2])
 
         with tf.device(devices[1]):
             init_state = cell.zero_state(self.batch_size, dtype)

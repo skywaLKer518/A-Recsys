@@ -136,7 +136,6 @@ def form_sequence(data, maxlen = 100):
             
     return dd
 
-
 def prepare_warp(embAttr, data_tr, data_va):
     hist, hist_va, hist_withval = {}, {}, {}
     for u, i, _ in data_tr:
@@ -166,8 +165,7 @@ def prepare_warp(embAttr, data_tr, data_va):
     for u in hist_va:
         pos_item_list_val[u] = list(hist_va[u])
 
-    embAttr.prepare_warp(pos_item_set, pos_item_set_eval) 
-
+    embAttr.prepare_warp(pos_item_list, pos_item_list_val) 
 
 def get_device_address(s):
 
