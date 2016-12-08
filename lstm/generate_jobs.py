@@ -5,7 +5,7 @@ head="""
 #!/bin/bash
 #PBS -q isi
 #PBS -l walltime=300:00:00
-#PBS -l gpus=2:shared
+#PBS -l nodes=1:ppn=16:gpus=2:shared
 
 source $NLGHOME/sh/init_tensorflow.sh
 cd /home/nlg-05/xingshi/lstm/tensorflow/recsys/lstm/
