@@ -89,10 +89,8 @@ class LatentProductModel(object):
     print("sampled prediction")
     if self.n_sampled is not None:
       sampled_logits = m.get_prediction(embedded_user, 'sampled')
-    # if self.n_sampled is not None:
-    #   embedded_item, item_b = m.get_batch_item('sampled', self.n_sampled)
-    #   embedded_item = tf.reduce_mean(embedded_item, 0)
-    #   sampled_logits = tf.matmul(embedded_user, tf.transpose(embedded_item)) + item_b
+      # embedded_item, item_b = m.get_sampled_item(self.n_sampled)
+      # sampled_logits = tf.matmul(embedded_user, tf.transpose(embedded_item)) + item_b
 
     print("non-sampled prediction")
     logits = m.get_prediction(embedded_user)

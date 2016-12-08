@@ -194,6 +194,14 @@ class EmbeddingAttribute(object):
         self.item_attributes, 'item', False)
       return item_cat + item_mulhot, item_b
   
+  def get_sampled_item(self, n_sampled):
+    name = 'sampled'
+    mapping = self.i_indices[name]
+    item_cat, item_mulhot, item_b = self._get_embedded_sampled(
+      self.item_embs_cat, self.item_embs_mulhot, self.i_biases_cat, 
+      self.i_biases_mulhot, mapping, n_sampled, self.item_attributes)
+    return tf.reduce_mean(item_cat + item_mulhot, 0), item_b
+
   def _embedded(self, attributes, prefix='', transpose=False):
     '''
     variables of full vocabulary for each type of features
@@ -328,6 +336,37 @@ class EmbeddingAttribute(object):
     else:
       return cat_list, mulhot_list, bias
 
+  def _get_embedded_sampled(self, embs_cat, embs_mulhot, b_cat, b_mulhot, 
+    mappings, n_sampled, attributes):
+    cat_indices, mulhot_indices, mulhot_segids, mulhot_lengths = mappings
+    cat_list, mulhot_list = [], []
+    bias_cat_list, bias_mulhot_list = [], []
+
+    for i in xrange(attributes.num_features_cat):
+      embedded = lookup(embs_cat[i], cat_indices[i])
+      cat_list.append(embedded)
+      if b_cat is not None:
+        b = lookup(b_cat[i], cat_indices[i])
+        bias_cat_list.append(b)
+    for i in xrange(attributes.num_features_mulhot):
+      inds = tf.slice(mulhot_indices[i], [0], [self.sampled_mulhot_l[i]])
+      segids = tf.slice(mulhot_segids[i], [0], [self.sampled_mulhot_l[i]])
+      embedded_flat = lookup(embs_mulhot[i], inds)
+      embedded_sum = tf.unsorted_segment_sum(embedded_flat, segids, n_sampled)
+      embedded = tf.div(embedded_sum, mulhot_lengths[i])
+      mulhot_list.append(embedded)
+      if b_mulhot is not None:
+        b_embedded_flat = lookup(b_mulhot[i], inds)
+        b_embedded_sum = tf.unsorted_segment_sum(b_embedded_flat, 
+          segids, n_sampled)
+        b_embedded = tf.div(b_embedded_sum, mulhot_lengths[i])
+        bias_mulhot_list.append(b_embedded)
+    if b_cat is None and b_mulhot is None:
+      bias = None
+    else:
+      bias = tf.squeeze(tf.reduce_mean(bias_cat_list + bias_mulhot_list, 0))
+    return cat_list, mulhot_list, bias
+    
   def get_user_model_size(self):
     '''
     TODO: deprecated
@@ -475,4 +514,3 @@ class EmbeddingAttribute(object):
 
     return update_sampled, input_feed_sampled, input_feed_warp
 
-    

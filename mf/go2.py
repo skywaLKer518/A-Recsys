@@ -38,7 +38,7 @@ tf.app.flags.DEFINE_string("data_dir", "./data0", "Data directory")
 tf.app.flags.DEFINE_string("train_dir", "./test0", "Training directory.")
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
                             "Limit on the size of training data (0: no limit).")
-tf.app.flags.DEFINE_integer("patience", 30,
+tf.app.flags.DEFINE_integer("patience", 20,
                             "exit if the model can't improve for $patience evals")
 tf.app.flags.DEFINE_integer("steps_per_checkpoint", 4000,
                             "How many training steps to do per checkpoint.")
@@ -64,7 +64,7 @@ tf.app.flags.DEFINE_string("nonlinear", 'linear', "nonlinear activation")
 tf.app.flags.DEFINE_integer("gpu", -1, "gpu card number")
 
 # Xing related
-tf.app.flags.DEFINE_integer("ta", 1, "target_active")
+tf.app.flags.DEFINE_integer("ta", 0, "target_active")
 tf.app.flags.DEFINE_integer("top_N_items", 30,
                             "number of items output")
 
@@ -128,6 +128,7 @@ def train():
   with tf.Session(config=tf.ConfigProto(log_device_placement=FLAGS.device_log)) as sess:
     run_options = None
     run_metadata = None
+
     # run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
     # run_metadata = tf.RunMetadata()
     
@@ -269,7 +270,7 @@ def train():
         # Create the Timeline object, and write it to a json
         # tl = timeline.Timeline(run_metadata.step_stats)
         # ctf = tl.generate_chrome_trace_format()
-        # with open('timeline2.json', 'w') as f:
+        # with open('timeline3.json', 'w') as f:
         #     f.write(ctf)
         # exit()
 
@@ -321,11 +322,11 @@ def train():
             eval_auc, step_time))
         sys.stdout.flush()
 
-        if eval_auc > best_auc:
-          best_auc = eval_auc
-          new_filename = os.path.join(FLAGS.train_dir, "go.ckpt-best_auc")
-          shutil.copy(current_model, new_filename)
-          patience = FLAGS.patience
+        # if eval_auc > best_auc:
+        #   best_auc = eval_auc
+        #   new_filename = os.path.join(FLAGS.train_dir, "go.ckpt-best_auc")
+        #   shutil.copy(current_model, new_filename)
+        #   patience = FLAGS.patience
         
         if eval_loss < best_loss:
           best_loss = eval_loss
@@ -333,7 +334,7 @@ def train():
           shutil.copy(current_model, new_filename)
           patience = FLAGS.patience
 
-        if eval_loss > best_loss and eval_auc < best_auc:
+        if eval_loss > best_loss: # and eval_auc < best_auc:
           patience -= 1
 
         auc_dev.append(eval_auc)
