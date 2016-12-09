@@ -1,4 +1,69 @@
 from xing_submit import *
+from load_xing_data import load_user_target_csv, load_item_active_csv, load_user_csv
+
+class Evaluate(object):
+    def __init__(self, logit_ind2item_ind, res_filename='../submissions/res_T.csv', 
+        hist_filename = '../submissions/historical_train.csv', ta=1):
+        self.logit_ind2item_ind = logit_ind2item_ind
+        self.T = load_submit(res_filename)
+        self.hist = load_submit(hist_filename)
+        self.Iatt, _, self.Iid2ind = load_item_active_csv()
+        if ta == 1:
+            self.Uatt, _, self.Uid2ind = load_user_target_csv()
+        else:
+            self.Uatt, _, self.Uid2ind = load_user_csv()
+
+        self.Uids = self.get_uids()
+        self.Uinds = [self.Uid2ind[v] for v in self.Uids]
+        return
+
+    def gen_rec(self, rec, recommend_new=False):
+        R = {}
+        N = self.get_user_n()
+        if not recommend_new:
+            for i in xrange(N):
+                uid = self.Uatt[self.Uinds[i], 0]
+                R[uid] = [self.Iatt[self.logit_ind2item_ind[logid], 0] for logid in list(rec[i, :])]
+        else:       
+            for i in xrange(N):
+                uid = self.Uatt[self.Uinds[i], 0]
+                R[uid] = [self.Iatt[logid, 0] for logid in list(rec[i, :])]
+        return R
+
+    def get_user_n(self):
+        return len(self.T)
+
+    def get_uids(self):
+        return list(self.T.keys())
+
+    def get_uinds(self):
+        return self.Uinds
+
+    def eval_on(self, rec):
+        self.res = rec
+
+        tmp_filename = 'rec'
+        format_submit(rec, tmp_filename)
+        rec = load_submit(tmp_filename)
+        self.s1 = scores(rec, self.T)
+
+        r_combine = combine_sub(self.hist, rec)
+        format_submit(r_combine, tmp_filename)
+        rec2 = load_submit(tmp_filename)
+        self.s2 = scores(rec2, self.T)
+
+        r_ex = combine_sub(self.hist, rec, 1)
+        format_submit(r_ex, tmp_filename)
+        rec3 = load_submit(tmp_filename)
+        self.s3 = scores(rec3, self.T)
+
+        from eval_rank import eval_P5, eval_R20
+        self.r20 = eval_R20(rec, self.T)
+        self.p5 = eval_P5(rec, self.T)
+        return
+
+    def get_scores(self):
+        return self.s1, self.s2, self.s3, self.r20, self.p5
 
 def scores(X, T, opt = 0):
     '''

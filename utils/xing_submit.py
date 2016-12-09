@@ -44,7 +44,7 @@ def load_submit(sub_id):
     # if not isfile(filename):
     #     filename = SUBMIT_DIR2+'res_'+str(sub_id)+'.csv'
     filename = SUBMIT_DIR + sub_id
-    data = load_csv(filename, 0)
+    data = load_csv(filename, types=0)
     x = data.set_index('user_id').to_dict()['items']
     for _, key in enumerate(x):
         l = x[key]

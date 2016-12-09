@@ -319,108 +319,54 @@ def train():
 
 def recommend():
 
-  with tf.Session() as sess:
+  with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, 
+    log_device_placement=FLAGS.device_log)) as sess:
     print("reading data")
     (data_tr, data_va, u_attributes, i_attributes, item_ind2logit_ind, 
       logit_ind2item_ind) = read_data()
-    print("completed")
-    # print("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
-  
-    N = len(item_ind2logit_ind)
-    cum_loss, count = 0.0, 0
     
-    T = load_submit('../submissions/res_T.csv')
-    print("length of active users in eval week: %d" % len(T))
-    filename0 = '../submissions/historical_train.csv'
-    r0 = load_submit(filename0)
-
-    from load_xing_data import load_user_target_csv, load_item_active_csv
-    Uatt, user_feature_names, Uid2ind = load_user_target_csv()
-    Iatt, item_feature_names, Iid2ind = load_item_active_csv()
-
-    # item_population = range(len(item_ind2logit_ind)) # todo
-    print(len(item_ind2logit_ind))
+    print("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
+  
+    evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta)
     
     model = create_model(sess, u_attributes, i_attributes, item_ind2logit_ind,
-      logit_ind2item_ind, loss=FLAGS.loss, ind_item=None, logit_size_test=len(Iatt))
+      logit_ind2item_ind, loss=FLAGS.loss, ind_item=None)
 
-    Uids = list(T.keys())
-    Uinds = [Uid2ind[v] for v in Uids]
+    Uinds = evaluation.get_uinds()
     N = len(Uinds)
-    # N = 10000
-    rec = np.zeros((N, 30), dtype=int)
-
     print("N = %d" % N)
-    # logging.info("N = %d" % N)
-    
-    items_ = [0] * FLAGS.batch_size
+    rec = np.zeros((N, 30), dtype=int)
+    count = 0
     time_start = time.time()
     for idx_s in range(0, N, FLAGS.batch_size):
       count += 1
       if count % 100 == 0:
         print("idx: %d, c: %d" % (idx_s, count))
-        # logging.info("idx: %d, c: %d" % (idx_s, count))
+        
       idx_e = idx_s + FLAGS.batch_size
       if idx_e <= N:
-
         users = Uinds[idx_s: idx_e]
-        recs = model.step(sess, users, items_, items_, forward_only=True, 
+        recs = model.step(sess, users, None, None, forward_only=True, 
           recommend = True, recommend_new = FLAGS.recommend_new)
         rec[idx_s:idx_e, :] = recs
       else:
         users = range(idx_s, N) + [0] * (idx_e - N)
         users = [Uinds[t] for t in users]
-        recs = model.step(sess, users, items_, items_, forward_only=True, 
+        recs = model.step(sess, users, None, None, forward_only=True, 
           recommend = True, recommend_new = FLAGS.recommend_new)
         idx_e = N
         rec[idx_s:idx_e, :] = recs[:(idx_e-idx_s),:]
+    # return rec: i:  uinds[i] --> logid
+
     time_end = time.time()
-    print("Time used %.1f" % (time_end - time_start))
-    logging.info("Time used %.1f" % (time_end - time_start))
+    mylog("Time used %.1f" % (time_end - time_start))
 
-    R = {}
-    if not FLAGS.recommend_new:
-      for i in xrange(N):
-        uid = Uatt[Uinds[i], 0]
-        R[uid] = [Iatt[logit_ind2item_ind[logid], 0] for logid in list(rec[i, :])]
-    else:       
-      for i in xrange(N):
-        uid = Uatt[Uinds[i], 0]
-        R[uid] = [Iatt[logid, 0] for logid in list(rec[i, :])]
-    # filename = os.path.join(FLAGS.train_dir, 'rec')
-    filename = 'rec'
-    format_submit(R, filename)
-    R2 = load_submit(filename)
-    print(scores(R2, T))
-    logging.info(scores(R2, T))
+    R = evaluation.gen_rec(rec, FLAGS.recommend_new)
 
-    rec = combine_sub(r0, R2)
-    format_submit(rec, filename)
-    rec = load_submit(filename)
-    print(scores(rec, T))
-    logging.info(scores(rec, T))
-
-    rec = combine_sub(r0, R2, 1)
-    format_submit(rec, filename)
-    rec = load_submit(filename)
-    print(scores(rec, T))
-    logging.info(scores(rec, T))
-
-
-    from eval_rank import eval_P5, eval_R20
-    print("R20")
-    logging.info("R20")
-    r20 = eval_R20(R2, T)
-    print(r20)
-    logging.info(r20)
-    print("P5")
-    logging.info("P5")
-    p5 = eval_P5(R2, T)
-    print(p5)
-    logging.info(p5)
-
+    evaluation.eval_on(R)
+    s1, s2, s3, r20, p5 = evaluation.get_scores()
+    mylog('scores: \n\t{}\n\t{}\n\t{}\n\t{}\n\t{}'.format(s1, s2, s3, r20, p5))
   return
-
 
 def main(_):
   logging.basicConfig(filename=FLAGS.log,level=logging.DEBUG)

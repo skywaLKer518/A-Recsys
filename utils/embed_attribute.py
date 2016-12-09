@@ -374,6 +374,57 @@ class EmbeddingAttribute(object):
       else:
         return cat_list, mulhot_list, bias
 
+  def _get_embedded2(self, embs_cat, embs_mulhot, b_cat, b_mulhot, 
+    inds, mb, attributes, prefix='', concatenation=True, no_id=False, 
+    device='/gpu:0'):
+    cat_list, mulhot_list = [], []
+    bias_cat_list, bias_mulhot_list = [], []
+    with tf.device(device):
+      for i in xrange(attributes.num_features_cat):
+        if no_id and i == 0:
+          if attributes.num_features_cat == 1:
+            print('error: can not skip id when no other features used')
+            exit()
+          continue
+        cat_indices = lookup(self.att[prefix][0][i], inds)
+        embedded = lookup(embs_cat[i], cat_indices, 
+          name='emb_lookup_item_{0}'.format(i))  # on cpu?
+        cat_list.append(embedded)
+        if b_cat is not None:
+          b = lookup(b_cat[i], cat_indices, 
+            name = 'emb_lookup_item_b_{0}'.format(i))
+          bias_cat_list.append(b)
+      for i in xrange(attributes.num_features_mulhot):
+        begin_ = tf.unpack(lookup(self.att[prefix][2][i], inds))
+        size_ = tf.unpack(lookup(self.att[prefix][3][i], inds))
+        mulhot_i = []
+        b_mulhot_i = []
+        for j in xrange(mb):
+          b = begin_[j]
+          s = size_[j]
+          m_inds = tf.slice(self.att[prefix][1][i], [b], [s])
+          mulhot_i.append(tf.reduce_mean(lookup(embs_mulhot[i], m_inds), 0))
+          # mulhot_i.append(tf.reduce_mean(lookup(embs_mulhot[i], m_inds), 0, True))
+          if b_mulhot is not None:
+            b_mulhot_i.append(tf.reduce_mean(lookup(b_mulhot[i], m_inds), 0))
+            # b_mulhot_i.append(tf.reduce_mean(lookup(b_mulhot[i], m_inds), 0, 
+            #   True))
+        # mulhot_list.append(tf.concat(0, mulhot_i))
+        mulhot_list.append(tf.pack(mulhot_i))
+        if b_mulhot is not None:
+          # bias_mulhot_list.append(tf.concat(0, b_mulhot_i))
+          bias_mulhot_list.append(tf.pack(b_mulhot_i))
+      
+      if b_cat is None and b_mulhot is None:
+        bias = None
+      else:
+        bias = tf.squeeze(tf.reduce_mean(bias_cat_list + bias_mulhot_list, 0))
+
+      if concatenation:
+        return tf.concat(1, cat_list + mulhot_list), bias
+      else:
+        return cat_list, mulhot_list, bias
+
   def _get_embedded_sampled(self, embs_cat, embs_mulhot, b_cat, b_mulhot, 
     mappings, n_sampled, attributes, device='/gpu:0'):
     cat_indices, mulhot_indices, mulhot_segids, mulhot_lengths = mappings
