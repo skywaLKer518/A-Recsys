@@ -156,12 +156,12 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
   if _submit == 1:    
     interact_tr = np.append(interact_tr, interact_va, 0)
     data_tr = zip(list(interact_tr[:, 0]), list(interact_tr[:, 1]), 
-      list(interact_tr[:, 4]), list(interact_tr([:, 3])))
+      list(interact_tr[:, 4]))
   else:
     data_tr = zip(list(interact_tr[:, 0]), list(interact_tr[:, 1]), 
-      list(interact_tr[:, 4]), list(interact_tr([:, 3])))
+      list(interact_tr[:, 4]))
     data_va = zip(list(interact_va[:, 0]), list(interact_va[:, 1]), 
-      list(interact_va[:, 4]), list(interact_va([:, 3])))
+      list(interact_va[:, 4]))
 
   # clean data
   filename = 'processed_user' + '_ta_' + str(ta)
