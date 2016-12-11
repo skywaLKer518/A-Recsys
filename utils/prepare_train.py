@@ -1,4 +1,8 @@
 import numpy as np
+import datetime import datatime
+
+def to_week(t):
+  return datetime.fromtimestamp(t).isocalendar()[1]
 
 def sample_items(items, n, p, replace=False):
   item_sampled = np.random.choice(items, n, replace=replace, p=p)
