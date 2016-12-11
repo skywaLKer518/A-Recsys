@@ -102,8 +102,21 @@ def main():
         cmd = " ".join(cmd)
         return name, cmd
 
+    # train
     for para in params:
         name, cmd = get_name_cmd(para)
+        cmd = "python run.py " + cmd
+        fn = "../jobs/{}.sh".format(name)
+        f = open(fn,'w')
+        content = head.replace("__cmd__",cmd)
+        f.write(content)
+        f.close()
+
+    # decode
+    for para in params:
+        name, cmd = get_name_cmd(para)
+        name = name + ".decode"
+        cmd += " --recommend True"
         cmd = "python run.py " + cmd
         fn = "../jobs/{}.sh".format(name)
         f = open(fn,'w')

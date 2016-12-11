@@ -22,6 +22,7 @@ import env
 sys.path.insert(0, '../utils')
 import embed_attribute
 from xing_data import data_read
+from xing_eval import *
 import data_iterator
 from data_iterator import DataIterator
 from best_buckets import *
@@ -69,6 +70,7 @@ tf.app.flags.DEFINE_integer("n_epoch", 40,
 tf.app.flags.DEFINE_integer("n_bucket", 10,
                             "num of buckets to run.")
 
+tf.app.flags.DEFINE_integer("ta", 1, "part = 1, full = 0")
 
 
 tf.app.flags.DEFINE_integer("patience", 5,"exit if the model can't improve for $patence evals")
@@ -81,6 +83,12 @@ tf.app.flags.DEFINE_boolean("profile", False, "False = no profile, True = profil
 tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("use_concat", False, "use concat or mean")
+
+tf.app.flags.DEFINE_boolean("recommend_new", False,
+                            "Set to True for recommend new items that were not used to train.")
+
+tf.app.flags.DEFINE_boolean("recommend", False,
+                            "Set to True for recommend items.")
 
 
 
@@ -109,6 +117,27 @@ def get_buckets_id(l, buckets):
              id = i
              break
     return id
+
+def form_sequence_prediction(data, uids, maxlen, START_ID):
+    """
+    Args:
+      data = [(user_id,[item_id])]
+      uids = [user_id]
+     Return:
+      d : [(user_id,[item_id])]
+    """
+    d = []
+    m = {}
+    for uid, items in data:
+        m[uid] = items
+    for uid in uids:
+        if uid in m:
+            items = [START_ID] + m[uid][-(maxlen-1):]
+        else:
+            items = [START_ID]
+        d.append((uid, items))
+
+    return d
 
 def form_sequence(data, maxlen = 100):
     """
@@ -173,7 +202,9 @@ def split_train_dev(seq_all, ratio = 0.05):
     return seq_tr, seq_va
 
 
-def read_data():
+
+
+def read_data(test = False):
     ta = 1
     if FLAGS.fulldata:
         ta = 0
@@ -190,7 +221,8 @@ def read_data():
     START_ID = i_attr.get_item_last_index()
     seq_all = form_sequence(data_tr,maxlen = FLAGS.L)
     seq_tr0, seq_va0 = split_train_dev(seq_all,ratio=0.05)
-
+    
+    
     # calculate buckets
     global _buckets
     _buckets = calculate_buckets(seq_tr0+seq_va0, FLAGS.L, FLAGS.n_bucket)
@@ -199,6 +231,19 @@ def read_data():
     # split_buckets
     seq_tr = split_buckets(seq_tr0,_buckets)
     seq_va = split_buckets(seq_va0,_buckets)
+    
+    # get test data
+    if test:
+        evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta)
+        uids = evaluation.get_uinds()
+        seq_test = form_sequence_prediction(seq_all, uids, FLAGS.L, START_ID)
+        _buckets = calculate_buckets(seq_test, FLAGS.L, FLAGS.n_bucket)
+        _buckets = sorted(_buckets)
+        seq_test = split_buckets(seq_test,_buckets)
+    else:
+        seq_test = []
+        evaluation = None
+        uids = []
 
     # create embedAttr
 
@@ -223,7 +268,7 @@ def read_data():
             prepare_warp(embAttr, seq_tr0, seq_va0)
             # prepare_warp(embAttr, data_tr, data_va)
 
-    return seq_tr, seq_va, embAttr, START_ID, len(data_tr), len(data_va), item_population, p_item
+    return seq_tr, seq_va, seq_test, embAttr, START_ID, item_population, p_item, evaluation, uids
 
 
 def create_model(session,embAttr,START_ID, run_options, run_metadata):
@@ -250,7 +295,7 @@ def create_model(session,embAttr,START_ID, run_options, run_metadata):
                      )
 
     ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
-    if (not FLAGS.fromScratch) and ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
+    if FLAGS.recommend or (not FLAGS.fromScratch) and ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
         log_it("Reading model parameters from %s" % ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
     else:
@@ -273,7 +318,8 @@ def train():
 
     # Read Data
     log_it("Reading Data...")
-    train_set, dev_set, embAttr, START_ID, n_targets_train, n_targets_dev, item_population, p_item = read_data()
+    train_set, dev_set, test_set, embAttr, START_ID, item_population, p_item, _, _ = read_data()
+    n_targets_train = np.sum([np.sum([len(items) for uid, items in x]) for x in train_set])
     train_bucket_sizes = [len(train_set[b]) for b in xrange(len(_buckets))]
     train_total_size = float(sum(train_bucket_sizes))
     train_buckets_scale = [sum(train_bucket_sizes[:i + 1]) / train_total_size for i in xrange(len(train_bucket_sizes))]
@@ -437,11 +483,9 @@ def evaluate(sess, model, data_set, item_sampled_id2idx=None):
     ite = dite.next_sequence(stop = True)
 
     for users, inputs, outputs, weights, bucket_id in ite:
-        L = model.step(sess, users, inputs, outputs, weights, bucket_id, forward_only = True, item_sampled_id2idx=item_sampled_id2idx)
+        L = model.step(sess, users, inputs, outputs, weights, bucket_id)
         loss += L
         n_steps += 1
-        if n_steps > 50:
-            break
             
     loss = loss/(n_steps * batch_size)
     ppx = math.exp(loss) if loss < 300 else float("inf")
@@ -451,12 +495,89 @@ def evaluate(sess, model, data_set, item_sampled_id2idx=None):
 
     return loss, ppx
 
+def recommend():
+    # Read Data
+    log_it("recommend")
+    log_it("Reading Data...")
+    _, _, test_set, embAttr, START_ID, _, _, evaluation, uids = read_data(test =True)
+    test_bucket_sizes = [len(test_set[b]) for b in xrange(len(_buckets))]
+    test_total_size = int(sum(test_bucket_sizes))
+
+    # reports
+    log_it(_buckets)
+    log_it("Test:")
+    log_it("total: {}".format(test_total_size))
+    log_it("buckets: {}".format(test_bucket_sizes))
+    
+    with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement = False)) as sess:
+
+        # runtime profile
+        if FLAGS.profile:
+            run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+            run_metadata = tf.RunMetadata()
+        else:
+            run_options = None
+            run_metadata = None
+
+        log_it("Creating Model")
+        model = create_model(sess, embAttr, START_ID, run_options, run_metadata)
+        show_all_variables()
+        
+        sess.run(model.dropoutRate.assign(1.0))
+
+        start_id = 0
+        n_steps = 0
+        batch_size = FLAGS.batch_size
+    
+        dite = DataIterator(model, test_set, len(_buckets), batch_size, None)
+        ite = dite.next_sequence(stop = True, recommend = True)
+
+        n_total_user = len(uids)
+        n_recommended = 0
+        uid2rank = {}
+        for r, uid in enumerate(uids):
+            uid2rank[uid] = r
+        rec = np.zeros((n_total_user,30), dtype = int)
+        
+        start = time.time()
+
+        for users, inputs, positions, valids, bucket_id in ite:
+
+            results = model.step_recommend(sess, users, inputs, positions, bucket_id)
+            for i, valid in enumerate(valids):
+                if valid == 1:
+                    n_recommended += 1
+                    uid, topk_values, topk_indexes = results[i]
+                    rank= uid2rank[uid]
+                    rec[rank,:] = topk_indexes                
+
+
+            n_steps += 1
+            
+        end = time.time()
+        log_it("Time used {} sec for {} steps {} users ".format(end-start, n_steps, n_recommended))
+
+        R = evaluation.gen_rec(rec, FLAGS.recommend_new)
+        evaluation.eval_on(R)
+        s1, s2, s3, r20, p5 = evaluation.get_scores()
+        log_it('scores: \n\t{}\n\t{}\n\t{}\n\t{}\n\t{}'.format(s1, s2, s3, r20, p5))
+
+        log_it("SCORE_FORMAT: {} {} {} {} {}".format(s1[0], s2[0], s3[0], r20, p5))
+        
+        
+
+
 def main(_):
     if not os.path.exists(FLAGS.train_dir):
         os.mkdir(FLAGS.train_dir)
-    log_path = os.path.join(FLAGS.train_dir,"log.txt")
-    logging.basicConfig(filename=log_path,level=logging.DEBUG)
-    train()
+    if FLAGS.recommend:
+        log_path = os.path.join(FLAGS.train_dir,"log.recommend.txt")
+        logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode ="w")
+        recommend()
+    else:
+        log_path = os.path.join(FLAGS.train_dir,"log.txt")
+        logging.basicConfig(filename=log_path,level=logging.DEBUG)
+        train()
     
 if __name__ == "__main__":
     tf.app.run()

@@ -90,7 +90,8 @@ class SeqModel(object):
             single_cell = tf.nn.rnn_cell.LSTMCell(size, state_is_tuple=True)
             single_cell = rnn_cell.DropoutWrapper(single_cell,input_keep_prob = self.dropoutRate)
             if num_layers > 1:
-                cell = tf.nn.rnn_cell.MultiRNNCell([single_cell] * num_layers, state_is_tuple=True)
+                single_cell = tf.nn.rnn_cell.MultiRNNCell([single_cell] * num_layers, state_is_tuple=True)
+            single_cell = rnn_cell.DropoutWrapper(single_cell, output_keep_prob = self.dropoutRate)
         
         
         # Feeds for inputs.
@@ -143,9 +144,7 @@ class SeqModel(object):
                     input_embed = tf.reduce_mean([user_embed, item_embed], 0)
                     self.inputs.append(input_embed)
         
-        self.outputs, self.losses = self.model_with_buckets(self.inputs, 
-            self.targets, self.target_weights, self.buckets, single_cell, 
-            self.embeddingAttribute, dtype, devices = devices)
+        self.outputs, self.losses, self.outputs_full, self.losses_full, self.topk_values, self.topk_indexes = self.model_with_buckets(self.inputs,self.targets, self.target_weights, self.buckets, single_cell,self.embeddingAttribute, dtype, devices = devices)
 
         # for warp
         if self.loss in ["warp", "mw"]:
@@ -179,10 +178,10 @@ class SeqModel(object):
 
         length = self.buckets[bucket_id]
 
-        target_inds = self.embeddingAttribute.target_mapping(targets)
+        targets_mapped = self.embeddingAttribute.target_mapping(targets)
         input_feed = {}
         for l in xrange(length):
-            input_feed[self.targets[l].name] = target_inds[l]
+            input_feed[self.targets[l].name] = targets_mapped[l]
             input_feed[self.target_weights[l].name] = target_weights[l]
             if self.loss in ['mw', 'ce']:
                 input_feed[self.target_ids[l].name] = targets[l]
@@ -196,11 +195,11 @@ class SeqModel(object):
             session.run(update_sampled, input_feed_sampled)
 
         # output_feed
-        output_feed = [self.losses[bucket_id]]
-        if not forward_only:
+        if forward_only:
+            output_feed = [self.losses_full[bucket_id]]
+        else:
+            output_feed = [self.losses[bucket_id]]
             output_feed += [self.updates[bucket_id], self.gradient_norms[bucket_id]]
-        if len(item_inputs) > 1:
-            output_feed.append(self.outputs[bucket_id][1])
 
         if self.loss in ["warp", "mw"]:
             session.run(self.set_mask[self.loss], input_feed_warp)
@@ -212,6 +211,32 @@ class SeqModel(object):
 
         return outputs[0]
     
+    def step_recommend(self,session, user_input, item_inputs, positions, bucket_id):
+        length = self.buckets[bucket_id]
+
+        input_feed = {}
+
+        (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = True, recommend = True, loss = self.loss)
+
+        # output_feed
+        output_feed = {}
+        for pos in positions:
+            if not pos in output_feed:
+                output_feed[pos] = (self.topk_values[bucket_id][pos], self.topk_indexes[bucket_id][pos])
+
+        outputs = session.run(output_feed, input_feed, options = self.run_options, run_metadata = self.run_metadata)
+        
+        # results = [(uid, [value], [index])]
+        results = []
+        for i, pos in enumerate(positions):
+            uid = user_input[i]
+            values = outputs[pos][0][i,:]
+            indexes = outputs[pos][1][i,:]
+            results.append((uid,values,indexes))
+
+        return results
+
+
     def get_batch(self, data_set, bucket_id, start_id = None):
         length = self.buckets[bucket_id]
 
@@ -260,8 +285,52 @@ class SeqModel(object):
         return batch_user, batch_item_inputs, batch_item_outputs, batch_weights, finished
         
 
+    def get_batch_recommend(self, data_set, bucket_id, start_id = None):
+        length = self.buckets[bucket_id]
 
+        users, item_inputs, positions, valids = [], [], [], []
+
+        for i in xrange(self.batch_size):
+            if start_id == None:
+                user, item_seq = random.choice(data_set[bucket_id])
+                valid = 1
+                position = len(item_seq) - 1
+            else:
+                if start_id + i < len(data_set[bucket_id]):
+                    user, item_seq = data_set[bucket_id][start_id + i]
+                    valid = 1
+                    position = len(item_seq) - 1
+                else:
+                    user = self.PAD_ID
+                    item_seq = []                    
+                    valid = 0
+                    position = 0
+            
+            pad_seq = [self.PAD_ID] * (length - len(item_seq))
+            item_input_seq = item_seq + pad_seq
+            valids.append(valid)
+            users.append(user)
+            positions.append(position)
+            item_inputs.append(item_input_seq)
+            
+        # Now we create batch-major vectors from the data selected above.
+        def batch_major(l):
+            output = []
+            for i in xrange(len(l[0])):
+                temp = []
+                for j in xrange(self.batch_size):
+                    temp.append(l[j][i])
+                output.append(temp)
+            return output
+            
+        batch_item_inputs = batch_major(item_inputs)
         
+        finished = False
+        if start_id != None and start_id + self.batch_size >= len(data_set[bucket_id]):
+            finished = True
+
+        return users, batch_item_inputs, positions, valids, finished
+
         
     def model_with_buckets(self, inputs, targets, weights,
                            buckets, cell, embeddingAttribute, dtype,
@@ -269,7 +338,11 @@ class SeqModel(object):
 
         all_inputs = inputs + targets + weights
         losses = []
+        losses_full = []
         outputs = []
+        outputs_full = []
+        topk_values = []
+        topk_indexes = []
         softmax_loss_function = lambda x,y: self.embeddingAttribute.compute_loss(x ,y, loss=self.loss, device = devices[2])
 
         with tf.device(devices[1]):
@@ -282,6 +355,9 @@ class SeqModel(object):
                     with tf.device(devices[1]):
                         bucket_outputs, _ = rnn.rnn(cell,inputs[:bucket],initial_state = init_state)
                     with tf.device(devices[2]):
+
+                        bucket_outputs_full = [self.embeddingAttribute.get_prediction(x, device=devices[2]) for x in bucket_outputs]
+                        
                         if self.loss in ['warp', 'ce']:
                             t = targets
                             bucket_outputs = [self.embeddingAttribute.get_prediction(x, device=devices[2]) for x in bucket_outputs]
@@ -297,17 +373,31 @@ class SeqModel(object):
                             bucket_outputs = bucket_outputs0
 
                         outputs.append(bucket_outputs)
+                        outputs_full.append(bucket_outputs_full)
 
                         if per_example_loss:
                             losses.append(sequence_loss_by_example(
                                     outputs[-1], t[:bucket], weights[:bucket],
                                     softmax_loss_function=softmax_loss_function))
+                            losses_full.append(sequence_loss_by_example(
+                                    outputs_full[-1], t[:bucket], weights[:bucket],
+                                    softmax_loss_function=softmax_loss_function))
                         else:
                             losses.append(sequence_loss(
                                     outputs[-1], t[:bucket], weights[:bucket],
                                     softmax_loss_function=softmax_loss_function))
+                            losses_full.append(sequence_loss_by_example(
+                                    outputs_full[-1], t[:bucket], weights[:bucket],
+                                    softmax_loss_function=softmax_loss_function))
+                        topk_value, topk_index = [], []
+                        for full_logits in outputs_full[-1]:
+                            value, index = tf.nn.top_k(full_logits, 30, sorted = True)
+                            topk_value.append(value)
+                            topk_index.append(index)
+                        topk_values.append(topk_value)
+                        topk_indexes.append(topk_index)
                   
-        return outputs, losses
+        return outputs, losses, outputs_full, losses_full, topk_values, topk_indexes
 
 
 def sequence_loss_by_example(logits, targets, weights,

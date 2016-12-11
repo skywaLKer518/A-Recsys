@@ -20,7 +20,7 @@ class DataIterator:
             users, inputs, outputs, weights, _ = self.model.get_batch(self.data_set, bucket_id)
             yield users, inputs, outputs, weights, bucket_id
 
-    def next_sequence(self, stop=False):
+    def next_sequence(self, stop=False, recommend = False):
         bucket_id = 0
         while True:
             if bucket_id >= self.n_bucket:
@@ -29,11 +29,14 @@ class DataIterator:
                 bucket_id = 0
             start_id = 0
             while True:
-                users, inputs, outputs, weights, finished = self.model.get_batch(self.data_set, bucket_id, start_id = start_id)
+                get_batch_func = self.model.get_batch
+                if recommend:
+                    get_batch_func = self.model.get_batch_recommend
+                users, inputs, outputs, weights, finished = get_batch_func(self.data_set, bucket_id, start_id = start_id)
+                yield users, inputs, outputs, weights, bucket_id
                 if finished:
                     break
                 start_id += self.batch_size
-                yield users, inputs, outputs, weights, bucket_id
             bucket_id += 1
             
             
