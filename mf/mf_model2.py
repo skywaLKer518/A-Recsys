@@ -27,7 +27,8 @@ class LatentProductModel(object):
                item_attributes=None, item_ind2logit_ind=None, 
                logit_ind2item_ind=None, loss_function='ce', GPU=None, 
                logit_size_test=None, nonlinear=None, dropout=1.0, 
-               n_sampled=None, indices_item=None):
+               n_sampled=None, indices_item=None, dtype=tf.float32, 
+               hidden_size=500):
 
     self.user_size = user_size
     self.item_size = item_size
@@ -59,6 +60,7 @@ class LatentProductModel(object):
         self.learning_rate * learning_rate_decay_factor)
     self.global_step = tf.Variable(0, trainable=False)
     self.att_emb = None
+    self.dtype=dtype
 
     mb = self.batch_size
     ''' this is mapped item target '''
@@ -73,6 +75,22 @@ class LatentProductModel(object):
     self.att_emb = m
     embedded_user, user_b = m.get_batch_user(self.keep_prob, False)
     
+    if self.nonlinear in ['relu', 'tanh']:
+      act = tf.nn.relu if self.nonlinear == 'relu' else tf.tanh
+      w1 = tf.get_variable('w1', [size, hidden_size], dtype=self.dtype)
+      b1 = tf.get_variable('b1', [hidden_size], dtype=self.dtype)
+      w2 = tf.get_variable('w2', [hidden_size, size], dtype=self.dtype)
+      b2 = tf.get_variable('b2', [size], dtype=self.dtype)
+
+      embedded_user, user_b = m.get_batch_user(1.0, False)
+      h0 = tf.nn.dropout(act(embedded_user), self.keep_prob)
+      
+      h1 = act(tf.matmul(h0, w1) + b1)
+      h1 = tf.nn.dropout(h1, self.keep_prob)
+
+      h2 = act(tf.matmul(h1, w2) + b2)
+      embedded_user = tf.nn.dropout(h2, self.keep_prob)
+
     pos_embs_item, pos_item_b = m.get_batch_item('pos', batch_size)
     pos_embs_item = tf.reduce_mean(pos_embs_item, 0)
 
@@ -98,7 +116,7 @@ class LatentProductModel(object):
     logits = m.get_prediction(embedded_user)
 
     loss = self.loss_function
-    if loss in ['warp', 'ce']:
+    if loss in ['warp', 'ce', 'bbpr']:
       batch_loss = m.compute_loss(logits, self.item_target, loss)
     elif loss in ['mw']:
       # batch_loss = m.compute_loss(sampled_logits, self.pos_score, loss)
@@ -110,7 +128,7 @@ class LatentProductModel(object):
     else:
       print("not implemented!")
       exit(-1)
-    if loss in ['warp', 'mw']:
+    if loss in ['warp', 'mw', 'bbpr']:
       self.set_mask, self.reset_mask = m.get_warp_mask()
 
     self.loss = tf.reduce_mean(batch_loss)
@@ -174,7 +192,7 @@ class LatentProductModel(object):
     if item_sampled is not None and loss in ['mw', 'mce']:
       session.run(update_sampled, input_feed_sampled)
 
-    if (loss == 'warp' or loss =='mw') and recommend is False:
+    if (loss in ['warp', 'bbpr', 'mw']) and recommend is False:
       session.run(self.set_mask[loss], input_feed_warp)
 
     if run_op is not None and run_meta is not None:
@@ -182,7 +200,7 @@ class LatentProductModel(object):
     else:
       outputs = session.run(output_feed, input_feed)
 
-    if (loss == 'warp' or loss =='mw') and recommend is False:
+    if (loss in ['warp', 'bbpr', 'mw']) and recommend is False:
       session.run(self.reset_mask[loss], input_feed_warp)
 
     if not recommend:

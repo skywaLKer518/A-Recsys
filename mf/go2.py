@@ -30,6 +30,7 @@ tf.app.flags.DEFINE_float("max_gradient_norm", 5.0,
 tf.app.flags.DEFINE_integer("batch_size", 64,
                             "Batch size to use during training.")
 tf.app.flags.DEFINE_integer("size", 20, "Size of each model layer.")
+tf.app.flags.DEFINE_integer("hidden_size", 500, "when nonlinear proj used")
 tf.app.flags.DEFINE_integer("n_resample", 50, "iterations before resample.")
 tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
 tf.app.flags.DEFINE_integer("user_vocab_size", 150000, "User vocabulary size.")
@@ -97,7 +98,8 @@ def create_model(session, u_attributes=None, i_attributes=None,
     FLAGS.learning_rate_decay_factor, u_attributes, i_attributes, 
     item_ind2logit_ind, logit_ind2item_ind, loss_function = loss, GPU=gpu, 
     logit_size_test=logit_size_test, nonlinear=FLAGS.nonlinear, 
-    dropout=FLAGS.keep_prob, n_sampled=n_sampled, indices_item=ind_item)
+    dropout=FLAGS.keep_prob, n_sampled=n_sampled, indices_item=ind_item, 
+    hidden_size=FLAGS.hidden_size)
 
   if not os.path.isdir(FLAGS.train_dir):
     os.mkdir(FLAGS.train_dir)
@@ -177,7 +179,7 @@ def train():
       logit_ind2item_ind, loss=FLAGS.loss, ind_item=item_population)
 
     pos_item_list, pos_item_list_val = None, None
-    if FLAGS.loss == 'warp' or FLAGS.loss == 'mw':
+    if FLAGS.loss in ['warp', 'mw', 'bbpr']:
       pos_item_list, pos_item_list_val = positive_items(data_tr, data_va)
       model.prepare_warp(pos_item_list, pos_item_list_val)
 
@@ -369,14 +371,16 @@ def recommend():
   return
 
 def main(_):
-  logging.basicConfig(filename=FLAGS.log,level=logging.DEBUG)
+  
   # logging.debug('This message should go to the log file')
   # logging.info('So should this')
   # logging.warning('And this, too')
 
   if not FLAGS.recommend:
+    logging.basicConfig(filename=FLAGS.log,level=logging.DEBUG)
     train()
   else:
+    logging.basicConfig(filename=FLAGS.log+'_rec',level=logging.DEBUG)
     recommend()
   return
 

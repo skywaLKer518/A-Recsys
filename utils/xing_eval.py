@@ -28,6 +28,8 @@ class Evaluate(object):
             for i in xrange(N):
                 uid = self.Uatt[self.Uinds[i], 0]
                 R[uid] = [self.Iatt[logid, 0] for logid in list(rec[i, :])]
+        for k, v in R.items():
+            R[k] = ','.join(str(xx) for xx in v)
         return R
 
     def get_user_n(self):
@@ -43,19 +45,23 @@ class Evaluate(object):
         self.res = rec
 
         tmp_filename = 'rec'
-        format_submit(rec, tmp_filename)
-        rec = load_submit(tmp_filename)
+        for k, v in rec.items():
+            rec[k] = v.split(',')
+        # format_submit(rec, tmp_filename)
+        # rec = load_submit(tmp_filename)
         self.s1 = scores(rec, self.T)
 
         r_combine = combine_sub(self.hist, rec)
-        format_submit(r_combine, tmp_filename)
-        rec2 = load_submit(tmp_filename)
-        self.s2 = scores(rec2, self.T)
+        # format_submit(r_combine, tmp_filename)
+        # rec2 = load_submit(tmp_filename)
+        # self.s2 = scores(rec2, self.T)
+        self.s2 = scores(r_combine, self.T)
 
         r_ex = combine_sub(self.hist, rec, 1)
-        format_submit(r_ex, tmp_filename)
-        rec3 = load_submit(tmp_filename)
-        self.s3 = scores(rec3, self.T)
+        # format_submit(r_ex, tmp_filename)
+        # rec3 = load_submit(tmp_filename)
+        # self.s3 = scores(rec3, self.T)
+        self.s3 = scores(r_ex, self.T)
 
         from eval_rank import eval_P5, eval_R20
         self.r20 = eval_R20(rec, self.T)
