@@ -59,7 +59,7 @@ def create_dictionary(data_dir, inds, features, feature_types, feature_names,
     return
   vocab_counts = {}
   num_uf = len(feature_names)
-  assert(len(feature_types) == num_uf)
+  assert(len(feature_types) == num_uf), 'length of feature_types should be the same length of feature_names {} vs {}'.format(len(feature_types), num_uf)
   for ind in range(num_uf):
     name = feature_names[ind]
     vocab_counts[name] = {}

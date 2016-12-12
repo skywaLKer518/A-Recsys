@@ -6,7 +6,7 @@ import attribute
 
 def process_items(items):
   import math
-  print 'processing feature'
+  print('processing item features')
   for i in range(items.shape[0]):
       # tags
     if isinstance(items[i][1], str):
@@ -16,8 +16,16 @@ def process_items(items):
     else:
       print('tags not str!')
       exit()
-
   return items
+
+def process_users(users):
+  # add one fake feature dimension (for lstm rec model)
+  print('processing user features')
+  n = len(users)
+  users2 = np.zeros((n,1), dtype=int)
+  users2[:, 0] = 0
+  users = np.append(users, users2, 1)
+  return users
 
 def interact_split(interact, user_index, item_index):
   l = len(interact)
@@ -72,7 +80,8 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
   users, user_feature_names, user_index = load_user()
   items, item_feature_names, item_index = load_movie()
   items = process_items(items)
-
+  users = process_users(users)
+  user_feature_names = ['id', 'fake']
   N = len(users)
   M = len(items)
 
@@ -99,7 +108,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
 
   # create_dictionary
   ## TODO
-  user_feature_types = [0]
+  user_feature_types = [0, 0]
   u_inds = [p[0] for p in data_tr]
   create_dictionary(data_dir, u_inds, users, user_feature_types, 
     user_feature_names, max_vocabulary_size, logits_size_tr, prefix='user')

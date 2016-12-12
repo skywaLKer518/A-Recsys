@@ -180,6 +180,10 @@ def train():
       u_attributes.num_features_cat = 1
       u_attributes.num_features_mulhot = 0
 
+    if FLAGS.dataset == 'ml':
+      print('disabling the lstm-rec fake feature')
+      u_attributes.num_features_cat = 1
+
     model = create_model(sess, u_attributes, i_attributes, item_ind2logit_ind,
       logit_ind2item_ind, loss=FLAGS.loss, ind_item=item_population)
 
