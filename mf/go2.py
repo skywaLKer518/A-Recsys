@@ -11,7 +11,7 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 sys.path.insert(0, '../utils')
 
-from xing_data import data_read
+# from xing_data import data_read
 # from ml_data import data_read
 from xing_eval import *
 from xing_submit import *
@@ -36,6 +36,7 @@ tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
 tf.app.flags.DEFINE_integer("user_vocab_size", 150000, "User vocabulary size.")
 tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
 tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
+tf.app.flags.DEFINE_string("dataset", "xing", ".")
 tf.app.flags.DEFINE_string("data_dir", "./data0", "Data directory")
 tf.app.flags.DEFINE_string("train_dir", "./test0", "Training directory.")
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
@@ -79,6 +80,10 @@ def mylog(msg):
   return
 
 def read_data():
+  if FLAGS.dataset == 'xing':
+    from xing_data import data_read
+  elif FLAGS.dataset == 'ml':
+    from ml_data import data_read
   (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
     logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = FLAGS.ta, 
     logits_size_tr=FLAGS.item_vocab_size)

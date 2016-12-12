@@ -4,6 +4,20 @@ import cPickle as pickle
 from preprocess import *
 import attribute
 
+def process_items(items):
+  import math
+  print 'processing feature'
+  for i in range(items.shape[0]):
+      # tags
+    if isinstance(items[i][1], str):
+      items[i][1] = items[i][1].split(',')
+      if len(items[i][1]) == 0:
+        items[i][1] = ['-1']
+    else:
+      print('tags not str!')
+      exit()
+
+  return items
 
 def interact_split(interact, user_index, item_index):
   l = len(interact)
@@ -13,12 +27,9 @@ def interact_split(interact, user_index, item_index):
   interact_te = np.zeros((l, 4), dtype=int)
   ind1, ind2, ind3 = 0,0,0
 
-  
   ints = {}
   for i in range(l):
     uid, iid, irating, t = interact[i, :]
-    if irating < 4:
-      continue
     if uid not in ints:
       ints[uid] = []
     ints[uid].append((iid, t, irating))
@@ -46,10 +57,10 @@ def interact_split(interact, user_index, item_index):
   return interact_tr, interact_va, interact_te
 
 def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000, 
-  max_vocabulary_size2=50000, logits_size_tr=50000):
-  data_filename = join(data_dir, 'recsys_file')
+  max_vocabulary_size2=50000, logits_size_tr=20000):
+  data_filename = join(data_dir, 'ml_file')
   if isfile(data_filename):
-    print("recsys exists, loading")
+    print("ml_data exists, loading")
     (data_tr, data_va, u_attributes, i_attributes, item_ind2logit_ind, 
       logit_ind2item_ind) = pickle.load(open(data_filename, 'rb'))
     return (data_tr, data_va, u_attributes, i_attributes, item_ind2logit_ind, 
@@ -59,7 +70,8 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
     mkdir(data_dir)
     
   users, user_feature_names, user_index = load_user()
-  items, item_feature_names, item_index = load_movie0()
+  items, item_feature_names, item_index = load_movie()
+  items = process_items(items)
 
   N = len(users)
   M = len(items)
@@ -105,7 +117,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
 
   # create_dictionary
   ## TODO
-  item_feature_types = [0]
+  item_feature_types = [0, 1]
   i_inds = [p[1] for p in data_tr]
   create_dictionary(data_dir, i_inds, items, item_feature_types, 
     item_feature_names, max_vocabulary_size2, logits_size_tr, prefix='item')
@@ -126,7 +138,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
     if fea0 != 0:
       item_ind2logit_ind[i] = ind
       ind += 1
-  assert(ind == logits_size_tr), ' %d vs. %d' %(ind, logits_size_tr)
+  assert(ind == logits_size_tr), 'Item_vocab_size too large! %d vs. %d' %(ind, logits_size_tr)
   
   logit_ind2item_ind = {}
   for k, v in item_ind2logit_ind.items():
@@ -155,44 +167,3 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
     logit_ind2item_ind)
 
 
-
-# T20110314 = 1300157602
-# T20130322 = 1363970802
-# T20150330 = 1427784003
-
-# def interact_split(interact, user_index, item_index):
-#   l = len(interact)
-#   interact_tr = np.zeros((l, 4), dtype=int)
-#   interact_va = np.zeros((l, 4), dtype=int)
-#   interact_te = np.zeros((l, 4), dtype=int)
-#   ind1, ind2, ind3 = 0,0,0
-#   c1, c2 = 0,0
-#   for i in range(l/10):
-#     if i % 1000000 == 0:
-#       print("finished %d" % i)
-#     uid, iid, irating, t = interact[i, :]
-#     if iid not in item_index:
-#       c1 += 1
-#       continue
-#     if uid not in user_index:
-#       c2 += 1
-#       continue
-#     if irating < 4:
-#       continue
-#     if t <= T20110314:
-#       interact_tr[ind1, :] = (user_index[uid], item_index[iid], irating, t)
-#       ind1 += 1
-#     elif t <= T20130322:
-#       interact_va[ind2, :] = (user_index[uid], item_index[iid], irating, t)
-#       ind2 += 1
-#     elif t <= T20150330:
-#       interact_te[ind3, :] = (user_index[uid], item_index[iid], irating, t)
-#       ind3 += 1
-#     else:
-#       exit(-1)
-#   interact_tr = interact_tr[:ind1, :]
-#   interact_va = interact_va[:ind2, :]
-#   interact_te = interact_te[:ind3, :]
-#   print("train, valid, and test sizes %d/%d/%d" %(ind1, ind2, ind3))
-#   print("oov users/items %d/%d" %(c2, c1))
-#   return interact_tr, interact_va, interact_te

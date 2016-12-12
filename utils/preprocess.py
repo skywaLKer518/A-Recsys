@@ -72,8 +72,11 @@ def create_dictionary(data_dir, inds, features, feature_types, feature_names,
         vocab_counts[name][uf[ii]] = vocab_counts[name][uf[ii]] + 1 if uf[ii] in vocab_counts[name] else 1
       elif feature_types[ii] == 1:
         if not isinstance(uf[ii], list):
+          print(type(uf[ii]))
           print ii, prefix
           print uf[ii]
+          print("Feature has to be of type list. {} Got.".format(type(uf[ii])))
+          exit()
         for t in uf[ii]:
           vocab_counts[name][t] = vocab_counts[name][t] + 1 if t in vocab_counts[name] else 1
 
