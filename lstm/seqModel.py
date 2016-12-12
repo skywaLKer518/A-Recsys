@@ -253,7 +253,10 @@ class SeqModel(object):
                     item_seq = []                    
             
             pad_seq = [self.PAD_ID] * (length - len(item_seq))
-            item_input_seq = [self.START_ID] + item_seq[:-1] + pad_seq
+            if len(item_seq) == 0:
+                item_input_seq = [self.START_ID] + pad_seq[1:]
+            else:
+                item_input_seq = [self.START_ID] + item_seq[:-1] + pad_seq
             item_output_seq = item_seq + pad_seq
             target_weight = [1.0] * len(item_seq) + [0.0] * len(pad_seq)
 
@@ -475,7 +478,7 @@ def sequence_loss(logits, targets, weights,
         average_across_timesteps=average_across_timesteps,
         softmax_loss_function=softmax_loss_function))
     if average_across_batch:
-      batch_size = array_ops.shape(targets[0])[0]
-      return cost / math_ops.cast(batch_size, cost.dtype)
+        total_size = tf.reduce_sum(tf.sign(weights[0]))
+        return cost / math_ops.cast(total_size, cost.dtype)
     else:
       return cost

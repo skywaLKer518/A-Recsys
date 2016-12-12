@@ -27,7 +27,7 @@ import data_iterator
 from data_iterator import DataIterator
 from best_buckets import *
 from tensorflow.python.client import timeline
-from prepare_train import positive_items, item_frequency, sample_items
+from prepare_train import positive_items, item_frequency, sample_items, to_week
 
 
 tf.app.flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
@@ -90,6 +90,9 @@ tf.app.flags.DEFINE_boolean("recommend_new", False,
 tf.app.flags.DEFINE_boolean("recommend", False,
                             "Set to True for recommend items.")
 
+tf.app.flags.DEFINE_boolean("after40", True,
+                            "whether use items after week 40 only.")
+
 
 
 FLAGS = tf.app.flags.FLAGS
@@ -146,8 +149,7 @@ def form_sequence(data, maxlen = 100):
     Return:
       d : [(user_id, [item_id])]
     """
-    # 
-    # return users, items
+    
 
     users = []
     items = []
@@ -163,7 +165,9 @@ def form_sequence(data, maxlen = 100):
     for u in d:
         tmp = sorted(d[u],key = lambda x: x[1])
         tmp =  [x[0] for x in tmp][-maxlen:]
-        dd.append((u,tmp))
+        # make sure every sequence has at least one item 
+        if len(tmp) > 0:
+            dd.append((u,tmp))
             
     return dd
 
@@ -213,7 +217,11 @@ def read_data(test = False):
 
     # remove unk
     data_tr = [p for p in data_tr if (p[1] in item_ind2logit_ind)]
-    
+
+    # remove items before week 40 
+    if FLAGS.after40:
+        data_tr = [p for p in data_tr if (to_week(p[2]) >= 40)]
+
     # item frequency (for sampling)
     item_population, p_item = item_frequency(data_tr, FLAGS.power)
 
@@ -385,8 +393,9 @@ def train():
         steps_per_report = 30
         n_targets_report = 0
         report_time = 0
-
+        n_valid_sents = 0
         item_sampled, item_sampled_id2idx = None, None
+        
         while current_step < total_steps:
             
             # start
@@ -400,23 +409,27 @@ def train():
 
             # data and train
             users, inputs, outputs, weights, bucket_id = ite.next()
+
             L = model.step(sess, users, inputs, outputs, weights, bucket_id, item_sampled=item_sampled, item_sampled_id2idx=item_sampled_id2idx)
             
             # loss and time
             step_time += (time.time() - start_time) / steps_per_checkpoint
-            
-            loss += L / (steps_per_checkpoint * batch_size)
+
+            loss += L
             current_step += 1
-            
+            n_valid_sents += np.sum(np.sign(weights[0]))
+
             # for report
             report_time += (time.time() - start_time)
             n_targets_report += np.sum(weights)
 
-            if current_step % steps_per_report == 0:
+            if current_step % steps_per_report == 0:                
                 log_it("--------------------"+"Report"+str(current_step)+"-------------------")
                 log_it("StepTime: {} Speed: {} targets / sec in total {} targets".format(report_time/steps_per_report, n_targets_report*1.0 / report_time, n_targets_train))
+
                 report_time = 0
                 n_targets_report = 0
+
                 # Create the Timeline object, and write it to a json
                 if FLAGS.profile:
                     tl = timeline.Timeline(run_metadata.step_stats)
@@ -430,14 +443,15 @@ def train():
             if current_step % steps_per_checkpoint == 0:
                 log_it("--------------------"+"TRAIN"+str(current_step)+"-------------------")
                 # Print statistics for the previous epoch.
-                
+ 
+                loss = loss / n_valid_sents
                 perplexity = math.exp(float(loss)) if loss < 300 else float("inf")
                 log_it("global step %d learning rate %.4f step-time %.2f perplexity " "%.2f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, perplexity))
                 
                 train_ppx = perplexity
                 
                 # Save checkpoint and zero timer and loss.
-                step_time, loss = 0.0, 0.0
+                step_time, loss, n_valid_sents = 0.0, 0.0, 0
                                 
                 # dev data
                 log_it("--------------------" + "DEV" + str(current_step) + "-------------------")
@@ -473,10 +487,10 @@ def evaluate(sess, model, data_set, item_sampled_id2idx=None):
     
     sess.run(model.dropoutRate.assign(1.0))
 
-
     start_id = 0
     loss = 0.0
     n_steps = 0
+    n_valids = 0
     batch_size = FLAGS.batch_size
     
     dite = DataIterator(model, data_set, len(_buckets), batch_size, None)
@@ -486,8 +500,9 @@ def evaluate(sess, model, data_set, item_sampled_id2idx=None):
         L = model.step(sess, users, inputs, outputs, weights, bucket_id)
         loss += L
         n_steps += 1
+        n_valids += np.sum(np.sign(weights[0]))
             
-    loss = loss/(n_steps * batch_size)
+    loss = loss/(n_valids)
     ppx = math.exp(loss) if loss < 300 else float("inf")
 
 

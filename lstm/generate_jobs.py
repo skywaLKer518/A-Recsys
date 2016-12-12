@@ -67,19 +67,19 @@ def main():
              loss, fulldata, num_layers,       #6
              L, N, use_concat]                 #9
     
-    template = ["$data_part", 64, 128, 0.5, 0.5, 40, "ce", "False", 1, 30, "001",True]
+    template = ["$data_part", 64, 128, 0.5, 0.5, 40, "ce", "False", 1, 30, "001",False]
     params = []
 
+    _h = [128, 256]
     _dropout = [0.4,0.6,0.8]
-    _learning_rate = [0.1,0.3,0.5]
-    _use_concat = [True, False]
+    _learning_rate = [0.5, 1.0]
     for lr in _learning_rate:
         for dr in _dropout:
-            for uc in _use_concat:
+            for h in _h:
                 temp = list(template)
                 temp[4] = lr
                 temp[3] = dr
-                temp[11] = uc
+                temp[2] = h
                 params.append(temp)
     
 

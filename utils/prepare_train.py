@@ -1,5 +1,5 @@
 import numpy as np
-import datetime import datetime
+from datetime import datetime
 
 def to_week(t):
   return datetime.fromtimestamp(t).isocalendar()[1]
