@@ -490,18 +490,20 @@ def train():
                     #sess.run(model.learning_rate_decay_op)
                 previous_losses.append(eval_ppx)
 
-        theone = his[low_ppx_step]
-        log_it("Step: {} Train/Dev: {:2f}/{:2f}".format(theone[0],theone[1],theone[2]))
+        #theone = his[low_ppx_step]
+        #log_it("Step: {} Train/Dev: {:2f}/{:2f}".format(theone[0],theone[1],theone[2]))
 
-        df = pd.DataFrame(his)
-        df.columns=["step""Train_ppx","Dev_ppx"]
-        df.to_csv(os.path.join(FLAGS.train_dir,"log.csv"))
+        #df = pd.DataFrame(his)
+        #df.columns=["step""Train_ppx","Dev_ppx"]
+        #df.to_csv(os.path.join(FLAGS.train_dir,"log.csv"))
 
 def evaluate(sess, model, data_set, item_sampled_id2idx=None):
     # Run evals on development set and print their perplexity.
     dropoutRateRaw = FLAGS.keep_prob
+
     
-    sess.run(model.dropoutRate.assign(1.0))
+    
+    sess.run(model.dropoutAssign_op)
 
     start_id = 0
     loss = 0.0
@@ -512,17 +514,22 @@ def evaluate(sess, model, data_set, item_sampled_id2idx=None):
     dite = DataIterator(model, data_set, len(_buckets), batch_size, None)
     ite = dite.next_sequence(stop = True)
 
+    
     for users, inputs, outputs, weights, bucket_id in ite:
-        L = model.step(sess, users, inputs, outputs, weights, bucket_id)
+        L = model.step(sess, users, inputs, outputs, weights, bucket_id, forward_only = True)
         loss += L
         n_steps += 1
         n_valids += np.sum(np.sign(weights[0]))
-            
+
     loss = loss/(n_valids)
     ppx = math.exp(loss) if loss < 300 else float("inf")
 
 
-    sess.run(model.dropoutRate.assign(dropoutRateRaw))
+
+    sess.run(model.dropoutReset_op)
+
+
+
 
     return loss, ppx
 
