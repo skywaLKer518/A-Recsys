@@ -389,9 +389,8 @@ class SeqModel(object):
                             losses.append(sequence_loss(
                                     outputs[-1], t[:bucket], weights[:bucket],
                                     softmax_loss_function=softmax_loss_function))
-                            losses_full.append(sequence_loss_by_example(
-                                    outputs_full[-1], t[:bucket], weights[:bucket],
-                                    softmax_loss_function=softmax_loss_function))
+                            losses_full.append(sequence_loss(
+                                    outputs_full[-1], t[:bucket], weights[:bucket],softmax_loss_function=softmax_loss_function))
                         topk_value, topk_index = [], []
                         for full_logits in outputs_full[-1]:
                             value, index = tf.nn.top_k(full_logits, 30, sorted = True)
