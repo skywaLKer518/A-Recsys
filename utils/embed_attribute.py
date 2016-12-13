@@ -611,13 +611,15 @@ class EmbeddingAttribute(object):
       if loss in ['warp', 'bbpr']:
         for u in user_input:
           offset = c * V
-          mask_indices.extend([s_2idx[v] + offset for v in item_set[u]])
+          if u in item_set:
+            mask_indices.extend([s_2idx[v] + offset for v in item_set[u]])
           c += 1
       else:
         for u in user_input:
           offset = c * V
-          mask_indices.extend([s_2idx[v] + offset for v in item_set[u] 
-            if v in s_2idx])
+          if u in item_set:
+            mask_indices.extend([s_2idx[v] + offset for v in item_set[u] 
+              if v in s_2idx])
           c += 1          
       L = len(mask_indices)
       input_feed_warp[self.pos_indices[loss].name] = mask_indices
