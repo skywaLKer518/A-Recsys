@@ -21,7 +21,8 @@ import env
 
 sys.path.insert(0, '../utils')
 import embed_attribute
-from xing_data import data_read
+from xing_data import data_read as xing_data_read
+from ml_data import data_read as ml_data_read
 from xing_eval import *
 import data_iterator
 from data_iterator import DataIterator
@@ -93,6 +94,9 @@ tf.app.flags.DEFINE_boolean("recommend", False,
 tf.app.flags.DEFINE_boolean("after40", True,
                             "whether use items after week 40 only.")
 
+tf.app.flags.DEFINE_string("dataset", "xing", "xing or ml")
+
+tf.app.flags.DEFINE_string("split", "last", "last: last maxlen only; overlap: overlap 1 / 3 of maxlen")
 
 
 FLAGS = tf.app.flags.FLAGS
@@ -161,14 +165,20 @@ def form_sequence(data, maxlen = 100):
     
     
     dd = []
-        
+    
+    n_all_item = 0
+    n_rest_item = 0
     for u in d:
         tmp = sorted(d[u],key = lambda x: x[1])
+        n_all_item += len(tmp)
         tmp =  [x[0] for x in tmp][-maxlen:]
+        n_rest_item += len(tmp)
         # make sure every sequence has at least one item 
         if len(tmp) > 0:
             dd.append((u,tmp))
-            
+
+    log_it("All item: {} Rest item: {} Remove item: {}".format(n_all_item, n_rest_item, n_all_item - n_rest_item))
+
     return dd
 
 def prepare_warp(embAttr, data_tr, data_va):
@@ -212,6 +222,11 @@ def read_data(test = False):
     ta = 1
     if FLAGS.fulldata:
         ta = 0
+
+    if FLAGS.dataset == "xing":
+        data_read = xing_data_read
+    elif FLAGS.dataset == 'ml':
+        data_read = ml_data_read
 
     (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = ta, logits_size_tr=FLAGS.item_vocab_size)
 
@@ -464,8 +479,9 @@ def train():
                     low_ppx_step = current_step
                     checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
                     log_it("Saving best model....")
+                    s = time.time()
                     model.saver.save(sess, checkpoint_path, global_step=0)
-
+                    log_it("Best model saved using {} sec".format(time.time()-s))
 
                 sys.stdout.flush()
                 # Decrease learning rate if current eval ppl is larger
@@ -591,7 +607,7 @@ def main(_):
         recommend()
     else:
         log_path = os.path.join(FLAGS.train_dir,"log.txt")
-        logging.basicConfig(filename=log_path,level=logging.DEBUG)
+        logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode = "w")
         train()
     
 if __name__ == "__main__":

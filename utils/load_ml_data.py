@@ -7,7 +7,7 @@ NAME = socket.gethostname()
 if NAME == 'Kuans-MacBook-Pro.local':
     DIR = '/Users/Kuan/Project/recsys/dataset/ml-20m/'
 elif NAME.startswith("hpc"):
-    DIR = ''
+    DIR = '/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_ml_orig'
 else:
     DIR = '/nfs/isicvlnas01/users/liukuan/recsys/dataset/ml-20m/'
 

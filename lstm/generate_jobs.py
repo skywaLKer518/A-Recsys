@@ -12,6 +12,7 @@ cd /home/nlg-05/xingshi/lstm/tensorflow/recsys/lstm/
 
 data_part=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_part
 data_full=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_full
+data_ml=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_ml
 train_dir=/home/nlg-05/xingshi/lstm/tensorflow/recsys/train/
 
 __cmd__
@@ -54,6 +55,12 @@ def main():
 
     def N(val):
         return "", "--N {}".format(val)
+    
+    def dataset(val):
+        if val == 'xing':
+            return "", "--dataset xing"
+        elif val == "ml":
+            return "Ml", "--dataset ml --after40 False"
 
     def use_concat(val):
         if val:
@@ -62,14 +69,23 @@ def main():
             name = "Mn"
         return name, "--use_concat {}".format(val)
 
+    def item_vocab_size(val):
+        if item_vocab_size == 50000:
+            return "", ""
+        else:
+            return "", "--item_vocab_size {}".format(val)
+
     funcs = [data_dir, batch_size, size,       #0
              dropout, learning_rate, n_epoch,  #3
              loss, fulldata, num_layers,       #6
-             L, N, use_concat]                 #9
+             L, N, use_concat,                 #9
+             dataset, item_vocab_size]         #12
     
-    template = ["$data_part", 64, 128, 0.5, 0.5, 40, "ce", "False", 1, 30, "001",False]
+    template = ["$data_part", 64, 128, 0.5, 0.5, 40, "ce", "False", 1, 30, "001",False,'xing',50000]
+    template_ml = ["$data_ml", 64, 128, 0.5, 0.5, 40, "ce", "False", 1, 100, "000",False,'ml',5000]
     params = []
 
+    # for xing
     _h = [128, 256]
     _dropout = [0.4,0.6,0.8]
     _learning_rate = [0.5, 1.0]
@@ -77,6 +93,19 @@ def main():
         for dr in _dropout:
             for h in _h:
                 temp = list(template)
+                temp[4] = lr
+                temp[3] = dr
+                temp[2] = h
+                params.append(temp)
+    
+    # for ml
+    _h = [64, 128]
+    _dropout = [0.4,0.6,0.8]
+    _learning_rate = [0.5, 1.0]
+    for lr in _learning_rate:
+        for dr in _dropout:
+            for h in _h:
+                temp = list(template_ml)
                 temp[4] = lr
                 temp[3] = dr
                 temp[2] = h

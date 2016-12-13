@@ -15,4 +15,16 @@ if [[ $p != "" ]]; then
     echo -n $i '';
     echo $p;
 fi
-done
+done 
+
+echo "";
+echo "";
+
+for i in ../train/m64*;
+do
+p=$(grep "dev:" $i/log.txt | sort -nrk 3 | tail -n 1);
+if [[ $p != "" ]]; then
+    echo -n $i '';
+    echo $p;
+fi
+done | sort -nk 4
