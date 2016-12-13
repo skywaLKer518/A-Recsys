@@ -480,7 +480,7 @@ def train():
                     checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
                     log_it("Saving best model....")
                     s = time.time()
-                    model.saver.save(sess, checkpoint_path, global_step=0)
+                    model.saver.save(sess, checkpoint_path, global_step=0, write_meta_graph = False)
                     log_it("Best model saved using {} sec".format(time.time()-s))
 
                 sys.stdout.flush()
