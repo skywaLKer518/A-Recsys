@@ -74,20 +74,27 @@ def main():
             return "", ""
         else:
             return "", "--item_vocab_size {}".format(val)
+    
+    def fromScratch(val):
+        if not val:
+            return "","--fromScratch False"
+        else:
+            return "",""
+            
 
     funcs = [data_dir, batch_size, size,       #0
              dropout, learning_rate, n_epoch,  #3
              loss, fulldata, num_layers,       #6
              L, N, use_concat,                 #9
-             dataset, item_vocab_size]         #12
+             dataset, item_vocab_size, fromScratch]         #12
     
-    template = ["$data_part", 64, 128, 0.5, 0.5, 40, "ce", "False", 1, 30, "001",False,'xing',50000]
-    template_ml = ["$data_ml", 64, 128, 0.5, 0.5, 40, "ce", "False", 1, 100, "000",False,'ml',5000]
+    template = ["$data_part", 64, 128, 0.5, 0.5, 150, "ce", "False", 1, 30, "001",False,'xing',50000, False]
+    template_ml = ["$data_ml", 64, 128, 0.5, 0.5, 150, "ce", "False", 1, 200, "000",False,'ml',5000, True]
     params = []
 
     # for xing
-    _h = [128, 256]
-    _dropout = [0.4,0.6,0.8]
+    _h = [256]
+    _dropout = [0.4,0.6]
     _learning_rate = [0.5, 1.0]
     for lr in _learning_rate:
         for dr in _dropout:
@@ -99,7 +106,7 @@ def main():
                 params.append(temp)
     
     # for ml
-    _h = [64, 128]
+    _h = [128]
     _dropout = [0.4,0.6,0.8]
     _learning_rate = [0.5, 1.0]
     for lr in _learning_rate:

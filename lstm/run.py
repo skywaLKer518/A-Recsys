@@ -74,7 +74,7 @@ tf.app.flags.DEFINE_integer("n_bucket", 10,
 tf.app.flags.DEFINE_integer("ta", 1, "part = 1, full = 0")
 
 
-tf.app.flags.DEFINE_integer("patience", 5,"exit if the model can't improve for $patence evals")
+tf.app.flags.DEFINE_integer("patience", 10,"exit if the model can't improve for $patence evals")
 
 tf.app.flags.DEFINE_integer("L", 30,"max length")
 tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
@@ -318,7 +318,7 @@ def create_model(session,embAttr,START_ID, run_options, run_metadata):
                      )
 
     ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
-    if FLAGS.recommend or (not FLAGS.fromScratch) and ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
+    if FLAGS.recommend or (not FLAGS.fromScratch) and ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
         log_it("Reading model parameters from %s" % ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
     else:
@@ -614,7 +614,11 @@ def main(_):
         recommend()
     else:
         log_path = os.path.join(FLAGS.train_dir,"log.txt")
-        logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode = "w")
+        if FLAGS.fromScratch:
+            filemode = "w"
+        else:
+            filemode = "a"
+        logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode = filemode)
         train()
     
 if __name__ == "__main__":
