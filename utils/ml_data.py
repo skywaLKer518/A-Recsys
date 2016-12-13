@@ -29,7 +29,7 @@ def process_users(users):
 
 def interact_split(interact, user_index, item_index):
   l = len(interact)
-  l = l/20
+  # l = l/20
   interact_tr = np.zeros((l, 4), dtype=int)
   interact_va = np.zeros((l, 4), dtype=int)
   interact_te = np.zeros((l, 4), dtype=int)
