@@ -66,6 +66,7 @@ def interact_split(interact, user_index=None, item_index=None, orig=False, debug
 
 def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000, 
   max_vocabulary_size2=50000, logits_size_tr=20000, thresh=2):
+  from os import path,mkdir
   from os.path import join, isfile
   import cPickle as pickle
 
@@ -77,9 +78,9 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
     return (data_tr, data_va, u_attributes, i_attributes, item_ind2logit_ind, 
     logit_ind2item_ind)
 
-  from preprocess import *
+  from preprocess import create_dictionary, tokenize_attribute_map, filter_cat, filter_mulhot, pickle_save
   import attribute
-  from load_ml_data import *
+  from load_ml_data import load_user, load_movie, load_interactions
 
   if not path.isdir(data_dir):
     mkdir(data_dir)
@@ -154,7 +155,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
     if fea0 != 0:
       item_ind2logit_ind[i] = ind
       ind += 1
-  assert(ind == logits_size_tr), 'Item_vocab_size too large! %d vs. %d' %(ind, logits_size_tr)
+  assert(ind == logits_size_tr), 'Item_vocab_size %d too large! need to be no greater than %d' % (logits_size_tr, ind)
   
   logit_ind2item_ind = {}
   for k, v in item_ind2logit_ind.items():
