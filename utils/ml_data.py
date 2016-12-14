@@ -27,9 +27,10 @@ def process_users(users):
   users = np.append(users, users2, 1)
   return users
 
-def interact_split(interact, user_index, item_index):
+def interact_split(interact, user_index=None, item_index=None, orig=False, debug=0):
   l = len(interact)
-  # l = l/20
+  if debug == 1:
+    l = l/20
   interact_tr = np.zeros((l, 4), dtype=int)
   interact_va = np.zeros((l, 4), dtype=int)
   interact_te = np.zeros((l, 4), dtype=int)
@@ -47,7 +48,10 @@ def interact_split(interact, user_index, item_index):
     v = sorted(v, key=lambda tup: tup[1])
     l0 = len(v)
     for j in range(l0):
-      val = (user_index[u], item_index[v[j][0]], v[j][2], v[j][1])
+      if orig:
+        val = (u, v[j][0], v[j][2], v[j][1])
+      else:
+        val = (user_index[u], item_index[v[j][0]], v[j][2], v[j][1])
       if j < 3 * l0 / 5:
         interact_tr[ind1, :] = val
         ind1 += 1

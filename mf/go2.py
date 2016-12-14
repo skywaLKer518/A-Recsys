@@ -11,10 +11,11 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 sys.path.insert(0, '../utils')
 
-# from xing_data import data_read
-# from ml_data import data_read
-from xing_eval import *
-from xing_submit import *
+from xing_data import data_read as data_read_xing
+from ml_data import data_read as data_read_ml
+from xing_eval import Evaluate as Evaluate_xing
+from ml_eval import Evaluate as Evaluate_ml
+# from xing_submit import *
 from prepare_train import positive_items, item_frequency, sample_items
 
 # in order to profile
@@ -68,7 +69,7 @@ tf.app.flags.DEFINE_string("nonlinear", 'linear', "nonlinear activation")
 tf.app.flags.DEFINE_integer("gpu", -1, "gpu card number")
 
 # Xing related
-tf.app.flags.DEFINE_integer("ta", 0, "target_active")
+tf.app.flags.DEFINE_integer("ta", 1, "target_active")
 tf.app.flags.DEFINE_integer("top_N_items", 30,
                             "number of items output")
 
@@ -81,9 +82,9 @@ def mylog(msg):
 
 def read_data():
   if FLAGS.dataset == 'xing':
-    from xing_data import data_read
+    data_read = data_read_xing
   elif FLAGS.dataset == 'ml':
-    from ml_data import data_read
+    data_read = data_read_ml
   (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
     logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = FLAGS.ta, 
     logits_size_tr=FLAGS.item_vocab_size)
@@ -337,7 +338,15 @@ def recommend():
       logit_ind2item_ind) = read_data()
     
     print("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
-  
+
+    if FLAGS.dataset =='xing':
+      Evaluate = Evaluate_xing
+    elif FLAGS.dataset == 'ml':
+      Evaluate = Evaluate_ml
+    else:
+      mylog('Error, not implemented.')
+      exit(0)
+      
     evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta)
     
     model = create_model(sess, u_attributes, i_attributes, item_ind2logit_ind,
@@ -384,12 +393,15 @@ def main(_):
   # logging.debug('This message should go to the log file')
   # logging.info('So should this')
   # logging.warning('And this, too')
-
+  if not os.path.exists(FLAGS.train_dir):
+    os.mkdir(FLAGS.train_dir)
   if not FLAGS.recommend:
-    logging.basicConfig(filename=FLAGS.log,level=logging.DEBUG)
+    log_path = os.path.join(FLAGS.train_dir,"log.txt")
+    logging.basicConfig(filename=log_path,level=logging.DEBUG)
     train()
   else:
-    logging.basicConfig(filename=FLAGS.log+'_rec',level=logging.DEBUG)
+    log_path = os.path.join(FLAGS.train_dir,"log.recommend.txt")
+    logging.basicConfig(filename=log_path,level=logging.DEBUG)
     recommend()
   return
 
