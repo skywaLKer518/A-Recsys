@@ -507,7 +507,7 @@ def evaluate(sess, model, data_set, item_sampled_id2idx=None):
 
     
     
-    sess.run(model.dropoutAssign_op)
+    sess.run(model.dropout10_op)
 
     start_id = 0
     loss = 0.0
@@ -530,7 +530,7 @@ def evaluate(sess, model, data_set, item_sampled_id2idx=None):
 
 
 
-    sess.run(model.dropoutReset_op)
+    sess.run(model.dropoutAssign_op)
 
 
 

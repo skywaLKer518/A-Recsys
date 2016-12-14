@@ -81,7 +81,7 @@ class SeqModel(object):
             self.dropoutRate = tf.Variable(
                 float(dropoutRate), trainable=False, dtype=dtype)        
             self.dropoutAssign_op = self.dropoutRate.assign(dropoutRate)
-            self.dropoutReset_op = self.dropoutRate.assign(1.0)
+            self.dropout10_op = self.dropoutRate.assign(1.0)
             self.learning_rate = tf.Variable(
                 float(learning_rate), trainable=False, dtype=dtype)
             self.learning_rate_decay_op = self.learning_rate.assign(
