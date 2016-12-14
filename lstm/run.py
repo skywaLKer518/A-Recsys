@@ -409,6 +409,7 @@ def train():
         n_targets_report = 0
         report_time = 0
         n_valid_sents = 0
+        patience = FLAGS.patience
         item_sampled, item_sampled_id2idx = None, None
         
         while current_step < total_steps:
@@ -474,7 +475,9 @@ def train():
                 log_it("dev: ppx: {}".format(eval_ppx))
 
                 his.append([current_step, train_ppx, eval_ppx])
+
                 if eval_ppx < low_ppx:
+                    patience = FLAGS.patience
                     low_ppx = eval_ppx
                     low_ppx_step = current_step
                     checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
@@ -482,13 +485,14 @@ def train():
                     s = time.time()
                     model.saver.save(sess, checkpoint_path, global_step=0, write_meta_graph = False)
                     log_it("Best model saved using {} sec".format(time.time()-s))
+                else:
+                    patience -= 1
+                
+                if patience <= 0:
+                    break
 
                 sys.stdout.flush()
-                # Decrease learning rate if current eval ppl is larger
-                if len(previous_losses) > FLAGS.patience and eval_ppx > max(previous_losses[-5:]):
-                    break
-                    #sess.run(model.learning_rate_decay_op)
-                previous_losses.append(eval_ppx)
+
 
         #theone = his[low_ppx_step]
         #log_it("Step: {} Train/Dev: {:2f}/{:2f}".format(theone[0],theone[1],theone[2]))
