@@ -1,8 +1,4 @@
-from load_ml_data import *
-from os.path import join, isfile
-import cPickle as pickle
-from preprocess import *
-import attribute
+import numpy as np
 
 def process_items(items):
   import math
@@ -69,7 +65,10 @@ def interact_split(interact, user_index=None, item_index=None, orig=False, debug
   return interact_tr, interact_va, interact_te
 
 def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000, 
-  max_vocabulary_size2=50000, logits_size_tr=20000):
+  max_vocabulary_size2=50000, logits_size_tr=20000, thresh=2):
+  from os.path import join, isfile
+  import cPickle as pickle
+
   data_filename = join(data_dir, 'ml_file')
   if isfile(data_filename):
     print("ml_data exists, loading")
@@ -77,6 +76,10 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
       logit_ind2item_ind) = pickle.load(open(data_filename, 'rb'))
     return (data_tr, data_va, u_attributes, i_attributes, item_ind2logit_ind, 
     logit_ind2item_ind)
+
+  from preprocess import *
+  import attribute
+  from load_ml_data import *
 
   if not path.isdir(data_dir):
     mkdir(data_dir)
@@ -92,7 +95,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
   interact, names = load_interactions()
   print("loading interactions completed.")
 
-  interact_tr, interact_va, interact_te = interact_split(interact, user_index, item_index)
+  interact_tr, interact_va, interact_te = interact_split(interact, user_index, item_index, debug=ta)
 
   # data_tr, data_va, data_te
   data_va, data_te = None, None
@@ -115,7 +118,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
   user_feature_types = [0, 0]
   u_inds = [p[0] for p in data_tr]
   create_dictionary(data_dir, u_inds, users, user_feature_types, 
-    user_feature_names, max_vocabulary_size, logits_size_tr, prefix='user')
+    user_feature_names, max_vocabulary_size, logits_size_tr, prefix='user', threshold=thresh)
 
   # create user feature map
   (num_features_cat, features_cat, num_features_mulhot, features_mulhot,
@@ -133,7 +136,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
   item_feature_types = [0, 1]
   i_inds = [p[1] for p in data_tr]
   create_dictionary(data_dir, i_inds, items, item_feature_types, 
-    item_feature_names, max_vocabulary_size2, logits_size_tr, prefix='item')
+    item_feature_names, max_vocabulary_size2, logits_size_tr, prefix='item', threshold=thresh)
 
   # create item feature map
   items_cp = np.copy(items)

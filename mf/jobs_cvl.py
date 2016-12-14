@@ -15,6 +15,7 @@ echo $LD_LIBRARY_PATH
 echo $SGE_GPU
 export CUDA_VISIBLE_DEVICES=$SGE_GPU
 
+data_ml_part=/nfs/isicvlnas01/users/liukuan/recsys/data/data_ml_part
 data_ml=/nfs/isicvlnas01/users/liukuan/recsys/data/data_ml
 data_part=/nfs/isicvlnas01/users/liukuan/recsys/data/data_part
 data_full=/nfs/isicvlnas01/users/liukuan/recsys/data/data_full
@@ -77,14 +78,28 @@ def main():
     def item_vocab_size(val):
         return "v{}".format(val), "--item_vocab_size {}".format(val)
 
-    funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size, n_sampled, n_resample]
+    def ta(val):
+        return "ta{}".format(val), "--ta {}".format(val)
+
+    funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size, n_sampled, n_resample, ta]
     
-    template = ["ml", "$data_ml", 64, 32, 0.5, 0.1, 'warp', 4000, 5000, 1024, 100]
+    template = ["ml", "$data_ml", 64, 32, 0.5, 0.1, 'warp', 4000, 5000, 1024, 100, 0]
     paras = []
     _lr = [0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 5, 8]
     _size = [32]
 
     # ml
+    # for s in _size:
+    #     for lr in _lr:
+    #         temp = list(template)
+    #         temp[3] = s
+    #         temp[5] = lr
+    #         paras.append(temp)
+
+    # ml_part
+    template = ["ml", "$data_ml_part", 64, 32, 0.5, 0.1, 'warp', 4000, 6000, 1024, 100, 1]
+    _lr = [0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 5, 8]
+    _size = [32]
     for s in _size:
         for lr in _lr:
             temp = list(template)

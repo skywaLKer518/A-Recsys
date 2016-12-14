@@ -288,10 +288,10 @@ def train():
         step_time = (time.time() - start_time) / count_va
         if FLAGS.loss in ['ce', 'mce']:
           eval_ppx = math.exp(eval_loss) if eval_loss < 300 else float('inf')
-          mylog("  eval: perplexity %.2f eval_auc %.4f step-time %.4f" % (
+          mylog("  dev: perplexity %.2f eval_auc %.4f step-time %.4f" % (
             eval_ppx, eval_auc, step_time))
         else:
-          mylog("  eval: loss %.3f eval_auc %.4f step-time %.4f" % (eval_loss, 
+          mylog("  dev: loss %.3f eval_auc %.4f step-time %.4f" % (eval_loss, 
             eval_auc, step_time))
         sys.stdout.flush()
 
