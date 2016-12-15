@@ -20,6 +20,7 @@ import configparser
 import env
 
 sys.path.insert(0, '../utils')
+sys.path.insert(0, '../attributes')
 import embed_attribute
 from xing_data import data_read as xing_data_read
 from ml_data import data_read as ml_data_read

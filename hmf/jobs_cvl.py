@@ -83,21 +83,9 @@ def main():
 
     funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size, n_sampled, n_resample, ta]
     
-    template = ["ml", "$data_ml", 64, 32, 0.5, 0.1, 'warp', 4000, 5000, 1024, 100, 0]
-    paras = []
-    _lr = [0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 5, 8]
-    _size = [32]
-
     # ml
-    # for s in _size:
-    #     for lr in _lr:
-    #         temp = list(template)
-    #         temp[3] = s
-    #         temp[5] = lr
-    #         paras.append(temp)
-
-    # ml_part
-    template = ["ml", "$data_ml_part", 64, 32, 0.5, 0.1, 'ce', 4000, 6000, 1024, 100, 1]
+    template = ["ml", "$data_ml", 64, 32, 0.5, 0.1, 'ce', 4000, 13000, 1024, 100, 0]
+    paras = []
     _lr = [0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 5, 8]
     _size = [32]
     for s in _size:
@@ -106,6 +94,17 @@ def main():
             temp[3] = s
             temp[5] = lr
             paras.append(temp)
+
+    # ml_part
+    # template = ["ml", "$data_ml_part", 64, 32, 0.5, 0.1, 'ce', 4000, 6000, 1024, 100, 1]
+    # _lr = [0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 5, 8]
+    # _size = [32]
+    # for s in _size:
+    #     for lr in _lr:
+    #         temp = list(template)
+    #         temp[3] = s
+    #         temp[5] = lr
+    #         paras.append(temp)
 
     def get_name_cmd(para):
         name = ""
@@ -137,7 +136,7 @@ def main():
     cmds = ''
     for para in paras:
         name, cmd = get_name_cmd(para)
-        cmd = "/nfs/isicvlnas01/share/anaconda/bin/python go2.py " + cmd + ' --recommend True'
+        cmd = "/nfs/isicvlnas01/share/anaconda/bin/python run_hmf.py " + cmd + ' --recommend True'
         cmds += cmd + '\n'
         
     fn = "../jobs/{}.sh".format(batch_job_name)
