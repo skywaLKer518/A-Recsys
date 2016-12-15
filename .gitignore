@@ -12,3 +12,4 @@ dataset/*
 jobs/*
 mf/*.json
 *.json
+*.csv

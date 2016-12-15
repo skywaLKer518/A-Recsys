@@ -13,6 +13,7 @@ from tensorflow.python.ops import embedding_ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops.embedding_ops import embedding_lookup as lookup
 import itertools
+
 from mulhot_index import *
 
 class EmbeddingAttribute(object):

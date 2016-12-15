@@ -1,11 +1,6 @@
+import numpy as np
 import sys
-from load_xing_data import *
-from preprocess import *
-from os import listdir, mkdir, path, rename
-from os.path import isfile, join
-import cPickle as pickle
-
-import attribute
+sys.path.insert(0, '../attributes')
 
 
 def process_users_nan(users):
@@ -124,7 +119,9 @@ def to_index(interact, user_index_all, item_index_all):
 
 def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000, 
   max_vocabulary_size2=50000, logits_size_tr=50000):
-
+  from os import mkdir, path
+  from os.path import isfile, join
+  import cPickle as pickle
   data_filename = join(data_dir, 'recsys_file')
   if isfile(data_filename):
     print("recsys exists, loading")
@@ -132,6 +129,11 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
       logit_ind2item_ind) = pickle.load(open(data_filename, 'rb'))
     return (data_tr, data_va, u_attributes, i_attributes, item_ind2logit_ind, 
     logit_ind2item_ind)
+
+  import attribute
+  from load_xing_data import load_user_target_csv, load_item_active_csv, load_user_csv, load_item_csv, load_interactions
+  from preprocess import create_dictionary, tokenize_attribute_map, filter_cat, filter_mulhot, pickle_save
+  
   if ta == 1:
     users, user_feature_names, user_index_orig = load_user_target_csv()
     items, item_feature_names, item_index_orig = load_item_active_csv()

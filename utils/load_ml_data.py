@@ -1,15 +1,7 @@
 from pandatools import pd, np, load_csv, write_csv, build_index
 from os.path import join
-import socket
 
-
-NAME = socket.gethostname()
-if NAME == 'Kuans-MacBook-Pro.local':
-    DIR = '/Users/Kuan/Project/recsys/dataset/ml-20m/'
-elif NAME.startswith("hpc"):
-    DIR = '/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_ml_orig'
-else:
-    DIR = '/nfs/isicvlnas01/users/liukuan/recsys/dataset/ml-20m/'
+DIR = '../raw_data/ml-20m/'
 
 def load_interactions():
     '''

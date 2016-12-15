@@ -1,9 +1,6 @@
-import sys
-
 import numpy as np
 from os import listdir, mkdir, path, rename
 from os.path import isfile, join
-import cPickle as pickle
 from tensorflow.python.platform import gfile
 
 
@@ -19,6 +16,7 @@ _START_VOCAB = [_UNK, _START ] #, _PHANTOM]
 
 
 def pickle_save(m, filename):
+  import cPickle as pickle
   pickle.dump(m, open(filename, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
 
 def initialize_vocabulary(vocabulary_path):

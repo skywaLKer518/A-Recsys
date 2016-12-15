@@ -1,12 +1,18 @@
-# RecSys: 
-## a Tensorflow based implementation of recommendation algorithms
+# A-RecSys
+## Attribute learning for large scale recommender systems - a Tensorflow Implementation
+
+A-RecSys implements a set of recommendation algorithms that focuses on attribute learning and is designed to be used in large scale recommendation settings.
+
+A-RecSys is under active development. The models/features it supports and plans to support include,
+
+#### Models
++ (Deep) Hybrid matrix factorization model
++ LSTM-Rec sequence model
+* Skip-gram attribute learning model (developing)
 
 #### Features
-It is under development. Currently it supports features
-+ recommendation with implicit feedback
-+ recommendation with attribute learning
-+ (deep) matrix factorization models
-+ Sequence model (LSTM) for recommendation
++ Recommendation with implicit feedback
++ Loss functions (including Cross-Entropy, batch-BPR, batch-Warp, sampled-batch-Warp)
 
 #### Citation
 Please cite the following if you find this helpful.

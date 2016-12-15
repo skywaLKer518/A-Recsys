@@ -89,6 +89,20 @@ def read_data():
     logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = FLAGS.ta, 
     logits_size_tr=FLAGS.item_vocab_size)
   print('length of item_ind2logit_ind', len(item_ind2logit_ind))
+
+  if not FLAGS.use_item_feature:
+    mylog("NOT using item attributes")
+    i_attr.num_features_cat = 1
+    i_attr.num_features_mulhot = 0
+  if not FLAGS.use_user_feature:
+    mylog("NOT using user attributes")
+    u_attr.num_features_cat = 1
+    u_attr.num_features_mulhot = 0
+
+  if FLAGS.dataset == 'ml':
+    print('disabling the lstm-rec fake feature')
+    u_attr.num_features_cat = 1
+
   return (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
     logit_ind2item_ind)
 
@@ -171,19 +185,6 @@ def train():
       item_population = range(len(item_ind2logit_ind))
     else:
       item_population = item_pop
-
-    if not FLAGS.use_item_feature:
-      mylog("NOT using item attributes")
-      i_attributes.num_features_cat = 1
-      i_attributes.num_features_mulhot = 0
-    if not FLAGS.use_user_feature:
-      mylog("NOT using user attributes")
-      u_attributes.num_features_cat = 1
-      u_attributes.num_features_mulhot = 0
-
-    if FLAGS.dataset == 'ml':
-      print('disabling the lstm-rec fake feature')
-      u_attributes.num_features_cat = 1
 
     model = create_model(sess, u_attributes, i_attributes, item_ind2logit_ind,
       logit_ind2item_ind, loss=FLAGS.loss, ind_item=item_population)

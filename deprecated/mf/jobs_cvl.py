@@ -15,10 +15,12 @@ echo $LD_LIBRARY_PATH
 echo $SGE_GPU
 export CUDA_VISIBLE_DEVICES=$SGE_GPU
 
-data_part=/nfs/isicvlnas01/users/liukuan/recsys/mf/data
-data_full=/nfs/isicvlnas01/users/liukuan/recsys/mf/data_full
-train_dir=/nfs/isicvlnas01/users/liukuan/recsys/mf/
-log_dir=/nfs/isicvlnas01/users/liukuan/recsys/mf/log/
+data_ml_part=/nfs/isicvlnas01/users/liukuan/recsys/data/data_ml_part
+data_ml=/nfs/isicvlnas01/users/liukuan/recsys/data/data_ml
+data_part=/nfs/isicvlnas01/users/liukuan/recsys/data/data_part
+data_full=/nfs/isicvlnas01/users/liukuan/recsys/data/data_full
+train_dir=/nfs/isicvlnas01/users/liukuan/recsys/train/
+log_dir=/nfs/isicvlnas01/users/liukuan/recsys/train/log/
 
 __cmd__
 """
@@ -34,6 +36,9 @@ def main():
     def batch_size(val):
         return "m{}".format(val), "--batch_size {}".format(val)
 
+    def nonlinear(val):
+        return "nl{}".format(val), "--nonlinear {}".format(val)
+
     def size(val):
         return "h{}".format(val), "--size {}".format(val)
 
@@ -45,6 +50,7 @@ def main():
     
     def n_resample(val):
         return "n_re{}".format(val), "--n_resample {}".format(val)
+
     def n_sampled(val):
         return "n_s{}".format(val), "--n_sampled {}".format(val)
 
@@ -63,17 +69,43 @@ def main():
     def ckpt(val):
         return "t{}".format(val), "--steps_per_checkpoint {}".format(val)
 
-    funcs = [data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, n_sampled, n_resample]
+    def hidden_size(val):
+        return "hs{}".format(val), "--hidden_size {}".format(val)
+
+    def dataset(val):
+        return "{}".format(val), "--dataset {}".format(val)
+
+    def item_vocab_size(val):
+        return "v{}".format(val), "--item_vocab_size {}".format(val)
+
+    def ta(val):
+        return "ta{}".format(val), "--ta {}".format(val)
+
+    funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size, n_sampled, n_resample, ta]
     
-    paras = [["$data_part", 64, 32, 0.5, 1, "ce", 4000, 1024, 100,],
-                ["$data_part", 64, 32, 0.5, 0.5, "ce", 4000, 1024, 100,],
-                ["$data_part", 64, 32, 0.5, 0.3, "ce", 4000, 1024, 100,],
-                ["$data_part", 64, 32, 0.5, 0.2, "ce", 4000, 1024, 100,],
-                ["$data_part", 64, 32, 0.5, 1, "warp", 4000, 1024, 100,],
-                ["$data_part", 64, 32, 0.5, 2, "warp", 4000, 1024, 100,],
-                ["$data_part", 64, 32, 0.5, 3, "warp", 4000, 1024, 100,],
-                ["$data_part", 64, 32, 0.5, 0.5, "warp", 4000, 1024, 100,],
-             ]
+    template = ["ml", "$data_ml", 64, 32, 0.5, 0.1, 'warp', 4000, 5000, 1024, 100, 0]
+    paras = []
+    _lr = [0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 5, 8]
+    _size = [32]
+
+    # ml
+    # for s in _size:
+    #     for lr in _lr:
+    #         temp = list(template)
+    #         temp[3] = s
+    #         temp[5] = lr
+    #         paras.append(temp)
+
+    # ml_part
+    template = ["ml", "$data_ml_part", 64, 32, 0.5, 0.1, 'ce', 4000, 6000, 1024, 100, 1]
+    _lr = [0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 5, 8]
+    _size = [32]
+    for s in _size:
+        for lr in _lr:
+            temp = list(template)
+            temp[3] = s
+            temp[5] = lr
+            paras.append(temp)
 
     def get_name_cmd(para):
         name = ""
@@ -86,12 +118,11 @@ def main():
         name = name.replace(".",'')
         n, c = train_dir("${train_dir}/"+name)
         cmd.append(c)
-        n, c = logfile("${log_dir}/"+name)
-        cmd.append(c)
 
         cmd = " ".join(cmd)
         return name, cmd
 
+    # train
     for para in paras:
         name, cmd = get_name_cmd(para)
         cmd = "/nfs/isicvlnas01/share/anaconda/bin/python go2.py " + cmd
@@ -101,6 +132,19 @@ def main():
         f.write(content)
         f.close()
         
+    # recommend
+    batch_job_name = 'ml_part_recommend'
+    cmds = ''
+    for para in paras:
+        name, cmd = get_name_cmd(para)
+        cmd = "/nfs/isicvlnas01/share/anaconda/bin/python go2.py " + cmd + ' --recommend True'
+        cmds += cmd + '\n'
+        
+    fn = "../jobs/{}.sh".format(batch_job_name)
+    f = open(fn,'w')
+    content = head.replace("__cmd__",cmds)
+    f.write(content)
+    f.close()
 
 if __name__ == "__main__":
     main()

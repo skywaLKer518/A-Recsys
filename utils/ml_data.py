@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(0, '../attributes')
 import numpy as np
 
 def process_items(items):
@@ -133,7 +135,6 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
 
 
   # create_dictionary
-  ## TODO
   item_feature_types = [0, 1]
   i_inds = [p[1] for p in data_tr]
   create_dictionary(data_dir, i_inds, items, item_feature_types, 

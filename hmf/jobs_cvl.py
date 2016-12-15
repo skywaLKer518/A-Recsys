@@ -97,7 +97,7 @@ def main():
     #         paras.append(temp)
 
     # ml_part
-    template = ["ml", "$data_ml_part", 64, 32, 0.5, 0.1, 'warp', 4000, 6000, 1024, 100, 1]
+    template = ["ml", "$data_ml_part", 64, 32, 0.5, 0.1, 'ce', 4000, 6000, 1024, 100, 1]
     _lr = [0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 5, 8]
     _size = [32]
     for s in _size:
@@ -132,6 +132,19 @@ def main():
         f.write(content)
         f.close()
         
+    # recommend
+    batch_job_name = 'ml_part_recommend'
+    cmds = ''
+    for para in paras:
+        name, cmd = get_name_cmd(para)
+        cmd = "/nfs/isicvlnas01/share/anaconda/bin/python go2.py " + cmd + ' --recommend True'
+        cmds += cmd + '\n'
+        
+    fn = "../jobs/{}.sh".format(batch_job_name)
+    f = open(fn,'w')
+    content = head.replace("__cmd__",cmds)
+    f.write(content)
+    f.close()
 
 if __name__ == "__main__":
     main()

@@ -1,15 +1,15 @@
 from pandatools import pd, np, load_csv, write_csv, build_index
-import socket
 
+# import socket
+# NAME = socket.gethostname()
+# if NAME == 'Kuans-MacBook-Pro.local':
+#     DIR = '/Users/Kuan/Project/vertex_nomination/data/recsys16/'
+# elif NAME.startswith("hpc"):
+#     DIR = '/home/nlg-05/xingshi/kuan/recsys16/data/recsys16/'
+# else:
+#     DIR = '/nfs/isicvlnas01/users/liukuan/vertex_nomination/data/recsys16/'
 
-NAME = socket.gethostname()
-if NAME == 'Kuans-MacBook-Pro.local':
-    DIR = '/Users/Kuan/Project/vertex_nomination/data/recsys16/'
-elif NAME.startswith("hpc"):
-    DIR = '/home/nlg-05/xingshi/kuan/recsys16/data/recsys16/'
-else:
-    DIR = '/nfs/isicvlnas01/users/liukuan/vertex_nomination/data/recsys16/'
-
+DIR = '../raw_data/xing/'
 
 def load_user_csv():
     filename = DIR + 'users.csv'

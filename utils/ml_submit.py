@@ -1,23 +1,18 @@
 import pandas as pd
 from load_ml_data import write_csv, load_csv, load_movie, load_user
 from os.path import isfile
-# from scipy.sparse import lil_matrix, csr_matrix
-import socket
+# import socket
+# NAME = socket.gethostname()
+# print NAME
+# if NAME == 'Kuans-MacBook-Pro.local' or NAME == 'Kuans-MBP':
+#     SUBMIT_DIR = '/Users/Kuan/Project/recsys/submissions/'
+# elif NAME.startswith("hpc"):
+#     SUBMIT_DIR = '/home/nlg-05/xingshi/kuan/recsys/submissions/'    
+# else:
+#     SUBMIT_DIR = '/nfs/isicvlnas01/users/liukuan/recsys/submissions/'
 
-NAME = socket.gethostname()
-print NAME
-if NAME == 'Kuans-MacBook-Pro.local' or NAME == 'Kuans-MBP':
-    SUBMIT_DIR = '/Users/Kuan/Project/recsys/submissions/'
-elif NAME.startswith("hpc"):
-    SUBMIT_DIR = '/home/nlg-05/xingshi/kuan/recsys/submissions/'    
-else:
-    SUBMIT_DIR = '/nfs/isicvlnas01/users/liukuan/recsys/submissions/'
-    
-# NUM_TARGET_USERS = 150000
-# NUM_ACTIVE_ITEMS = 327003
+SUBMIT_DIR = '../submissions/'
 
-# SUBMIT_DIR = DIR + 'submissions/'
-# SUBMIT_DIR2 = '../submissions/submitted/'
 
 def format_submit(X, sub_id):
     '''

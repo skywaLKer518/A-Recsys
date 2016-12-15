@@ -2,17 +2,17 @@ import pandas as pd
 from load_xing_data import write_csv, load_csv, load_user_target_csv, load_item_active_csv
 from os.path import isfile
 from scipy.sparse import lil_matrix, csr_matrix
-import socket
-
-NAME = socket.gethostname()
-print NAME
-if NAME == 'Kuans-MacBook-Pro.local' or NAME == 'Kuans-MBP':
-    SUBMIT_DIR = '/Users/Kuan/Project/vertex_nomination/recsys16/src/'
-elif NAME.startswith("hpc"):
-    SUBMIT_DIR = '/home/nlg-05/xingshi/kuan/recsys/submissions/'    
-else:
-    SUBMIT_DIR = '/nfs/isicvlnas01/users/liukuan/vertex_nomination/recsys16/src/'
+# import socket
+# NAME = socket.gethostname()
+# print NAME
+# if NAME == 'Kuans-MacBook-Pro.local' or NAME == 'Kuans-MBP':
+#     SUBMIT_DIR = '/Users/Kuan/Project/vertex_nomination/recsys16/src/'
+# elif NAME.startswith("hpc"):
+#     SUBMIT_DIR = '/home/nlg-05/xingshi/kuan/recsys/submissions/'    
+# else:
+#     SUBMIT_DIR = '/nfs/isicvlnas01/users/liukuan/vertex_nomination/recsys16/src/'
     
+SUBMIT_DIR = '../submissions/'
 NUM_TARGET_USERS = 150000
 NUM_ACTIVE_ITEMS = 327003
 
