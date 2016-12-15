@@ -45,10 +45,6 @@ tf.app.flags.DEFINE_boolean("fromScratch", True,
                             "withAdagrad.")
 tf.app.flags.DEFINE_boolean("saveCheckpoint", False,
                             "save Model at each checkpoint.")
-
-tf.app.flags.DEFINE_boolean("fulldata", False,
-                            "whether to use full dataset")
-
 tf.app.flags.DEFINE_integer("batch_size", 100,
                             "Batch size to use during training.")
 tf.app.flags.DEFINE_integer("size", 128, "Size of each model layer.")
@@ -219,16 +215,12 @@ def split_train_dev(seq_all, ratio = 0.05):
 
 
 def read_data(test = False):
-    ta = 1
-    if FLAGS.fulldata:
-        ta = 0
-
     if FLAGS.dataset == "xing":
         data_read = xing_data_read
     elif FLAGS.dataset == 'ml':
         data_read = ml_data_read
 
-    (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = ta, logits_size_tr=FLAGS.item_vocab_size)
+    (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = FLAGS.ta, logits_size_tr=FLAGS.item_vocab_size)
 
     # remove unk
     data_tr = [p for p in data_tr if (p[1] in item_ind2logit_ind)]

@@ -44,8 +44,8 @@ def main():
     def loss(val):
         return "{}".format(val), "--loss {}".format(val)
 
-    def fulldata(val):
-        return "", "--fulldata {}".format(val)
+    def ta(val):
+        return "", "--ta {}".format(val)
 
     def num_layers(val):
         return "n{}".format(val), "--num_layers {}".format(val)
@@ -84,12 +84,12 @@ def main():
 
     funcs = [data_dir, batch_size, size,       #0
              dropout, learning_rate, n_epoch,  #3
-             loss, fulldata, num_layers,       #6
+             loss, ta, num_layers,       #6
              L, N, use_concat,                 #9
              dataset, item_vocab_size, fromScratch]         #12
     
-    template = ["$data_part", 64, 128, 0.5, 0.5, 150, "ce", "False", 1, 30, "001",False,'xing',50000, False]
-    template_ml = ["$data_ml", 64, 128, 0.5, 0.5, 150, "ce", "False", 1, 200, "000",False,'ml',5000, True]
+    template = ["$data_part", 64, 128, 0.5, 0.5, 150, "ce", 1, 1, 30, "001",False,'xing',50000, False]
+    template_ml = ["$data_ml", 64, 128, 0.5, 0.5, 150, "ce", 0, 1, 200, "000",False,'ml',13000, True]
     params = []
 
     # for xing
