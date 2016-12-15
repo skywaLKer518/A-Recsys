@@ -1,5 +1,5 @@
 # A-RecSys
-## Attribute learning for large scale recommender systems - a Tensorflow Implementation
+## Attribute Learning for Large Scale Recommender Systems - a Tensorflow Implementation
 
 A-RecSys implements a set of recommendation algorithms that focuses on attribute learning and is designed to be used in large scale recommendation settings.
 
@@ -12,6 +12,7 @@ A-RecSys is under active development. The models/features it supports and plans 
 
 #### Features
 + Recommendation with implicit feedback
++ Recommendation with explicit feedback (developing)
 + Loss functions (including Cross-Entropy, batch-BPR, batch-Warp, sampled-batch-Warp)
 
 #### Citation
@@ -26,3 +27,5 @@ Please cite the following if you find this helpful.
 
 #### Feedback
 Please let us know your comments and suggestions. Thanks!
+Kuan Liu kuanl@usc.edu
+Xing Shi xingshi@usc.edu
