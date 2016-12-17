@@ -24,7 +24,8 @@ sys.path.insert(0, '../attributes')
 import embed_attribute
 from xing_data import data_read as xing_data_read
 from ml_data import data_read as ml_data_read
-from xing_eval import *
+from xing_eval import Evaluate as xing_Evaluate
+from ml_eval import Evaluate as ml_Evaluate
 import data_iterator
 from data_iterator import DataIterator
 from best_buckets import *
@@ -218,8 +219,10 @@ def split_train_dev(seq_all, ratio = 0.05):
 def read_data(test = False):
     if FLAGS.dataset == "xing":
         data_read = xing_data_read
+        Evaluate = xing_Evaluate
     elif FLAGS.dataset == 'ml':
         data_read = ml_data_read
+        Evaluate = ml_Evaluate
 
     (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = FLAGS.ta, logits_size_tr=FLAGS.item_vocab_size)
 
@@ -531,6 +534,7 @@ def evaluate(sess, model, data_set, item_sampled_id2idx=None):
     return loss, ppx
 
 def recommend():
+    
     # Read Data
     log_it("recommend")
     log_it("Reading Data...")

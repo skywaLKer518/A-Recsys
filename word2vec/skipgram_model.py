@@ -3,28 +3,23 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import random, math
-
+import random
 import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
-import time
 import sys
-import itertools
-
 sys.path.insert(0, '../attributes')
 import embed_attribute
 
-class LatentProductModel(object):
+class SkipGramModel(object):
   def __init__(self, user_size, item_size, size,
-               num_layers, batch_size, learning_rate,
+               batch_size, learning_rate,
                learning_rate_decay_factor, user_attributes=None, 
                item_attributes=None, item_ind2logit_ind=None, 
-               logit_ind2item_ind=None, loss_function='ce', GPU=None, 
-               logit_size_test=None, nonlinear=None, dropout=1.0, 
-               n_sampled=None, indices_item=None, dtype=tf.float32, 
-               hidden_size=500):
+               logit_ind2item_ind=None, loss_function='ce',
+               logit_size_test=None, dropout=1.0, 
+               n_sampled=None, indices_item=None, dtype=tf.float32):
 
     self.user_size = user_size
     self.item_size = item_size
@@ -46,7 +41,6 @@ class LatentProductModel(object):
       self.indices_item = range(self.logit_size)
     self.logit_size_test = logit_size_test
 
-    self.nonlinear = nonlinear
     self.loss_function = loss_function
     self.n_sampled = n_sampled
     self.batch_size = batch_size
@@ -55,12 +49,9 @@ class LatentProductModel(object):
     self.learning_rate_decay_op = self.learning_rate.assign(
         self.learning_rate * learning_rate_decay_factor)
     self.global_step = tf.Variable(0, trainable=False)
+    
     self.att_emb = None
     self.dtype=dtype
-    
-    self.data_length = None
-    self.train_permutation = None
-    self.start_index = None
 
     mb = self.batch_size
     ''' this is mapped item target '''
@@ -71,60 +62,32 @@ class LatentProductModel(object):
     self.keep_prob = tf.placeholder(tf.float32, name='keep_prob')
 
     m = embed_attribute.EmbeddingAttribute(user_attributes, item_attributes, mb, 
-      self.n_sampled, 0, False, item_ind2logit_ind, logit_ind2item_ind)
+      self.n_sampled, 1, True, item_ind2logit_ind, logit_ind2item_ind)
     self.att_emb = m
-    embedded_user, user_b = m.get_batch_user(self.keep_prob, False)
-    
-    if self.nonlinear in ['relu', 'tanh']:
-      act = tf.nn.relu if self.nonlinear == 'relu' else tf.tanh
-      w1 = tf.get_variable('w1', [size, hidden_size], dtype=self.dtype)
-      b1 = tf.get_variable('b1', [hidden_size], dtype=self.dtype)
-      w2 = tf.get_variable('w2', [hidden_size, size], dtype=self.dtype)
-      b2 = tf.get_variable('b2', [size], dtype=self.dtype)
 
-      embedded_user, user_b = m.get_batch_user(1.0, False)
-      h0 = tf.nn.dropout(act(embedded_user), self.keep_prob)
-      
-      h1 = act(tf.matmul(h0, w1) + b1)
-      h1 = tf.nn.dropout(h1, self.keep_prob)
+    embedded_user, _ = m.get_batch_user(1.0, False)
+    embedded_item, _ = m.get_batch_item('input0', batch_size)
+    embedded_item = tf.reduce_mean(embedded_item, 0)
 
-      h2 = act(tf.matmul(h1, w2) + b2)
-      embedded_user = tf.nn.dropout(h2, self.keep_prob)
-
-    pos_embs_item, pos_item_b = m.get_batch_item('pos', batch_size)
-    pos_embs_item = tf.reduce_mean(pos_embs_item, 0)
-
-    neg_embs_item, neg_item_b = m.get_batch_item('neg', batch_size)
-    neg_embs_item = tf.reduce_mean(neg_embs_item, 0)
-    # print('debug: user, item dim', embedded_user.get_shape(), neg_embs_item.get_shape())
-
-    print("construct postive/negative items/scores \n(for bpr loss, AUC)")
-    self.pos_score = tf.reduce_sum(tf.mul(embedded_user, pos_embs_item), 1) + pos_item_b
-    self.neg_score = tf.reduce_sum(tf.mul(embedded_user, neg_embs_item), 1) + neg_item_b
-    neg_pos = self.neg_score - self.pos_score
-    self.auc = 0.5 - 0.5 * tf.reduce_mean(tf.sign(neg_pos))
+    print("non-sampled prediction")
+    input_embed = tf.nn.dropout(tf.reduce_mean([embedded_user, embedded_item], 0), self.keep_prob)
+    logits = m.get_prediction(input_embed)
 
     # mini batch version
     print("sampled prediction")
     if self.n_sampled is not None:
-      sampled_logits = m.get_prediction(embedded_user, 'sampled')
+      sampled_logits = m.get_prediction(input_embed, 'sampled')
       # embedded_item, item_b = m.get_sampled_item(self.n_sampled)
       # sampled_logits = tf.matmul(embedded_user, tf.transpose(embedded_item)) + item_b
-      target_score = m.get_target_score(embedded_user, self.item_id_target)
+      target_score = m.get_target_score(input_embed, self.item_id_target)
 
-    print("non-sampled prediction")
-    logits = m.get_prediction(embedded_user)
 
     loss = self.loss_function
     if loss in ['warp', 'ce', 'bbpr']:
       batch_loss = m.compute_loss(logits, self.item_target, loss)
     elif loss in ['mw']:
-      # batch_loss = m.compute_loss(sampled_logits, self.pos_score, loss)
       batch_loss = m.compute_loss(sampled_logits, target_score, loss)
       batch_loss_eval = m.compute_loss(logits, self.item_target, 'warp')
-
-    elif loss in ['bpr', 'bpr-hinge']:
-      batch_loss = m.compute_loss(neg_pos, self.item_target, loss)
     else:
       print("not implemented!")
       exit(-1)
@@ -164,24 +127,18 @@ class LatentProductModel(object):
       input_feed[self.item_target.name] = targets[0]
       if loss in ['mw']:
         input_feed[self.item_id_target.name] = item_input
-      
-    # if loss in ['mw', 'mce'] and recommend == False:
-      # input_feed[self.item_target.name] = [item_sampled_id2idx[v] for v in item_input]
 
     if self.att_emb is not None:
       (update_sampled, input_feed_sampled, 
         input_feed_warp) = self.att_emb.add_input(input_feed, user_input, 
-        item_input, neg_item_input=neg_item_input, 
+        [item_input], neg_item_input=neg_item_input, 
         item_sampled = item_sampled, item_sampled_id2idx = item_sampled_id2idx, 
         forward_only=forward_only, recommend=recommend, loss = loss)
 
     if not recommend:
       if not forward_only:
-        # output_feed = [self.updates, self.loss, self.auc]
         output_feed = [self.updates, self.loss]
-        # output_feed = [self.embedded_user, self.pos_embs_item]
       else:
-        # output_feed = [self.loss_eval, self.auc]
         output_feed = [self.loss_eval]
     else:
       if recommend_new:
@@ -212,6 +169,7 @@ class LatentProductModel(object):
       return outputs[0]
 
   def get_batch(self, data, loss = 'ce', hist = None):
+
     batch_user_input, batch_item_input = [], []
     batch_neg_item_input = []
 
@@ -220,29 +178,14 @@ class LatentProductModel(object):
       u, i, _ = random.choice(data)
       batch_user_input.append(u)
       batch_item_input.append(i)
+      
+      # i2 = random.choice(self.indices_item)
+      # while i2 in hist[u]:
+      #   i2 = random.choice(self.indices_item)
+      # batch_neg_item_input.append(i2)
       count += 1
         
     return batch_user_input, batch_item_input, batch_neg_item_input
-
-  def get_permuted_batch(self, data):
-    batch_user_input, batch_item_input = [], []
-    if self.data_length == None:
-      self.data_length = len(data)
-      self.start_index = 0
-      self.train_permutation = np.random.permutation(self.data_length)
-    if self.start_index + self.batch_size >= self.data_length:
-      self.start_index = 0
-      self.train_permutation = np.random.permutation(self.data_length)
-
-    indices = range(self.start_index, self.start_index + self.batch_size)
-    indices = self.train_permutation[indices]
-    self.start_index += self.batch_size
-    for j in indices:
-      u, i , _  = data[j]
-      batch_user_input.append(u)
-      batch_item_input.append(i)
-    return batch_user_input, batch_item_input, None
-
 
   # def get_eval_batch(self, loss, users, items, hist = None):
   #   neg_items = []

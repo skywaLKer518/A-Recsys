@@ -63,10 +63,10 @@ tf.app.flags.DEFINE_string("loss", 'ce',
                             "loss function")
 tf.app.flags.DEFINE_string("model_option", 'loss',
                             "model to evaluation")
-tf.app.flags.DEFINE_string("log", 'log/log0', "logfile")
-tf.app.flags.DEFINE_string("nonlinear", 'linear', "nonlinear activation")
-tf.app.flags.DEFINE_string("sample_type", 'random', "random, sweep, permute")
-tf.app.flags.DEFINE_integer("gpu", -1, "gpu card number")
+
+
+tf.app.flags.DEFINE_integer("num_skips", 3, "Size of each model layer.")
+tf.app.flags.DEFINE_integer("skip_window", 5, "Size of each model layer.")
 
 # Xing related
 tf.app.flags.DEFINE_integer("ta", 1, "target_active")
@@ -80,6 +80,29 @@ def mylog(msg):
   logging.info(msg)
   return
 
+def get_user_items_seq(data):
+  # group (u,i) by user and sort by time
+  d = {}
+  for u, i, t in data:
+    if u not in d:
+      d[u] = []
+    d[u].append((i,t))
+  for u in d:
+    tmp = sorted(d[u], key=lambda x:x[1])
+    tmp = [x[0] for x in tmp]
+    assert(len(tmp)>0)
+    d[u] = tmp
+  return d
+
+def form_train_seq(x, end_line_token):
+  seq = []
+  e_ind = end_line_token
+  for u in x:
+    l = [(u,i) for i in x[u]]
+    seq.extend(l)
+    seq.append((u, e_ind))
+  return seq
+
 def read_data():
   if FLAGS.dataset == 'xing':
     data_read = data_read_xing
@@ -89,6 +112,17 @@ def read_data():
     logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = FLAGS.ta, 
     logits_size_tr=FLAGS.item_vocab_size)
   print('length of item_ind2logit_ind', len(item_ind2logit_ind))
+
+  mylog("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
+
+  #remove some rare items in both train and valid set
+  #this helps make train/valid set distribution similar 
+  #to each other
+  
+  mylog("original train/dev size: %d/%d" %(len(data_tr),len(data_va)))
+  data_tr = [p for p in data_tr if (p[1] in item_ind2logit_ind)]
+  data_va = [p for p in data_va if (p[1] in item_ind2logit_ind)]
+  mylog("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
   if not FLAGS.use_item_feature:
     mylog("NOT using item attributes")
@@ -103,23 +137,24 @@ def read_data():
     print('disabling the lstm-rec fake feature')
     u_attr.num_features_cat = 1
 
-  return (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
-    logit_ind2item_ind)
+  u_i_seq_tr = get_user_items_seq(data_tr)
+  END_ID = i_attr.get_item_last_index()
+  seq_tr = form_train_seq(u_i_seq_tr, END_ID)
+
+  return (seq_tr, data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
+    logit_ind2item_ind, END_ID)
 
 def create_model(session, u_attributes=None, i_attributes=None, 
   item_ind2logit_ind=None, logit_ind2item_ind=None, 
   loss = FLAGS.loss, logit_size_test=None, ind_item = None):  
-  gpu = None if FLAGS.gpu == -1 else FLAGS.gpu
   n_sampled = FLAGS.n_sampled if FLAGS.loss in ['mw', 'mce'] else None
-  import hmf_model
-  model = hmf_model.LatentProductModel(FLAGS.user_vocab_size, 
-    FLAGS.item_vocab_size, FLAGS.size, FLAGS.num_layers, 
+  import skipgram_model
+  model = skipgram_model.SkipGramModel(FLAGS.user_vocab_size, 
+    FLAGS.item_vocab_size, FLAGS.size, 
     FLAGS.batch_size, FLAGS.learning_rate, 
     FLAGS.learning_rate_decay_factor, u_attributes, i_attributes, 
-    item_ind2logit_ind, logit_ind2item_ind, loss_function = loss, GPU=gpu, 
-    logit_size_test=logit_size_test, nonlinear=FLAGS.nonlinear, 
-    dropout=FLAGS.keep_prob, n_sampled=n_sampled, indices_item=ind_item, 
-    hidden_size=FLAGS.hidden_size)
+    item_ind2logit_ind, logit_ind2item_ind, loss_function=loss, 
+    dropout=FLAGS.keep_prob, n_sampled=n_sampled)
 
   if not os.path.isdir(FLAGS.train_dir):
     os.mkdir(FLAGS.train_dir)
@@ -160,23 +195,9 @@ def train():
     
     print("reading data")
     logging.info("reading data")
-    (data_tr, data_va, u_attributes, i_attributes,item_ind2logit_ind, 
-      logit_ind2item_ind) = read_data()
+    (seq_tr, data_tr, data_va, u_attributes, i_attributes,item_ind2logit_ind, 
+      logit_ind2item_ind, end_ind) = read_data()
 
-    print("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
-    logging.info("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
-
-    '''
-    remove some rare items in both train and valid set
-    this helps make train/valid set distribution similar 
-    to each other
-    '''
-    print("original train/dev size: %d/%d" %(len(data_tr),len(data_va)))
-    logging.info("original train/dev size: %d/%d" %(len(data_tr),len(data_va)))
-    data_tr = [p for p in data_tr if (p[1] in item_ind2logit_ind)]
-    data_va = [p for p in data_va if (p[1] in item_ind2logit_ind)]
-    print("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
-    logging.info("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
     power = FLAGS.power
     item_pop, p_item = item_frequency(data_tr, power)
@@ -189,10 +210,8 @@ def train():
     model = create_model(sess, u_attributes, i_attributes, item_ind2logit_ind,
       logit_ind2item_ind, loss=FLAGS.loss, ind_item=item_population)
 
-    pos_item_list, pos_item_list_val = None, None
-    if FLAGS.loss in ['warp', 'mw', 'bbpr']:
-      pos_item_list, pos_item_list_val = positive_items(data_tr, data_va)
-      model.prepare_warp(pos_item_list, pos_item_list_val)
+    # data iterators
+    dite = DataIterator(model, seq_tr, end_ind, FLAGS.num_skips, FLAGS.skip_window)
 
     mylog('started training')
     step_time, loss, current_step, auc = 0.0, 0.0, 0, 0.0
@@ -213,20 +232,14 @@ def train():
       best_auc, best_loss = -1, 1000000
 
     item_sampled, item_sampled_id2idx = None, None
-
-    if FLAGS.sample_type == 'random':
-      get_next_batch = model.get_batch
-    elif FLAGS.sample_type == 'permute':
-      get_next_batch = model.get_permuted_batch
-    else:
-      print('not implemented!')
-      exit()
-
     while True:
+
       ranndom_number_01 = np.random.random_sample()
       start_time = time.time()
-      (user_input, item_input, neg_item_input) = get_next_batch(data_tr)
-      
+      (user_input, item_input, neg_item_input) = model.get_batch(data_tr, 
+        loss=FLAGS.loss)
+      # generate batch of training
+
       if FLAGS.loss in ['mw', 'mce'] and current_step % FLAGS.n_resample == 0:
         item_sampled, item_sampled_id2idx = sample_items(item_population, 
           FLAGS.n_sampled, p_item)
@@ -343,8 +356,8 @@ def recommend():
   with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, 
     log_device_placement=FLAGS.device_log)) as sess:
     print("reading data")
-    (_, _, u_attributes, i_attributes, item_ind2logit_ind, 
-      logit_ind2item_ind) = read_data()
+    (_, _, _, u_attributes, i_attributes, item_ind2logit_ind, 
+      logit_ind2item_ind, _) = read_data()
     
 
     if FLAGS.dataset =='xing':

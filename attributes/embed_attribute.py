@@ -68,13 +68,15 @@ class EmbeddingAttribute(object):
         item_attributes, prefix='item_output', transpose=False, device=devices[-1])
       self.i_biases2_cat, self.i_biases2_mulhot = self._embedded_bias(
         item_attributes, 'item_output', device=devices[-1])
+    
     # input users
     self.u_indices = {}
     self.u_indices['input'] = self._placeholders('user', 'input', mb, device=devices[0])
+    
+    self.i_indices = {}
 
     # item -- positive/negative sample indices
-    print("construct postive/negative items/scores ")        
-    self.i_indices = {}
+    print("construct postive/negative items/scores ")
     self.i_indices['pos'] = self._placeholders('item', 'pos', mb, device=devices[0])
     self.i_indices['neg'] = self._placeholders('item', 'neg', mb, device=devices[0])
 

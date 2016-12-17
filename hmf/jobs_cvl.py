@@ -5,7 +5,7 @@ head="""
 #!/bin/bash
 
 hostname
-cd /nfs/isicvlnas01/users/liukuan/recsys/mf/
+cd /nfs/isicvlnas01/users/liukuan/recsys/hmf/
 source /nfs/isicvlnas01/share/SGE_ROOT/default/common/settings.sh
 export PATH="/nfs/isicvlnas01/share/SGE_ROOT/bin/linux-x64:/nfs/isicvlnas01/share/SGE_ROOT/bin/linux-x64:/nfs/gold/liukuan/anaconda2/bin:/nfs/isicvlnas01/share/anaconda/bin/:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/cuda/bin:/bin:/usr/bin"
 export LD_LIBRARY_PATH="/nfs/isicvlnas01/share/cudnn-7.5-linux-x64-v5.0-ga/lib64/:/usr/local/lib:/usr/local/cuda/lib64:/nfs/isicvlnas01/share/intel/compilers_and_libraries_2016.1.150/linux/mkl/lib/intel64/:/nfs/isicvlnas01/share/SGE_ROOT/lib/linux-x64/:/nfs/isicvlnas01/share/boost_1_55_0/lib/:/nfs/isicvlnas01/share/nccl/lib:/nfs/isicvlnas01/share/opencv-2.4.9/lib/:/nfs/isicvlnas01/share/torch/install/lib:/nfs/isicvlnas01/share/cudnn-6.5-linux-x64-v2/"
@@ -81,22 +81,28 @@ def main():
     def ta(val):
         return "ta{}".format(val), "--ta {}".format(val)
 
-    funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size, n_sampled, n_resample, ta]
+    def sampling(val):
+        if val == 'permute':
+            return 'sa_p', '--sample_type {}'.format(val)
+        elif val == 'random':
+            return 'sa_r', '--sample_type {}'.format(val)
+
+    funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size, n_sampled, n_resample, ta, sampling]
     
     # ml
-    template = ["ml", "$data_ml", 64, 32, 0.5, 0.1, 'ce', 4000, 13000, 1024, 100, 0]
-    paras = []
-    _lr = [0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 5, 8]
-    _size = [32]
-    for s in _size:
-        for lr in _lr:
-            temp = list(template)
-            temp[3] = s
-            temp[5] = lr
-            paras.append(temp)
+    # template = ["ml", "$data_ml", 64, 32, 0.5, 0.1, 'warp', 4000, 13000, 1024, 100, 0, 'random']
+    # paras = []
+    # _lr = [0.1, 0.2, 0.3, 0.5, 1, 2]
+    # _size = [32]
+    # for s in _size:
+    #     for lr in _lr:
+    #         temp = list(template)
+    #         temp[3] = s
+    #         temp[5] = lr
+    #         paras.append(temp)
 
     # ml_part
-    # template = ["ml", "$data_ml_part", 64, 32, 0.5, 0.1, 'ce', 4000, 6000, 1024, 100, 1]
+    # template = ["ml", "$data_ml_part", 64, 32, 0.5, 0.1, 'ce', 4000, 6000, 1024, 100, 1, 'random']
     # _lr = [0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 5, 8]
     # _size = [32]
     # for s in _size:
@@ -105,6 +111,18 @@ def main():
     #         temp[3] = s
     #         temp[5] = lr
     #         paras.append(temp)
+
+    template = ["xing", "$data_part", 64, 32, 0.5, 0.1, 'warp', 4000, 50000, 1024, 100, 1, 'random']
+    _lr = [1, 5, 8, 10]
+    _s = ['random', 'permute']
+    paras = []
+    for s in _s:
+        for lr in _lr:
+            temp = list(template)
+            temp[5] = lr
+            temp[-1] = s
+            paras.append(temp)
+
 
     def get_name_cmd(para):
         name = ""
@@ -124,7 +142,7 @@ def main():
     # train
     for para in paras:
         name, cmd = get_name_cmd(para)
-        cmd = "/nfs/isicvlnas01/share/anaconda/bin/python go2.py " + cmd
+        cmd = "/nfs/isicvlnas01/share/anaconda/bin/python run_hmf.py " + cmd
         fn = "../jobs/{}.sh".format(name)
         f = open(fn,'w')
         content = head.replace("__cmd__",cmd)
@@ -132,7 +150,7 @@ def main():
         f.close()
         
     # recommend
-    batch_job_name = 'ml_part_recommend'
+    batch_job_name = 'xing_recommend_h32_compare_sampling'
     cmds = ''
     for para in paras:
         name, cmd = get_name_cmd(para)
