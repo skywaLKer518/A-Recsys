@@ -45,7 +45,7 @@ def main():
         return "{}".format(val), "--loss {}".format(val)
 
     def ta(val):
-        return "", "--ta {}".format(val)
+        return "Ta{}".format(val), "--ta {}".format(val)
 
     def num_layers(val):
         return "n{}".format(val), "--num_layers {}".format(val)
@@ -88,7 +88,7 @@ def main():
              L, N, use_concat,                 #9
              dataset, item_vocab_size, fromScratch]         #12
     
-    template = ["$data_part", 64, 128, 0.5, 0.5, 150, "ce", 1, 1, 30, "001",False,'xing',50000, False]
+    template = ["$data_full", 64, 128, 0.5, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False]
     template_ml = ["$data_ml", 64, 128, 0.5, 0.5, 150, "ce", 0, 1, 200, "000",False,'ml',13000, True]
     params = []
 
