@@ -238,6 +238,7 @@ def read_data(test = False):
 
     # UNK and START
     START_ID = i_attr.get_item_last_index()
+    item_ind2logit_ind[START_ID] = 0
     seq_all = form_sequence(data_tr,maxlen = FLAGS.L)
     seq_tr0, seq_va0 = split_train_dev(seq_all,ratio=0.05)
     
@@ -280,6 +281,7 @@ def read_data(test = False):
             log_it("NOT using user attributes")
             u_attr.num_features_cat = 1
             u_attr.num_features_mulhot = 0 
+
 
         embAttr = embed_attribute.EmbeddingAttribute(u_attr, i_attr, FLAGS.batch_size, FLAGS.n_sampled, _buckets[-1], False, item_ind2logit_ind, logit_ind2item_ind, devices=devices)
 

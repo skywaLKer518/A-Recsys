@@ -38,7 +38,6 @@ class SeqModel(object):
                  forward_only=False,
                  dropoutRate = 1.0,
                  START_ID = 0,
-                 PAD_ID = 0,
                  loss = "ce",
                  devices = "",
                  run_options = None,
@@ -70,7 +69,7 @@ class SeqModel(object):
         self.embeddingAttribute = embeddingAttribute
         self.buckets = buckets
         self.START_ID = START_ID
-        self.PAD_ID = PAD_ID
+        self.PAD_ID = START_ID
         self.batch_size = batch_size
         self.loss = loss
         self.devices = devices
