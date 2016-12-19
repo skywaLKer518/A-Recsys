@@ -79,6 +79,7 @@ tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
 
 tf.app.flags.DEFINE_boolean("profile", False, "False = no profile, True = profile")
 
+tf.app.flags.DEFINE_boolean("use_sep_item", False, "use separate embedding parameters for output items.")
 tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("use_concat", False, "use concat or mean")
@@ -283,7 +284,7 @@ def read_data(test = False):
             u_attr.num_features_mulhot = 0 
 
 
-        embAttr = embed_attribute.EmbeddingAttribute(u_attr, i_attr, FLAGS.batch_size, FLAGS.n_sampled, _buckets[-1], False, item_ind2logit_ind, logit_ind2item_ind, devices=devices)
+        embAttr = embed_attribute.EmbeddingAttribute(u_attr, i_attr, FLAGS.batch_size, FLAGS.n_sampled, _buckets[-1], FLAGS.use_sep_item, item_ind2logit_ind, logit_ind2item_ind, devices=devices)
 
         if FLAGS.loss in ["warp", 'mw']:
             prepare_warp(embAttr, seq_tr0, seq_va0)
