@@ -16,7 +16,7 @@ from ml_data import data_read as data_read_ml
 from xing_eval import Evaluate as Evaluate_xing
 from ml_eval import Evaluate as Evaluate_ml
 from prepare_train import positive_items, item_frequency, sample_items
-
+from data_iterator import DataIterator
 # in order to profile
 from tensorflow.python.client import timeline
 
@@ -36,6 +36,7 @@ tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
 tf.app.flags.DEFINE_integer("user_vocab_size", 150000, "User vocabulary size.")
 tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
 tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
+tf.app.flags.DEFINE_integer("ni", 0, "# of items used to test")
 tf.app.flags.DEFINE_string("dataset", "xing", ".")
 tf.app.flags.DEFINE_string("data_dir", "./data0", "Data directory")
 tf.app.flags.DEFINE_string("train_dir", "./test0", "Training directory.")
@@ -103,25 +104,49 @@ def form_train_seq(x, end_line_token):
     seq.append((u, e_ind))
   return seq
 
+def prepare_valid(data_va, u_i_seq_tr, end_ind, n=0):
+  res = {}
+  processed = set([])
+  for u, _, _ in data_va:
+    if u in processed:
+      continue
+    processed.add(u)
+
+    if u in u_i_seq_tr:
+      if n == 0:
+        res[u] = []
+      elif n == -1 :
+        res[u] = [end_ind]
+      else:
+        items = u_i_seq_tr[u][-n:]
+        l = len(items)
+        if l < n:
+          items += [end_ind] * (n-l)
+        res[u] = items
+    else:
+      if n == -1:
+        res[u] = [end_ind]
+      else:
+        res[u] = [end_ind] * n
+  return res
+
 def read_data():
   if FLAGS.dataset == 'xing':
     data_read = data_read_xing
   elif FLAGS.dataset == 'ml':
     data_read = data_read_ml
-  (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
+  (data_tr0, data_va0, u_attr, i_attr, item_ind2logit_ind, 
     logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = FLAGS.ta, 
     logits_size_tr=FLAGS.item_vocab_size)
   print('length of item_ind2logit_ind', len(item_ind2logit_ind))
-
-  mylog("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
   #remove some rare items in both train and valid set
   #this helps make train/valid set distribution similar 
   #to each other
   
-  mylog("original train/dev size: %d/%d" %(len(data_tr),len(data_va)))
-  data_tr = [p for p in data_tr if (p[1] in item_ind2logit_ind)]
-  data_va = [p for p in data_va if (p[1] in item_ind2logit_ind)]
+  mylog("original train/dev size: %d/%d" %(len(data_tr0),len(data_va0)))
+  data_tr = [p for p in data_tr0 if (p[1] in item_ind2logit_ind)]
+  data_va = [p for p in data_va0 if (p[1] in item_ind2logit_ind)]
   mylog("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
   if not FLAGS.use_item_feature:
@@ -140,9 +165,10 @@ def read_data():
   u_i_seq_tr = get_user_items_seq(data_tr)
   END_ID = i_attr.get_item_last_index()
   seq_tr = form_train_seq(u_i_seq_tr, END_ID)
+  items_dev = prepare_valid(data_va0, u_i_seq_tr, END_ID, FLAGS.ni)
 
-  return (seq_tr, data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
-    logit_ind2item_ind, END_ID)
+  return (seq_tr, items_dev, data_tr, data_va, u_attr, i_attr, 
+    item_ind2logit_ind, logit_ind2item_ind, END_ID)
 
 def create_model(session, u_attributes=None, i_attributes=None, 
   item_ind2logit_ind=None, logit_ind2item_ind=None, 
@@ -154,6 +180,7 @@ def create_model(session, u_attributes=None, i_attributes=None,
     FLAGS.batch_size, FLAGS.learning_rate, 
     FLAGS.learning_rate_decay_factor, u_attributes, i_attributes, 
     item_ind2logit_ind, logit_ind2item_ind, loss_function=loss, 
+    n_input_items=FLAGS.ni,
     dropout=FLAGS.keep_prob, n_sampled=n_sampled)
 
   if not os.path.isdir(FLAGS.train_dir):
@@ -195,9 +222,8 @@ def train():
     
     print("reading data")
     logging.info("reading data")
-    (seq_tr, data_tr, data_va, u_attributes, i_attributes,item_ind2logit_ind, 
-      logit_ind2item_ind, end_ind) = read_data()
-
+    (seq_tr, items_dev, data_tr, data_va, u_attributes, i_attributes,
+      item_ind2logit_ind, logit_ind2item_ind, end_ind) = read_data()
 
     power = FLAGS.power
     item_pop, p_item = item_frequency(data_tr, power)
@@ -211,8 +237,9 @@ def train():
       logit_ind2item_ind, loss=FLAGS.loss, ind_item=item_population)
 
     # data iterators
-    dite = DataIterator(model, seq_tr, end_ind, FLAGS.num_skips, FLAGS.skip_window)
-
+    dite = DataIterator(seq_tr, end_ind, FLAGS.batch_size, FLAGS.num_skips, 
+      FLAGS.skip_window, False)
+    ite = dite.get_next()
     mylog('started training')
     step_time, loss, current_step, auc = 0.0, 0.0, 0, 0.0
     
@@ -234,11 +261,16 @@ def train():
     item_sampled, item_sampled_id2idx = None, None
     while True:
 
-      ranndom_number_01 = np.random.random_sample()
       start_time = time.time()
-      (user_input, item_input, neg_item_input) = model.get_batch(data_tr, 
-        loss=FLAGS.loss)
       # generate batch of training
+      (user_input, input_items, output_items) = ite.next()
+      # print('user')
+      # print(user_input)
+      # print('input_item')
+      # print(input_items)      
+      # print('output_item')
+      # print(output_items)
+      
 
       if FLAGS.loss in ['mw', 'mce'] and current_step % FLAGS.n_resample == 0:
         item_sampled, item_sampled_id2idx = sample_items(item_population, 
@@ -246,8 +278,9 @@ def train():
       else:
         item_sampled = None
 
-      step_loss = model.step(sess, user_input, item_input, 
-        neg_item_input, item_sampled, item_sampled_id2idx, loss=FLAGS.loss,run_op=run_options, run_meta=run_metadata)
+      step_loss = model.step(sess, user_input, [input_items], 
+        output_items, item_sampled, item_sampled_id2idx, loss=FLAGS.loss,run_op=run_options, run_meta=run_metadata)
+      # step_loss = 0
 
       step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
       loss += step_loss / FLAGS.steps_per_checkpoint
@@ -280,7 +313,8 @@ def train():
           continue
         # Save checkpoint and zero timer and loss.
         checkpoint_path = os.path.join(FLAGS.train_dir, "go.ckpt")
-        current_model = model.saver.save(sess, checkpoint_path, global_step=model.global_step)
+        current_model = model.saver.save(sess, checkpoint_path, 
+          global_step=model.global_step)
         
         # Run evals on development set and print their loss/auc.
         l_va = len(data_va)
@@ -293,18 +327,15 @@ def train():
             break
           lt = data_va[idx_s:idx_e]
           user_va = [x[0] for x in lt]
+          item_va_input = [items_dev[x[0]] for x in lt]
+          item_va_input = map(list, zip(*item_va_input))
           item_va = [x[1] for x in lt]
-          for _ in range(repeat):
-            # item_va_neg = model.get_eval_batch(FLAGS.loss, user_va, item_va, 
-            #   hist_withval)
-            item_va_neg = None
-            the_loss = 'warp' if FLAGS.loss == 'mw' else FLAGS.loss
-            eval_loss0 = model.step(sess, user_va, item_va, item_va_neg,
-              None, None, forward_only=True, 
-              loss=the_loss)
-            eval_loss += eval_loss0
-            # eval_auc += auc0
-            count_va += 1
+          
+          the_loss = 'warp' if FLAGS.loss == 'mw' else FLAGS.loss
+          eval_loss0 = model.step(sess, user_va, item_va_input, item_va, 
+            forward_only=True, loss=the_loss)
+          eval_loss += eval_loss0
+          count_va += 1
         eval_loss /= count_va
         eval_auc /= count_va
         step_time = (time.time() - start_time) / count_va
@@ -316,12 +347,6 @@ def train():
           mylog("  dev: loss %.3f eval_auc %.4f step-time %.4f" % (eval_loss, 
             eval_auc, step_time))
         sys.stdout.flush()
-
-        # if eval_auc > best_auc:
-        #   best_auc = eval_auc
-        #   new_filename = os.path.join(FLAGS.train_dir, "go.ckpt-best_auc")
-        #   shutil.copy(current_model, new_filename)
-        #   patience = FLAGS.patience
         
         if eval_loss < best_loss:
           best_loss = eval_loss
@@ -356,7 +381,7 @@ def recommend():
   with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, 
     log_device_placement=FLAGS.device_log)) as sess:
     print("reading data")
-    (_, _, _, u_attributes, i_attributes, item_ind2logit_ind, 
+    (_, items_dev, _, _, u_attributes, i_attributes, item_ind2logit_ind, 
       logit_ind2item_ind, _) = read_data()
     
 
@@ -387,13 +412,17 @@ def recommend():
       idx_e = idx_s + FLAGS.batch_size
       if idx_e <= N:
         users = Uinds[idx_s: idx_e]
-        recs = model.step(sess, users, None, None, forward_only=True, 
+        items_input = [items_dev[u] for u in users]
+        items_input = map(list, zip(*items_input))
+        recs = model.step(sess, users, items_input, forward_only=True, 
           recommend = True, recommend_new = FLAGS.recommend_new)
         rec[idx_s:idx_e, :] = recs
       else:
         users = range(idx_s, N) + [0] * (idx_e - N)
         users = [Uinds[t] for t in users]
-        recs = model.step(sess, users, None, None, forward_only=True, 
+        items_input = [items_dev[u] for u in users]
+        items_input = map(list, zip(*items_input))
+        recs = model.step(sess, users, items_input, forward_only=True, 
           recommend = True, recommend_new = FLAGS.recommend_new)
         idx_e = N
         rec[idx_s:idx_e, :] = recs[:(idx_e-idx_s),:]

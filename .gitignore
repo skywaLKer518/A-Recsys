@@ -2,7 +2,7 @@ mf/data/*
 mf/test/*
 mf/*pyc
 mf/log/*
-utils/*pyc
+*/*pyc
 mf/data*
 mf/test*
 mf/log*

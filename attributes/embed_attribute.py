@@ -64,7 +64,7 @@ class EmbeddingAttribute(object):
     self.i_biases_cat, self.i_biases_mulhot = self._embedded_bias(
       item_attributes, 'item', device=devices[0])
     if item_output:
-      self.item_embs2_cat, self.item_embs2_mulhot = self.embedded(
+      self.item_embs2_cat, self.item_embs2_mulhot = self._embedded(
         item_attributes, prefix='item_output', transpose=False, device=devices[-1])
       self.i_biases2_cat, self.i_biases2_mulhot = self._embedded_bias(
         item_attributes, 'item_output', device=devices[-1])
@@ -590,7 +590,7 @@ class EmbeddingAttribute(object):
     #   self._add_input(input_feed, 'item', item_input, 'pos')
     #   self._add_input(input_feed, 'item', neg_item_input, 'neg')    
 
-    # input item: for lstm
+    # input item: for lstm, skipgram,
     if self.item_attributes is not None and self.input_steps > 0:
       for step in range(len(item_input)):
         self._add_input(input_feed, 'item', item_input[step], 
