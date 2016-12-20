@@ -70,6 +70,7 @@ class SeqModel(object):
         self.buckets = buckets
         self.START_ID = START_ID
         self.PAD_ID = START_ID
+        self.USER_PAD_ID = 0
         self.batch_size = batch_size
         self.loss = loss
         self.devices = devices
@@ -250,7 +251,7 @@ class SeqModel(object):
                 if start_id + i < len(data_set[bucket_id]):
                     user, item_seq = data_set[bucket_id][start_id + i]
                 else:
-                    user = self.PAD_ID
+                    user = self.USER_PAD_ID
                     item_seq = []                    
             
             pad_seq = [self.PAD_ID] * (length - len(item_seq))
@@ -305,7 +306,7 @@ class SeqModel(object):
                     valid = 1
                     position = len(item_seq) - 1
                 else:
-                    user = self.PAD_ID
+                    user = self.USER_PAD_ID
                     item_seq = []                    
                     valid = 0
                     position = 0
