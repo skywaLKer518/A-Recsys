@@ -488,6 +488,7 @@ def train():
                     patience -= 1
                 
                 if patience <= 0:
+                    log_it("Training finished. Running out of patience.")
                     break
 
                 sys.stdout.flush()
