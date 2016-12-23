@@ -18,7 +18,7 @@ class SkipGramModel(object):
                learning_rate_decay_factor, user_attributes=None, 
                item_attributes=None, item_ind2logit_ind=None, 
                logit_ind2item_ind=None, n_input_items=0, loss_function='ce',
-               logit_size_test=None, dropout=1.0, 
+               logit_size_test=None, dropout=1.0, use_sep_item=True,
                n_sampled=None, indices_item=None, dtype=tf.float32):
 
     self.user_size = user_size
@@ -65,7 +65,7 @@ class SkipGramModel(object):
 
     n_input = max(n_input_items, 1)
     m = embed_attribute.EmbeddingAttribute(user_attributes, item_attributes, mb, 
-      self.n_sampled, n_input, True, item_ind2logit_ind, logit_ind2item_ind)
+      self.n_sampled, n_input, use_sep_item, item_ind2logit_ind, logit_ind2item_ind)
     self.att_emb = m
 
     embedded_user, _ = m.get_batch_user(1.0, False)
