@@ -96,13 +96,19 @@ def get_user_items_seq(data):
     d[u] = tmp
   return d
 
-def form_train_seq(x, end_line_token):
+def form_train_seq(x, pad_token, opt=1):
+  # train corpus
   seq = []
-  e_ind = end_line_token
+  p = pad_token
   for u in x:
     l = [(u,i) for i in x[u]]
-    seq.extend(l)
-    seq.append((u, e_ind))
+    if opt == 0:
+      seq.extend(l)
+      seq.append((u, p))
+    else:
+      seq.append((u, p))
+      seq.extend(l)
+
   return seq
 
 def prepare_valid(data_va, u_i_seq_tr, end_ind, n=0):
@@ -164,12 +170,12 @@ def read_data():
     u_attr.num_features_cat = 1
 
   u_i_seq_tr = get_user_items_seq(data_tr)
-  END_ID = i_attr.get_item_last_index()
-  seq_tr = form_train_seq(u_i_seq_tr, END_ID)
-  items_dev = prepare_valid(data_va0, u_i_seq_tr, END_ID, FLAGS.ni)
+  PAD_ID = i_attr.get_item_last_index()
+  seq_tr = form_train_seq(u_i_seq_tr, PAD_ID)
+  items_dev = prepare_valid(data_va0, u_i_seq_tr, PAD_ID, FLAGS.ni)
 
   return (seq_tr, items_dev, data_tr, data_va, u_attr, i_attr, 
-    item_ind2logit_ind, logit_ind2item_ind, END_ID)
+    item_ind2logit_ind, logit_ind2item_ind, PAD_ID)
 
 def create_model(session, u_attributes=None, i_attributes=None, 
   item_ind2logit_ind=None, logit_ind2item_ind=None, 
@@ -240,7 +246,7 @@ def train():
     # data iterators
     dite = DataIterator(seq_tr, end_ind, FLAGS.batch_size, FLAGS.num_skips, 
       FLAGS.skip_window, False)
-    ite = dite.get_next()
+    ite = dite.get_next2()
     mylog('started training')
     step_time, loss, current_step, auc = 0.0, 0.0, 0, 0.0
     
@@ -265,12 +271,14 @@ def train():
       start_time = time.time()
       # generate batch of training
       (user_input, input_items, output_items) = ite.next()
-      # print('user')
-      # print(user_input)
-      # print('input_item')
-      # print(input_items)      
-      # print('output_item')
-      # print(output_items)
+      if current_step < 5:
+        mylog("current step is {}".format(current_step))
+        mylog('user')
+        mylog(user_input)
+        mylog('input_item')
+        mylog(input_items)      
+        mylog('output_item')
+        mylog(output_items)
       
 
       if FLAGS.loss in ['mw', 'mce'] and current_step % FLAGS.n_resample == 0:
