@@ -83,6 +83,7 @@ tf.app.flags.DEFINE_boolean("use_sep_item", False, "use separate embedding param
 tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("use_concat", False, "use concat or mean")
+tf.app.flags.DEFINE_boolean("no_user_id", True, "use user id or not")
 
 tf.app.flags.DEFINE_boolean("recommend_new", False,
                             "Set to True for recommend new items that were not used to train.")
@@ -312,6 +313,7 @@ def create_model(session,embAttr,START_ID, run_options, run_metadata):
                      dtype = dtype,
                      devices = devices,
                      use_concat = FLAGS.use_concat,
+                     no_user_id=FLAGS.no_user_id,
                      run_options = run_options,
                      run_metadata = run_metadata
                      )
@@ -371,7 +373,7 @@ def train():
     log_it("Total_steps:{}".format(total_steps))
     log_it("Steps_per_checkpoint: {}".format(steps_per_checkpoint))
 
-
+    # with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement = False, device_count={'CPU':8, 'GPU':1})) as sess:
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement = False)) as sess:
         
         # runtime profile
@@ -504,8 +506,6 @@ def train():
 def evaluate(sess, model, data_set, item_sampled_id2idx=None):
     # Run evals on development set and print their perplexity.
     dropoutRateRaw = FLAGS.keep_prob
-
-    
     
     sess.run(model.dropout10_op)
 

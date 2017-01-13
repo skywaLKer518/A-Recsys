@@ -43,6 +43,7 @@ class SeqModel(object):
                  run_options = None,
                  run_metadata = None,
                  use_concat = True,
+                 no_user_id = True,
                  dtype=tf.float32):
         """Create the model.
         
@@ -119,9 +120,9 @@ class SeqModel(object):
             self.inputs = []
 
             if use_concat:
-                user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,concat = True, no_id = True)
+                user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,concat = True, no_id = no_user_id)
                 user_embed_size = self.embeddingAttribute.get_user_model_size(
-                    no_id = True, concat = True)
+                    no_id = no_user_id, concat = True)
                 item_embed_size = self.embeddingAttribute.get_item_model_size(
                     concat=True)
                 w_input_user = tf.get_variable("w_input_user",[user_embed_size, size], dtype = dtype)
@@ -136,7 +137,7 @@ class SeqModel(object):
                     input_embed = user_embed_transform + item_embed_transform
                     self.inputs.append(input_embed)
             else:
-                user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,concat = False, no_id = True)
+                user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,concat = False, no_id = no_user_id)
                 
                 for i in xrange(buckets[-1]):
                     name = "input{}".format(i)

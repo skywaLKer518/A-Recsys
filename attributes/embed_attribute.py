@@ -326,11 +326,20 @@ class EmbeddingAttribute(object):
     cat_list, mulhot_list = [], []
     bias_cat_list, bias_mulhot_list = [], []
     with tf.device(device):
+      if no_id and attributes.num_features_cat == 1:
+        if b_cat is not None or b_mulhot is not None:
+          print('error: not implemented')
+          exit()
+        bias = None
+        dim = attributes._embedding_size_list_cat[0]
+        cat_list = [tf.zeros([mb, dim],dtype=tf.float32)]
+        if concatenation:
+          return cat_list[0], bias
+        else:
+          return cat_list, [], bias
+
       for i in xrange(attributes.num_features_cat):
         if no_id and i == 0:
-          if attributes.num_features_cat == 1:
-            print('error: can not skip id when no other features used')
-            exit()
           continue
         cat_indices = lookup(self.att[prefix][0][i], inds)
         embedded = lookup(embs_cat[i], cat_indices, 
@@ -383,11 +392,20 @@ class EmbeddingAttribute(object):
     cat_list, mulhot_list = [], []
     bias_cat_list, bias_mulhot_list = [], []
     with tf.device(device):
+      if no_id and attributes.num_features_cat == 1:
+        if b_cat is not None or b_mulhot is not None:
+          print('error: not implemented')
+          exit()
+        bias = None
+        dim = attributes._embedding_size_list_cat[0]
+        cat_list = [tf.zeros([mb, dim],dtype=tf.float32)]
+        if concatenation:
+          return cat_list[0], bias
+        else:
+          return cat_list, [], bias
+
       for i in xrange(attributes.num_features_cat):
         if no_id and i == 0:
-          if attributes.num_features_cat == 1:
-            print('error: can not skip id when no other features used')
-            exit()
           continue
         cat_indices = lookup(self.att[prefix][0][i], inds)
         embedded = lookup(embs_cat[i], cat_indices, 
