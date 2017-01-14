@@ -57,11 +57,14 @@ tf.app.flags.DEFINE_string("data_dir", "../mf/data0", "Data directory")
 tf.app.flags.DEFINE_string("train_dir", "./train", "Training directory.")
 tf.app.flags.DEFINE_string("N", "000", "GPU layer distribution: [input_embedding, lstm, output_embedding]")
 
+
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
                             "Limit on the size of training data (0: no limit).")
 
 #tf.app.flags.DEFINE_integer("steps_per_checkpoint", 200,"How many training steps to do per checkpoint.")
 tf.app.flags.DEFINE_string("loss", 'ce', "loss function")
+
+tf.app.flags.DEFINE_integer("seed", 0, "dev split random seed.")
 
 tf.app.flags.DEFINE_integer("n_epoch", 40,
                             "How many epochs to train.")
@@ -204,7 +207,7 @@ def get_device_address(s):
     return add
 
 def split_train_dev(seq_all, ratio = 0.05):
-    random.seed(0)
+    random.seed(FLAGS.seed)
     seq_tr, seq_va = [],[]
     for item in seq_all:
         r = random.random()
@@ -590,6 +593,8 @@ def recommend():
             for i, valid in enumerate(valids):
                 if valid == 1:
                     n_recommended += 1
+                    if n_recommended % 1000 == 0:
+                        log_it("Evaluating n {} bucket_id {}".format(n_recommended, bucket_id))
                     uid, topk_values, topk_indexes = results[i]
                     rank= uid2rank[uid]
                     rec[rank,:] = topk_indexes                
