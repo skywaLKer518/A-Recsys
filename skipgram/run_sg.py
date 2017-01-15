@@ -15,7 +15,7 @@ from xing_data import data_read as data_read_xing
 from ml_data import data_read as data_read_ml
 from xing_eval import Evaluate as Evaluate_xing
 from ml_eval import Evaluate as Evaluate_ml
-from prepare_train import positive_items, item_frequency, sample_items
+from prepare_train import positive_items, item_frequency, sample_items, to_week
 from data_iterator import DataIterator
 # in order to profile
 from tensorflow.python.client import timeline
@@ -60,7 +60,8 @@ tf.app.flags.DEFINE_boolean("eval", True,
 tf.app.flags.DEFINE_boolean("use_more_train", False,
                             "Set true if use non-appearred items to train.")
 tf.app.flags.DEFINE_boolean("profile", False, "False = no profile, True = profile")
-
+tf.app.flags.DEFINE_boolean("after40", False,
+                            "whether use items after week 40 only.")
 tf.app.flags.DEFINE_string("loss", 'ce',
                             "loss function")
 tf.app.flags.DEFINE_string("model_option", 'loss',
@@ -86,6 +87,8 @@ def get_user_items_seq(data):
   # group (u,i) by user and sort by time
   d = {}
   for u, i, t in data:
+    if FLAGS.after40 and to_week(t) < 40:
+      continue
     if u not in d:
       d[u] = []
     d[u].append((i,t))
