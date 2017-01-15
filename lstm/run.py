@@ -599,7 +599,6 @@ def recommend():
                     rank= uid2rank[uid]
                     rec[rank,:] = topk_indexes                
 
-
             n_steps += 1
             
         end = time.time()
