@@ -216,6 +216,10 @@ class SeqModel(object):
     
     def step_recommend(self,session, user_input, item_inputs, positions, bucket_id):
         length = self.buckets[bucket_id]
+        if bucket_id == 0:
+            pre_length = 0
+        else:
+            pre_length = self.buckets[bucket_id - 1]
 
         input_feed = {}
 
@@ -223,9 +227,11 @@ class SeqModel(object):
 
         # output_feed
         output_feed = {}
-        for pos in positions:
-            if not pos in output_feed:
-                output_feed[pos] = (self.topk_values[bucket_id][pos], self.topk_indexes[bucket_id][pos])
+        #print(pre_length, length)
+        for pos in range(pre_length,length):                
+            output_feed[pos] = [self.topk_values[bucket_id][pos], self.topk_indexes[bucket_id][pos]]
+        #print(len(output_feed))
+        #print(output_feed)
 
         outputs = session.run(output_feed, input_feed, options = self.run_options, run_metadata = self.run_metadata)
         
@@ -310,7 +316,7 @@ class SeqModel(object):
                     user = self.USER_PAD_ID
                     item_seq = []                    
                     valid = 0
-                    position = 0
+                    position = length-1
             
             pad_seq = [self.PAD_ID] * (length - len(item_seq))
             item_input_seq = item_seq + pad_seq

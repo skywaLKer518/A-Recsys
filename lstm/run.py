@@ -590,6 +590,7 @@ def recommend():
         for users, inputs, positions, valids, bucket_id in ite:
 
             results = model.step_recommend(sess, users, inputs, positions, bucket_id)
+            
             for i, valid in enumerate(valids):
                 if valid == 1:
                     n_recommended += 1
