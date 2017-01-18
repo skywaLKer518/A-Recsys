@@ -15,11 +15,20 @@ import embed_attribute
 class SkipGramModel(object):
   def __init__(self, user_size, item_size, size,
                batch_size, learning_rate,
-               learning_rate_decay_factor, user_attributes=None, 
-               item_attributes=None, item_ind2logit_ind=None, 
-               logit_ind2item_ind=None, n_input_items=0, loss_function='ce',
-               logit_size_test=None, dropout=1.0, use_sep_item=True,
-               n_sampled=None, indices_item=None, dtype=tf.float32):
+               learning_rate_decay_factor, 
+               user_attributes=None, 
+               item_attributes=None, 
+               item_ind2logit_ind=None, 
+               logit_ind2item_ind=None, 
+               n_input_items=0, 
+               loss_function='ce',
+               logit_size_test=None, 
+               dropout=1.0, 
+               use_sep_item=True,
+               n_sampled=None, 
+               output_feat=1,
+               indices_item=None, 
+               dtype=tf.float32):
 
     self.user_size = user_size
     self.item_size = item_size
@@ -78,20 +87,23 @@ class SkipGramModel(object):
     print("non-sampled prediction")
     input_embed = tf.reduce_mean([embedded_user, embedded_items[0]], 0)
     input_embed = tf.nn.dropout(input_embed, self.keep_prob)
-    logits = m.get_prediction(input_embed)
+    logits = m.get_prediction(input_embed, output_feat=output_feat)
 
     if self.n_input_items == 0:
       input_embed_test= embedded_user
     else:
       # including two cases: 1, n items. 2, end_line item
-      input_embed_test = [embedded_user] + embedded_items
-      input_embed_test = tf.reduce_mean(input_embed_test, 0)
-    logits_test = m.get_prediction(input_embed_test)
+      # input_embed_test = [embedded_user] + embedded_items
+      # input_embed_test = tf.reduce_mean(input_embed_test, 0)
+
+      input_embed_test = [embedded_user] + [tf.reduce_mean(embedded_items, 0)]
+      input_embed_test = tf.reduce_mean(input_embed_test, 0)      
+    logits_test = m.get_prediction(input_embed_test, output_feat=output_feat)
 
     # mini batch version
     print("sampled prediction")
     if self.n_sampled is not None:
-      sampled_logits = m.get_prediction(input_embed, 'sampled')
+      sampled_logits = m.get_prediction(input_embed, 'sampled', output_feat=output_feat)
       # embedded_item, item_b = m.get_sampled_item(self.n_sampled)
       # sampled_logits = tf.matmul(embedded_user, tf.transpose(embedded_item)) + item_b
       target_score = m.get_target_score(input_embed, self.item_id_target)

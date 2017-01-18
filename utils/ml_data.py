@@ -8,9 +8,18 @@ def process_items(items):
   for i in range(items.shape[0]):
       # tags
     if isinstance(items[i][1], str):
-      items[i][1] = items[i][1].split(',')
-      if len(items[i][1]) == 0:
+      tags = items[i][1]
+      tags = tags.replace('[', '')
+      tags = tags.replace(']', '')
+      tags = tags.replace(' ', '')
+      if tags == '':
         items[i][1] = ['-1']
+      else:
+        items[i][1] = tags.split(',')        
+
+      # items[i][1] = items[i][1].split(',')
+      # if len(items[i][1]) == 0:
+      #   items[i][1] = ['-1']
     else:
       print('tags not str!')
       exit()

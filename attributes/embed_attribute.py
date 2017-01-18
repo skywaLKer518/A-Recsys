@@ -145,14 +145,25 @@ class EmbeddingAttribute(object):
       name))
     return r
 
-  def get_prediction(self, latent, pool='full', device='/gpu:0'):
+  def get_prediction(self, latent, pool='full', device='/gpu:0', output_feat=1):
+    '''
+    output_feat: in prediction stage
+      0: not using attributes 
+      1: using attributes, use mean to combine multi-hot features
+      2: using attributes, use max  to combine multi-hot features
+      3: same as 2, but softmax (instead of max)
+    '''
     # compute inner product between item_hidden and {user_feature_embedding}
     # then lookup to compute logits
     with tf.device(device):
       out_layer = self.i_indices[pool]
       indices_cat, indices_mulhot, segids_mulhot, lengths_mulhot = out_layer
       innerps = []
-      for i in xrange(self.item_attributes.num_features_cat):
+
+      n1 = 1 if output_feat == 0 else self.item_attributes.num_features_cat
+      n2 = 0 if output_feat == 0 else self.item_attributes.num_features_mulhot
+
+      for i in xrange(n1):
         item_emb_cat = self.item_embs2_cat[i] if self.item_output else self.item_embs_cat[i]
         i_biases_cat = self.i_biases2_cat[i] if self.item_output else self.i_biases_cat[i]
         u = latent[i] if isinstance(latent, list) else latent
@@ -160,7 +171,8 @@ class EmbeddingAttribute(object):
         innerp = tf.matmul(item_emb_cat, tf.transpose(u)) + i_biases_cat # Vf by mb
         innerps.append(lookup(innerp, inds)) # V by mb
       offset = self.item_attributes.num_features_cat
-      for i in xrange(self.item_attributes.num_features_mulhot):
+      
+      for i in xrange(n2):
         item_embs_mulhot = self.item_embs2_mulhot[i] if self.item_output else self.item_embs_mulhot[i]
         item_biases_mulhot = self.i_biases2_mulhot[i] if self.item_output else self.i_biases_mulhot[i]
         u = latent[i+offset] if isinstance(latent, list) else latent
@@ -174,9 +186,21 @@ class EmbeddingAttribute(object):
           segids = tf.slice(segids_mulhot[i], [0], [self.sampled_mulhot_l[i]])
           V = self.n_sampled
         innerp = tf.add(tf.matmul(item_embs_mulhot, tf.transpose(u)), 
-          item_biases_mulhot) 
-        innerps.append(tf.div(tf.unsorted_segment_sum(lookup(innerp, 
-          inds), segids, V), lengs))
+          item_biases_mulhot)
+
+        if output_feat == 1:
+          innerps.append(tf.div(tf.unsorted_segment_sum(lookup(innerp, 
+            inds), segids, V), lengs))
+        elif output_feat == 2:
+          innerps.append(tf.segment_max(lookup(innerp, inds), segids))  
+        elif output_feat == 3:
+          score_max = tf.reduce_max(innerp)
+          innerp = tf.sub(innerp, score_max)
+          innerps.append(score_max + tf.log(1 + tf.unsorted_segment_sum(tf.exp(
+            lookup(innerp, inds)), segids, V)))
+        else:
+          print('Error: Attribute combination not implemented!')
+          exit(1)
 
       logits = tf.transpose(tf.reduce_mean(innerps, 0))
     return logits

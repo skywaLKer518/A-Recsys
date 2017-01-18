@@ -32,6 +32,7 @@ tf.app.flags.DEFINE_integer("batch_size", 64,
 tf.app.flags.DEFINE_integer("size", 20, "Size of each model layer.")
 tf.app.flags.DEFINE_integer("hidden_size", 500, "when nonlinear proj used")
 tf.app.flags.DEFINE_integer("n_resample", 50, "iterations before resample.")
+tf.app.flags.DEFINE_integer("output_feat", 1, "0: no use, 1: use, mean-mulhot, 2: use, max-pool")
 tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
 tf.app.flags.DEFINE_integer("user_vocab_size", 150000, "User vocabulary size.")
 tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
@@ -191,7 +192,8 @@ def create_model(session, u_attributes=None, i_attributes=None,
     FLAGS.learning_rate_decay_factor, u_attributes, i_attributes, 
     item_ind2logit_ind, logit_ind2item_ind, loss_function=loss, 
     n_input_items=FLAGS.ni, use_sep_item=FLAGS.use_sep_item,
-    dropout=FLAGS.keep_prob, n_sampled=n_sampled)
+    dropout=FLAGS.keep_prob, output_feat=FLAGS.output_feat, 
+    n_sampled=n_sampled)
 
   if not os.path.isdir(FLAGS.train_dir):
     os.mkdir(FLAGS.train_dir)

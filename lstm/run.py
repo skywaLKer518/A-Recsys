@@ -51,6 +51,7 @@ tf.app.flags.DEFINE_integer("batch_size", 100,
                             "Batch size to use during training.")
 tf.app.flags.DEFINE_integer("size", 128, "Size of each model layer.")
 tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
+tf.app.flags.DEFINE_integer("output_feat", 1, "0: no use, 1: use, mean-mulhot, 2: use, max-pool")
 tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
 tf.app.flags.DEFINE_integer("n_resample", 30, "iterations before resample.")
 tf.app.flags.DEFINE_string("data_dir", "../mf/data0", "Data directory")
@@ -317,6 +318,7 @@ def create_model(session,embAttr,START_ID, run_options, run_metadata):
                      devices = devices,
                      use_concat = FLAGS.use_concat,
                      no_user_id=FLAGS.no_user_id,
+                     output_feat = FLAGS.output_feat,
                      run_options = run_options,
                      run_metadata = run_metadata
                      )

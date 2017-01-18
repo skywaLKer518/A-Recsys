@@ -43,6 +43,7 @@ class SeqModel(object):
                  run_options = None,
                  run_metadata = None,
                  use_concat = True,
+                 output_feat = 1,
                  no_user_id = True,
                  dtype=tf.float32):
         """Create the model.
@@ -77,7 +78,7 @@ class SeqModel(object):
         self.devices = devices
         self.run_options = run_options
         self.run_metadata = run_metadata
-
+        self.output_feat = output_feat
         with tf.device(devices[0]):
             self.dropoutRate = tf.Variable(
                 float(dropoutRate), trainable=False, dtype=dtype)        
@@ -368,11 +369,11 @@ class SeqModel(object):
                         bucket_outputs, _ = rnn.rnn(cell,inputs[:bucket],initial_state = init_state)
                     with tf.device(devices[2]):
 
-                        bucket_outputs_full = [self.embeddingAttribute.get_prediction(x, device=devices[2]) for x in bucket_outputs]
+                        bucket_outputs_full = [self.embeddingAttribute.get_prediction(x, device=devices[2], output_feat=self.output_feat) for x in bucket_outputs]
                         
                         if self.loss in ['warp', 'ce']:
                             t = targets
-                            bucket_outputs = [self.embeddingAttribute.get_prediction(x, device=devices[2]) for x in bucket_outputs]
+                            bucket_outputs = [self.embeddingAttribute.get_prediction(x, device=devices[2], output_feat=self.output_feat) for x in bucket_outputs]
                         elif self.loss in ['mw']:
                             # bucket_outputs0 = [self.embeddingAttribute.get_prediction(x, pool='sampled', device=devices[2]) for x in bucket_outputs]
                             t, bucket_outputs0 = [], []
@@ -380,7 +381,7 @@ class SeqModel(object):
                             for i in xrange(len(bucket_outputs)):
                                 x = bucket_outputs[i]
                                 ids = self.target_ids[i]
-                                bucket_outputs0.append(self.embeddingAttribute.get_prediction(x, pool='sampled', device=devices[2]))
+                                bucket_outputs0.append(self.embeddingAttribute.get_prediction(x, pool='sampled', device=devices[2], output_feat=self.output_feat))
                                 t.append(self.embeddingAttribute.get_target_score(x, ids, device=devices[2]))
                             bucket_outputs = bucket_outputs0
 
