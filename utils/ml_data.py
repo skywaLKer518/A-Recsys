@@ -8,14 +8,21 @@ def process_items(items):
   for i in range(items.shape[0]):
       # tags
     if isinstance(items[i][1], str):
-      tags = items[i][1]
+      genres = items[i][1].split('|')
+      items[i][1] = genres
+    else:
+      print('genres not string')
+      exit()
+
+    if isinstance(items[i][2], str):
+      tags = items[i][2]
       tags = tags.replace('[', '')
       tags = tags.replace(']', '')
       tags = tags.replace(' ', '')
       if tags == '':
-        items[i][1] = ['-1']
+        items[i][2] = ['-1']
       else:
-        items[i][1] = tags.split(',')        
+        items[i][2] = tags.split(',')        
 
       # items[i][1] = items[i][1].split(',')
       # if len(items[i][1]) == 0:
@@ -144,7 +151,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
 
 
   # create_dictionary
-  item_feature_types = [0, 1]
+  item_feature_types = [0, 1, 1]
   i_inds = [p[1] for p in data_tr]
   create_dictionary(data_dir, i_inds, items, item_feature_types, 
     item_feature_names, max_vocabulary_size2, logits_size_tr, prefix='item', threshold=thresh)

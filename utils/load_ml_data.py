@@ -35,9 +35,10 @@ def load_user():
     user_index = build_index(values)
     return values, columns, user_index
 
-def load_movie(thresh=0.8):
+def load_movie(thresh=20):
 
-    filename = 'movie_attributes' + '_' + str(thresh) + '.csv'
+    # filename = 'movie_attributes' + '_' + str(thresh) + '.csv'
+    filename = 'movie_attributes' + '_max_' + str(thresh) + '.csv'
     filename = join(DIR, filename)
 
     movies, columns = load_csv(filename, '\t')
@@ -88,6 +89,60 @@ def create_movie(thresh=0.8):
 
     write_csv(pd.DataFrame(values), filename, ['id', 'tags'])
 
+def create_movie2(thresh=20):
+    '''
+    at most 20 tags per movie
+    '''
+    filename0 = join(DIR, 'movies.csv')
+    movies, _ = load_csv(filename0, ',')
+    movie_ids = [int(mid) for mid in list(movies[:, 0])]
+
+    filename = join(DIR, 'genome-scores.csv')
+    values, columns = load_csv(filename, ',')
+    print('create movie dict')
+    movie = {}
+    tags = set([])
+    for i in range(len(values)):
+        movie_id, tag_id, s = values[i, :]
+        movie_id = int(movie_id)
+        if movie_id not in movie:
+            movie[movie_id] = []
+        movie[movie_id].append((int(tag_id), float(s)))
+        tags.add(int(tag_id))
+
+    for mid in movie:
+        seq = sorted(movie[mid], key = lambda x:x[1], reverse=True)
+        seq = seq[:thresh]
+        movie[mid] = [x[0] for x in seq]
+
+
+
+    print('create movie attributes')
+    n_movies = len(movie_ids)
+    values = np.zeros((n_movies, 3), dtype=object)
+    l = []
+    for i in range(len(movies)):
+        mid = int(movies[i, 0])
+        values[i, 0] = mid
+        values[i, 1] = movies[i, 2]
+        if mid in movie:
+            t = movie[mid]
+            values[i, 2] = t
+            l.append(len(t))
+        else:
+            values[i, 2] = []
+            l.append(0)
+    
+    
+    print('tag lengths, max: {}, min: {}, mean: {}'.format(max(l), min(l), sum(l) * 1.0 / len(l)))
+    print('total tags {}'.format(len(tags)))
+    filename = 'movie_attributes' + '_max_' + str(thresh) + '.csv'
+    filename = join(DIR + filename)
+    print('saving to file {}'.format(filename))
+
+    write_csv(pd.DataFrame(values), filename, ['id', 'genres', 'tags'])
+
+
 def process_user():
     filename = join(DIR, 'ratings.csv')
     values, columns = load_csv(filename, ',')
@@ -101,7 +156,7 @@ def process_user():
     write_csv(pd.DataFrame(users), filename, ['id'])
 
 
-
+# create_movie2()
 # create_movie()
 # x, index = load_movie()
 # print x[:5, :]
