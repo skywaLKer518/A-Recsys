@@ -99,6 +99,8 @@ def to_index(interact, user_index_all, item_index_all):
   ind1, ind2 = 0,0
   for i in range(l):
     uid, iid, itype, week, t = interact[i, :]
+    if uid not in user_index_all:
+      continue
     if iid not in item_index_all:
       continue
     if itype == 4:
@@ -149,7 +151,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
     if sample < 1.0:
       # sample only portion of users
       import random
-      target_user_ids = [int(x) for x in list(users[:, 0])]
+      target_user_ids = set([int(x) for x in list(users[:, 0])])
       users_all2 = np.copy(users_all)
       c = 0
       for i in range(len(users_all)):
