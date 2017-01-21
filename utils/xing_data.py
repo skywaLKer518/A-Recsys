@@ -118,11 +118,14 @@ def to_index(interact, user_index_all, item_index_all):
 
 
 def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000, 
-  max_vocabulary_size2=50000, logits_size_tr=50000):
+  max_vocabulary_size2=50000, logits_size_tr=50000, sample=1.0):
   from os import mkdir, path
   from os.path import isfile, join
   import cPickle as pickle
-  data_filename = join(data_dir, 'recsys_file')
+  if sample == 1.0:
+    data_filename = join(data_dir, 'recsys_file')
+  else:
+    data_filename = join(data_dir, 'recsys_file' + str(sample))
   if isfile(data_filename):
     print("recsys exists, loading")
     (data_tr, data_va, u_attributes, i_attributes, item_ind2logit_ind, 
@@ -142,6 +145,25 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
     items, item_feature_names, item_index = load_item_active_csv()
 
     users_all, _, user_index_all = load_user_csv()
+
+    if sample < 1.0:
+      # sample only portion of users
+      import random
+      target_user_ids = [int(x) for x in list(users[:, 0])]
+      users_all2 = np.copy(users_all)
+      c = 0
+      for i in range(len(users_all)):
+        uid = int(users_all[i, 0])
+        if uid in target_user_ids or random.random() < sample:
+          users_all2[c, :] = users_all[i, :]
+          c += 1
+      users_all2 = users_all2[:c, :]
+      print('total user number is {}'.format(c))
+      from pandatools import build_index
+      users_all = users_all2
+      user_index_all = build_index(users_all)
+
+
     items_all, _, item_index_all = load_item_csv()
     user_index_orig = user_index_all
     item_index_orig = item_index

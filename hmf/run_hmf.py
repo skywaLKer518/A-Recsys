@@ -70,6 +70,7 @@ tf.app.flags.DEFINE_integer("gpu", -1, "gpu card number")
 
 # Xing related
 tf.app.flags.DEFINE_integer("ta", 1, "target_active")
+tf.app.flags.DEFINE_float("user_sample", 1.0, "user sample rate.")
 tf.app.flags.DEFINE_integer("top_N_items", 30,
                             "number of items output")
 
@@ -87,7 +88,7 @@ def read_data():
     data_read = data_read_ml
   (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
     logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = FLAGS.ta, 
-    logits_size_tr=FLAGS.item_vocab_size)
+    logits_size_tr=FLAGS.item_vocab_size, sample=FLAGS.user_sample)
   print('length of item_ind2logit_ind', len(item_ind2logit_ind))
 
   if not FLAGS.use_item_feature:

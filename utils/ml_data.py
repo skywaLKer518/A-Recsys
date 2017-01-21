@@ -83,7 +83,7 @@ def interact_split(interact, user_index=None, item_index=None, orig=False, debug
   return interact_tr, interact_va, interact_te
 
 def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000, 
-  max_vocabulary_size2=50000, logits_size_tr=20000, thresh=2):
+  max_vocabulary_size2=50000, logits_size_tr=20000, thresh=2, sample=1.0):
   from os import path,mkdir
   from os.path import join, isfile
   import cPickle as pickle

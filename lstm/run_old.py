@@ -175,19 +175,12 @@ def form_sequence(data, maxlen = 100):
     for u in d:
         tmp = sorted(d[u],key = lambda x: x[1])
         n_all_item += len(tmp)
-        while True:
-            new_tmp =  [x[0] for x in tmp][:maxlen]
-            n_rest_item += len(new_tmp)
-            # make sure every sequence has at least one item 
-            if len(new_tmp) > 0:
-                dd.append((u,new_tmp))
-            if len(tmp) <= maxlen:
-                break
-            else:
-                if len(tmp) - maxlen <=7:
-                    tmp = tmp[maxlen-10:]
-                else:
-                    tmp = tmp[maxlen:]
+
+        tmp =  [x[0] for x in tmp][-maxlen:]
+        n_rest_item += len(tmp)
+        # make sure every sequence has at least one item 
+        if len(tmp) > 0:
+            dd.append((u,tmp))
 
     log_it("All item: {} Rest item: {} Remove item: {}".format(n_all_item, n_rest_item, n_all_item - n_rest_item))
 
