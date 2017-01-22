@@ -617,11 +617,12 @@ def recommend():
 
         R = evaluation.gen_rec(rec, FLAGS.recommend_new)
         evaluation.eval_on(R)
-        s1, s2, s3, r20, p5 = evaluation.get_scores()
-        log_it('scores: \n\t{}\n\t{}\n\t{}\n\t{}\n\t{}'.format(s1, s2, s3, r20, p5))
+        s1, s2, s3, s4, s5 = evaluation.get_scores()
+        log_it('scores: \n\t{}\n\t{}\n\t{}\n'.format(s1, s2, s3))
 
-        log_it("SCORE_FORMAT: {} {} {} {} {}".format(s1[0], s2[0], s3[0], r20, p5))
-        
+        log_it("SCORE_FORMAT: {} {} {}".format(s1[0], s2[0], s3[0]))
+        log_it("METRIC_FORMAT1: {}".format(s4))
+        log_it("METRIC_FORMAT2: {}".format(s5))
         
 
 

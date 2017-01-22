@@ -42,6 +42,7 @@ class Evaluate(object):
         return self.Uinds
 
     def eval_on(self, rec):
+        from eval_rank import eval_N
         self.res = rec
 
         tmp_filename = 'rec'
@@ -57,6 +58,7 @@ class Evaluate(object):
         # self.s2 = scores(rec2, self.T)
         self.s2 = scores(r_combine, self.T)
 
+
         r_ex = combine_sub(self.hist, rec, 1)
         # format_submit(r_ex, tmp_filename)
         # rec3 = load_submit(tmp_filename)
@@ -66,10 +68,16 @@ class Evaluate(object):
         from eval_rank import eval_P5, eval_R20
         self.r20 = eval_R20(rec, self.T)
         self.p5 = eval_P5(rec, self.T)
+
+        l = eval_N(rec, self.T).values()
+        self.s4 = [item for sublist in l for item in sublist]
+        l = eval_N(r_ex, self.T).values()
+        self.s5 = [item for sublist in l for item in sublist]
+
         return
 
     def get_scores(self):
-        return self.s1, self.s2, self.s3, self.r20, self.p5
+        return self.s1, self.s2, self.s3, self.s4, self.s5
 
 def scores(X, T, opt = 0):
     '''
