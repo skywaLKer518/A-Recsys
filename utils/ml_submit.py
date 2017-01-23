@@ -79,9 +79,9 @@ def load_submit(sub_id):
 #             A[user_index[his[i, 0]], item_index[int(p)]] = 3
 #     return A
 
-def combine_sub(r1, r2, opt = 0):
+def combine_sub(r1, r2, opt = 0, old=False):
     users, user_feature_names, user_index = load_user()
-    items, item_header, item_index = load_movie()
+    items, item_header, item_index = load_movie(20, old=old)
     rec = {}
     for i in range(len(users)):
         uid = users[i, 0]

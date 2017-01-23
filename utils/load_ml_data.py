@@ -35,10 +35,12 @@ def load_user():
     user_index = build_index(values)
     return values, columns, user_index
 
-def load_movie(thresh=20):
-
-    # filename = 'movie_attributes' + '_' + str(thresh) + '.csv'
+def load_movie(thresh=20, old=False):
     filename = 'movie_attributes' + '_max_' + str(thresh) + '.csv'
+    if old:
+        thresh = 0.8
+        filename = 'movie_attributes' + '_' + str(thresh) + '.csv'
+
     filename = join(DIR, filename)
 
     movies, columns = load_csv(filename, '\t')

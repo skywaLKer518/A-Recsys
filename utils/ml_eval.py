@@ -3,11 +3,11 @@ from load_ml_data import load_movie, load_user
 
 class Evaluate(object):
     def __init__(self, logit_ind2item_ind, res_filename='../submissions/ml_res_T.csv', 
-        hist_filename = '../submissions/ml_historical_train.csv', ta=1):
+        hist_filename = '../submissions/ml_historical_train.csv', ta=1, old=False):
         self.logit_ind2item_ind = logit_ind2item_ind
         self.T = load_submit(res_filename)
         self.hist = load_submit(hist_filename)
-        self.Iatt, _, self.Iid2ind = load_movie()
+        self.Iatt, _, self.Iid2ind = load_movie(thresh=20, old=old)
         if ta == 1:
             self.Uatt, _, self.Uid2ind = load_user()
         else:
@@ -15,6 +15,7 @@ class Evaluate(object):
 
         self.Uids = self.get_uids()
         self.Uinds = [self.Uid2ind[v] for v in self.Uids]
+        self.old = old
         return
 
     def gen_rec(self, rec, recommend_new=False):
@@ -50,10 +51,10 @@ class Evaluate(object):
             rec[k] = v.split(',')
         self.s1 = scores(rec, self.T)
 
-        r_combine = combine_sub(self.hist, rec)
+        r_combine = combine_sub(self.hist, rec, old=self.old)
         self.s2 = scores(r_combine, self.T)
 
-        r_ex = combine_sub(self.hist, rec, 1)
+        r_ex = combine_sub(self.hist, rec, 1, old=self.old)
         self.s3 = scores(r_ex, self.T)
 
         from eval_rank import eval_P5, eval_R20

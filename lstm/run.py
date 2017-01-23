@@ -102,6 +102,7 @@ tf.app.flags.DEFINE_string("dataset", "xing", "xing or ml")
 
 tf.app.flags.DEFINE_string("split", "last", "last: last maxlen only; overlap: overlap 1 / 3 of maxlen")
 
+tf.app.flags.DEFINE_boolean("old_att", False, "use attribute_0.8.csv")
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -268,7 +269,7 @@ def read_data(test = False):
     
     # get test data
     if test:
-        evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta)
+        evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta, old=FLAGS.old_att)
         uids = evaluation.get_uinds()
         seq_test = form_sequence_prediction(seq_all, uids, FLAGS.L, START_ID)
         _buckets = calculate_buckets(seq_test, FLAGS.L, FLAGS.n_bucket)

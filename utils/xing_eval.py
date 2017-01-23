@@ -3,7 +3,7 @@ from load_xing_data import load_user_target_csv, load_item_active_csv, load_user
 
 class Evaluate(object):
     def __init__(self, logit_ind2item_ind, res_filename='../submissions/res_T.csv', 
-        hist_filename = '../submissions/historical_train.csv', ta=1):
+        hist_filename = '../submissions/historical_train.csv', ta=1, old=None):
         self.logit_ind2item_ind = logit_ind2item_ind
         self.T = load_submit(res_filename)
         self.hist = load_submit(hist_filename)
