@@ -67,6 +67,7 @@ tf.app.flags.DEFINE_string("loss", 'ce', "loss function")
 
 tf.app.flags.DEFINE_integer("seed", 0, "dev split random seed.")
 
+tf.app.flags.DEFINE_boolean("test", False, "Test on test splits")
 tf.app.flags.DEFINE_integer("n_epoch", 40,
                             "How many epochs to train.")
 
@@ -102,7 +103,7 @@ tf.app.flags.DEFINE_string("dataset", "xing", "xing or ml")
 
 tf.app.flags.DEFINE_string("split", "last", "last: last maxlen only; overlap: overlap 1 / 3 of maxlen")
 
-tf.app.flags.DEFINE_boolean("old_att", False, "use attribute_0.8.csv")
+tf.app.flags.DEFINE_boolean("old_att", False, "tmp: use attribute_0.8.csv")
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -239,7 +240,8 @@ def read_data(test = False):
         data_read = ml_data_read
         Evaluate = ml_Evaluate
 
-    (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = FLAGS.ta, logits_size_tr=FLAGS.item_vocab_size, sample=FLAGS.user_sample)
+    _submit = 1 if FLAGS.test else 0
+    (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = _submit, ta = FLAGS.ta, logits_size_tr=FLAGS.item_vocab_size, sample=FLAGS.user_sample, old=FLAGS.old_att)
 
     # remove unk
     data_tr = [p for p in data_tr if (p[1] in item_ind2logit_ind)]
@@ -491,7 +493,7 @@ def train():
 
                 his.append([current_step, train_ppx, eval_ppx])
 
-                if eval_ppx < low_ppx:
+                if eval_ppx < low_ppx and not FLAGS.test:
                     patience = FLAGS.patience
                     low_ppx = eval_ppx
                     low_ppx_step = current_step
@@ -503,7 +505,14 @@ def train():
                 else:
                     patience -= 1
                 
-                if patience <= 0:
+                if FLAGS.test:
+                    checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
+                    log_it("Saving best model....")
+                    s = time.time()
+                    model.saver.save(sess, checkpoint_path, global_step=0, write_meta_graph = False)
+                    log_it("Best model saved using {} sec".format(time.time()-s))
+
+                if patience <= 0 and not FLAGS.test:
                     log_it("Training finished. Running out of patience.")
                     break
 
@@ -628,6 +637,12 @@ def recommend():
 
 
 def main(_):
+    if FLAGS.test:
+        if FLAGS.data_dir[-1] == '/':
+            FLAGS.data_dir = FLAGS.data_dir[:-1] + '_test'
+        else:
+            FLAGS.data_dir = FLAGS.data_dir + '_test'
+
     if not os.path.exists(FLAGS.train_dir):
         os.mkdir(FLAGS.train_dir)
     if FLAGS.recommend:

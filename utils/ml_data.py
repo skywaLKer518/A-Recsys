@@ -5,31 +5,43 @@ import numpy as np
 def process_items(items):
   import math
   print('processing item features')
+  c = items.shape[1]
+
   for i in range(items.shape[0]):
       # tags
-    if isinstance(items[i][1], str):
-      genres = items[i][1].split('|')
-      items[i][1] = genres
-    else:
-      print('genres not string')
-      exit()
-
-    if isinstance(items[i][2], str):
-      tags = items[i][2]
-      tags = tags.replace('[', '')
-      tags = tags.replace(']', '')
-      tags = tags.replace(' ', '')
-      if tags == '':
-        items[i][2] = ['-1']
+    if c == 3:
+      if isinstance(items[i][1], str):
+        genres = items[i][1].split('|')
+        items[i][1] = genres
       else:
-        items[i][2] = tags.split(',')        
+        print('genres not string')
+        exit()
 
-      # items[i][1] = items[i][1].split(',')
-      # if len(items[i][1]) == 0:
-      #   items[i][1] = ['-1']
-    else:
-      print('tags not str!')
-      exit()
+      if isinstance(items[i][2], str):
+        tags = items[i][2]
+        tags = tags.replace('[', '')
+        tags = tags.replace(']', '')
+        tags = tags.replace(' ', '')
+        if tags == '':
+          items[i][2] = ['-1']
+        else:
+          items[i][2] = tags.split(',')
+      else:
+        print('tags not str!')
+        exit()
+    elif c == 2:
+      if isinstance(items[i][1], str):
+        tags = items[i][1]
+        tags = tags.replace('[', '')
+        tags = tags.replace(']', '')
+        tags = tags.replace(' ', '')
+        if tags == '':
+          items[i][1] = ['-1']
+        else:
+          items[i][1] = tags.split(',')
+      else:
+        print('tags not str!')
+        exit()
   return items
 
 def process_users(users):
@@ -83,7 +95,7 @@ def interact_split(interact, user_index=None, item_index=None, orig=False, debug
   return interact_tr, interact_va, interact_te
 
 def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000, 
-  max_vocabulary_size2=50000, logits_size_tr=20000, thresh=2, sample=1.0):
+  max_vocabulary_size2=50000, logits_size_tr=20000, thresh=2, sample=1.0, old=False):
   from os import path,mkdir
   from os.path import join, isfile
   import cPickle as pickle
@@ -104,7 +116,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
     mkdir(data_dir)
     
   users, user_feature_names, user_index = load_user()
-  items, item_feature_names, item_index = load_movie()
+  items, item_feature_names, item_index = load_movie(thresh=20, old=old)
   items = process_items(items)
   users = process_users(users)
   user_feature_names = ['id', 'fake']
@@ -152,6 +164,8 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
 
   # create_dictionary
   item_feature_types = [0, 1, 1]
+  if old:
+    item_feature_types = [0, 1]
   i_inds = [p[1] for p in data_tr]
   create_dictionary(data_dir, i_inds, items, item_feature_types, 
     item_feature_names, max_vocabulary_size2, logits_size_tr, prefix='item', threshold=thresh)

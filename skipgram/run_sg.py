@@ -67,6 +67,8 @@ tf.app.flags.DEFINE_string("loss", 'ce',
                             "loss function")
 tf.app.flags.DEFINE_string("model_option", 'loss',
                             "model to evaluation")
+tf.app.flags.DEFINE_boolean("test", False, "Test on test splits")
+tf.app.flags.DEFINE_integer("n_epoch", 10, "How many epochs to train.")
 
 
 tf.app.flags.DEFINE_integer("num_skips", 3, "Size of each model layer.")
@@ -147,8 +149,9 @@ def read_data():
     data_read = data_read_xing
   elif FLAGS.dataset == 'ml':
     data_read = data_read_ml
+  _submit = 1 if FLAGS.test else 0
   (data_tr0, data_va0, u_attr, i_attr, item_ind2logit_ind, 
-    logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = 0, ta = FLAGS.ta, 
+    logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = _submit, ta = FLAGS.ta, 
     logits_size_tr=FLAGS.item_vocab_size, sample=FLAGS.user_sample)
   print('length of item_ind2logit_ind', len(item_ind2logit_ind))
 
@@ -272,6 +275,19 @@ def train():
       best_auc, best_loss = -1, 1000000
 
     item_sampled, item_sampled_id2idx = None, None
+
+    train_total_size = float(len(data_tr))
+    n_epoch = FLAGS.n_epoch
+    steps_per_epoch = int(1.0 * train_total_size / FLAGS.batch_size)
+    total_steps = steps_per_epoch * n_epoch
+
+    mylog("Train:")
+    mylog("total: {}".format(train_total_size))
+    mylog("Steps_per_epoch: {}".format(steps_per_epoch))
+    mylog("Total_steps:{}".format(total_steps))
+    mylog("Dev:")
+    mylog("total: {}".format(len(data_va)))
+
     while True:
 
       start_time = time.time()
@@ -301,7 +317,10 @@ def train():
       loss += step_loss / FLAGS.steps_per_checkpoint
       # auc += step_auc / FLAGS.steps_per_checkpoint
       current_step += 1
-      
+      if current_step > total_steps:
+        mylog("Training reaches maximum steps. Terminating...")
+        break
+
       if current_step % FLAGS.steps_per_checkpoint == 0:
 
         if FLAGS.loss in ['ce', 'mce']:
@@ -363,7 +382,7 @@ def train():
             eval_auc, step_time))
         sys.stdout.flush()
         
-        if eval_loss < best_loss:
+        if eval_loss < best_loss and not FLAGS.test:
           best_loss = eval_loss
           # new_filename = os.path.join(FLAGS.train_dir, "go.ckpt-best")
           # shutil.copy(current_model, new_filename)
@@ -374,6 +393,10 @@ def train():
           model.saver.save(sess, checkpoint_path, 
             global_step=0, write_meta_graph = False)
 
+        if FLAGS.test:
+          checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
+          model.saver.save(sess, checkpoint_path, 
+            global_step=0, write_meta_graph = False)
 
         if eval_loss > best_loss: # and eval_auc < best_auc:
           patience -= 1
@@ -381,18 +404,15 @@ def train():
         auc_dev.append(eval_auc)
         losses_dev.append(eval_loss)
 
-        np.save(os.path.join(FLAGS.train_dir, 'auc_train'), auc_train)
-        np.save(os.path.join(FLAGS.train_dir, 'auc_dev'), auc_dev)
-        np.save(os.path.join(FLAGS.train_dir, 'loss_train'), previous_losses)
-        np.save(os.path.join(FLAGS.train_dir, 'loss_dev'), losses_dev)
+        # np.save(os.path.join(FLAGS.train_dir, 'auc_train'), auc_train)
+        # np.save(os.path.join(FLAGS.train_dir, 'auc_dev'), auc_dev)
+        # np.save(os.path.join(FLAGS.train_dir, 'loss_train'), previous_losses)
+        # np.save(os.path.join(FLAGS.train_dir, 'loss_dev'), losses_dev)
 
-        if patience < 0:
-          print("no improvement for too long.. terminating..")
-          print("best auc %.4f" % best_auc)
-          print("best loss %.4f" % best_loss)
-          logging.info("no improvement for too long.. terminating..")
-          logging.info("best auc %.4f" % best_auc)
-          logging.info("best loss %.4f" % best_loss)
+        if patience < 0 and not FLAGS.test:
+          mylog("no improvement for too long.. terminating..")
+          mylog("best auc %.4f" % best_auc)
+          mylog("best loss %.4f" % best_loss)
           sys.stdout.flush()
           break
   return
@@ -467,6 +487,12 @@ def main(_):
   # logging.debug('This message should go to the log file')
   # logging.info('So should this')
   # logging.warning('And this, too')
+  if FLAGS.test:
+    if FLAGS.data_dir[-1] == '/':
+      FLAGS.data_dir = FLAGS.data_dir[:-1] + '_test'
+    else:
+      FLAGS.data_dir = FLAGS.data_dir + '_test'
+
   if not os.path.exists(FLAGS.train_dir):
     os.mkdir(FLAGS.train_dir)
   if not FLAGS.recommend:

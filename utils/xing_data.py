@@ -120,7 +120,7 @@ def to_index(interact, user_index_all, item_index_all):
 
 
 def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000, 
-  max_vocabulary_size2=50000, logits_size_tr=50000, sample=1.0):
+  max_vocabulary_size2=50000, logits_size_tr=50000, sample=1.0, old=False):
   from os import mkdir, path
   from os.path import isfile, join
   import cPickle as pickle
