@@ -13,3 +13,4 @@ jobs/*
 mf/*.json
 *.json
 *.csv
+raw_data/*/*
