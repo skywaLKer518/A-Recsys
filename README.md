@@ -7,8 +7,9 @@ A-RecSys is under active development. The models/features it supports and plans 
 
 #### Models
 + (Deep) Hybrid matrix factorization model
++ Skip-gram attribute learning model
 + LSTM-Rec sequence model
-* Skip-gram attribute learning model (developing)
+
 
 #### Features
 + Recommendation with implicit feedback
