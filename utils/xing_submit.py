@@ -16,47 +16,6 @@ SUBMIT_DIR = '../submissions/'
 NUM_TARGET_USERS = 150000
 NUM_ACTIVE_ITEMS = 327003
 
-# SUBMIT_DIR = DIR + 'submissions/'
-# SUBMIT_DIR2 = '../submissions/submitted/'
-
-def format_submit(X, sub_id):
-    '''
-    save recommendation result to submission file
-    input:
-        X : dict. Ex: X[1400] = 1232,1123,5325
-        sub_id: submission id
-    '''
-    header = ['user_id', 'items']
-    for pos, key in enumerate(X):
-        l = X[key]
-        if isinstance(l, list):
-            X[key] = ','.join(str(xx) for xx in l)
-        else:
-            print 'not a list. No need to convert.'
-            break
-    x = pd.DataFrame(X.items())
-    write_csv(x, SUBMIT_DIR+sub_id, header)
-    return
-
-def load_submit(sub_id):
-
-    # filename = SUBMIT_DIR+'res_'+str(sub_id)+'.csv'
-    # if not isfile(filename):
-    #     filename = SUBMIT_DIR2+'res_'+str(sub_id)+'.csv'
-    filename = SUBMIT_DIR + sub_id
-    data = load_csv(filename, types=0)
-    x = data.set_index('user_id').to_dict()['items']
-    for _, key in enumerate(x):
-        l = x[key]
-        if isinstance(l, str):
-            x[key] = l.split(',')
-        elif isinstance(l, int):
-            x[key] = [str(l)]
-        else:
-            # print 'not a str, break.'
-            x[key] = []
-            # break
-    return x
 
 def load_hist_interact_ta():
     filename = SUBMIT_DIR + '../submissions/submitted/res_HISTORY_0324_2.csv'
@@ -85,8 +44,7 @@ def load_hist_impress_ta():
     return A
 
 def combine_sub(r1, r2, opt = 0):
-    users, user_feature_names, user_index = load_user_target_csv()
-    items, item_header, item_index = load_item_active_csv()
+    users, _, _ = load_user_target_csv()
     rec = {}
     for i in range(len(users)):
         uid = users[i, 0]

@@ -13,6 +13,8 @@ sys.path.insert(0, '../utils')
 
 from xing_data import data_read as data_read_xing
 from ml_data import data_read as data_read_ml
+from ml100k_data import data_read as data_read_ml100k
+
 from xing_eval import Evaluate as Evaluate_xing
 from ml_eval import Evaluate as Evaluate_ml
 from prepare_train import positive_items, item_frequency, sample_items, to_week
@@ -149,6 +151,9 @@ def read_data():
     data_read = data_read_xing
   elif FLAGS.dataset == 'ml':
     data_read = data_read_ml
+  elif FLAGS.dataset == 'ml100k':
+    data_read = data_read_ml100k
+  
   _submit = 1 if FLAGS.test else 0
   (data_tr0, data_va0, u_attr, i_attr, item_ind2logit_ind, 
     logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = _submit, ta = FLAGS.ta, 
@@ -430,11 +435,13 @@ def recommend():
       Evaluate = Evaluate_xing
     elif FLAGS.dataset == 'ml':
       Evaluate = Evaluate_ml
+    elif FLAGS.dataset == 'ml100k':
+      Evaluate = Evaluate_ml100k
     else:
       mylog('Error, not implemented.')
       exit(0)
       
-    evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta)
+    evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta, test=FLAGS.test)
     
     model = create_model(sess, u_attributes, i_attributes, item_ind2logit_ind,
       logit_ind2item_ind, loss=FLAGS.loss, ind_item=None)

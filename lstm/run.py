@@ -271,7 +271,7 @@ def read_data(test = False):
     
     # get test data
     if test:
-        evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta, old=FLAGS.old_att, data_dir=FLAGS.data_dir)
+        evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta, old=FLAGS.old_att, data_dir=FLAGS.data_dir, test=FLAGS.test)
         uids = evaluation.get_uinds()
         seq_test = form_sequence_prediction(seq_all, uids, FLAGS.L, START_ID)
         _buckets = calculate_buckets(seq_test, FLAGS.L, FLAGS.n_bucket)

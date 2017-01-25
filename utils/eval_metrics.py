@@ -1,7 +1,6 @@
 import numpy as np
 
-def eval_N(X, T, Ns=[2,5,10,20,30], metrics=['prec', 'recall', 'map', 'ndcg']):
-  # Ns = [n-1 for n in Ns] 
+def metrics(X, T, Ns=[2,5,10,20,30], metrics=['prec', 'recall', 'map', 'ndcg']):
   n_users = float(len(T))
   N_pos = len(Ns)
   funcs = {'prec':PRECISION, 'recall':RECALL, 'map':MAP, 'ndcg':NDCG}
@@ -73,6 +72,9 @@ def NDCG(X, T, Ns=[2,5,10,20,30], cumsum_x=None):
     cumsum_DCG = np.cumsum(DCGs)
     cumsum_IDCG = np.cumsum(IDCGs)
     return [cumsum_DCG[min(n-1, l-1)] / cumsum_IDCG[min(n-1, l-1)] for n in Ns]
+
+
+'''deprecated'''
 
 def eval_P5(X, T, K=5):
   score = 0

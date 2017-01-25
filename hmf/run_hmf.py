@@ -385,7 +385,7 @@ def recommend():
       mylog('Error, not implemented.')
       exit(0)
       
-    evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta, data_dir=FLAGS.data_dir)
+    evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta, data_dir=FLAGS.data_dir, test=FLAGS.test)
     
     model = create_model(sess, u_attributes, i_attributes, item_ind2logit_ind,
       logit_ind2item_ind, loss=FLAGS.loss, ind_item=None)

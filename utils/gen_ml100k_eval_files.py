@@ -22,7 +22,7 @@ def gen_label_data(debug = 0):
   for u, i , t in data_va:
     if u not in seq_va:
       seq_va[u] = []
-    seq_va[u].append(i)
+    seq_va[u].append((i,t))
 
   for u, i , t in data_te:
     if u not in seq_te:
@@ -34,15 +34,23 @@ def gen_label_data(debug = 0):
     seq_tr[u] = ','.join([str(p[0]) for p in l])
 
   for u, v in seq_va.items():
-    seq_va[u] = ','.join(str(p) for p in seq_va[u])
+    l = sorted(v, key = lambda x:x[1], reverse=True)
+    seq_va[u] = ','.join(str(p[0]) for p in l)
 
   for u, v in seq_te.items():
     seq_te[u] = ','.join(str(p) for p in seq_te[u])
 
 
-  format_submit(seq_tr, 'ml100k_historical_train.csv')
+  format_submit(seq_tr, 'ml100k_historical_train.csv')  
   format_submit(seq_va, 'ml100k_res_T.csv')
   format_submit(seq_te, 'ml100k_res_T_test.csv')
+
+  seq_va_tr = seq_va
+  for u in seq_tr:
+    if u in seq_va:
+      seq_va_tr[u] = seq_va[u] +','+ seq_tr[u]
+  format_submit(seq_va_tr, 'ml100k_historical_train_test.csv')
+
 
 def extract_user_features(users, scale=1):
   feature_tokens = {}
