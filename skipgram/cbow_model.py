@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+
 import tensorflow as tf
 import sys
 from linear_seq import LinearSeq
@@ -10,7 +11,7 @@ sys.path.insert(0, '../attributes')
 import embed_attribute
 
 
-class SkipGramModel(LinearSeq):
+class CBOWModel(LinearSeq):
   def __init__(self, user_size, item_size, size,
                batch_size, learning_rate,
                learning_rate_decay_factor, 
@@ -81,9 +82,10 @@ class SkipGramModel(LinearSeq):
       embedded_item, _ = m.get_batch_item('input{}'.format(i), batch_size)
       embedded_item = tf.reduce_mean(embedded_item, 0)
       embedded_items.append(embedded_item)
+    embedded_items = tf.reduce_mean(embedded_items, 0)
 
     print("non-sampled prediction")
-    input_embed = tf.reduce_mean([embedded_user, embedded_items[0]], 0)
+    input_embed = tf.reduce_mean([embedded_user, embedded_items], 0)
     input_embed = tf.nn.dropout(input_embed, self.keep_prob)
     logits = m.get_prediction(input_embed, output_feat=output_feat)
 
@@ -94,7 +96,7 @@ class SkipGramModel(LinearSeq):
       # input_embed_test = [embedded_user] + embedded_items
       # input_embed_test = tf.reduce_mean(input_embed_test, 0)
 
-      input_embed_test = [embedded_user] + [tf.reduce_mean(embedded_items, 0)]
+      input_embed_test = [embedded_user] + [embedded_items]
       input_embed_test = tf.reduce_mean(input_embed_test, 0)      
     logits_test = m.get_prediction(input_embed_test, output_feat=output_feat)
 

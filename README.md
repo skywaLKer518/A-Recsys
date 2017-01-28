@@ -6,14 +6,14 @@ A-RecSys implements a set of recommendation algorithms that focuses on attribute
 A-RecSys is under active development. The models/features it supports and plans to support include,
 
 #### Models
-+ (Deep) Hybrid matrix factorization model
-+ Skip-gram attribute learning model
++ Hybrid matrix factorization model with deep layer extensions
++ Linear sequence models based on skip-gram and cbow
 + LSTM-Rec sequence model
 
 
 #### Features
 + Recommendation with implicit feedback
-+ Recommendation with explicit feedback (developing)
++ Recommendation with explicit feedback (for HMF)
 + Loss functions (including Cross-Entropy, batch-BPR, batch-Warp, sampled-batch-Warp)
 
 #### Citation
