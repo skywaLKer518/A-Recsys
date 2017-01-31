@@ -29,5 +29,6 @@ class Evaluate(Evaluation):
 
         self.Uids = self.get_uids()
         self.Uinds = [self.Uid2ind[v] for v in self.Uids]
+        self.old = old
         self.combine_sub = combine_sub
         return
