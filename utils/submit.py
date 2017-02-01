@@ -1,4 +1,4 @@
-from pandatools import write_csv, load_csv
+from pandatools import write_csv, load_csv, pd
 from os.path import join
 
 

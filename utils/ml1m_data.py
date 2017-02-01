@@ -2,19 +2,21 @@ import sys
 sys.path.insert(0, '../attributes')
 import numpy as np
 
+
 def process_items(items):
   import math
   print('processing item features')
  
+  TOKENS = ['[', ']', ' ', '(', ')']
 
   for i in range(items.shape[0]):
       # tags
  
     if isinstance(items[i][1], str):
       tags = items[i][1]
-      tags = tags.replace('[', '')
-      tags = tags.replace(']', '')
-      tags = tags.replace(' ', '')
+      for t in TOKENS:
+        tags = tags.replace(t, '')
+      
       if tags == '':
         items[i][1] = ['-1']
       else:
@@ -23,8 +25,19 @@ def process_items(items):
       print('genres not str!')
       exit()
     
+    if isinstance(items[i][2], str):
+      tags = items[i][2]
+      for t in TOKENS:
+        tags = tags.replace(t, '')
+      if tags == '':
+        items[i][2] = ['-1']
+      else:
+        items[i][2] = tags.split(',')
+    else:
+      print('title not str!')
+      exit()
+    
   return items
-
 
 def interact_split(interact, user_index=None, item_index=None, orig=False, debug=0):
   l = len(interact)
@@ -41,9 +54,12 @@ def interact_split(interact, user_index=None, item_index=None, orig=False, debug
     if uid not in ints:
       ints[uid] = []
     ints[uid].append((iid, t, irating))
+  final_users = set([])
+  final_items = set([])
   for u, v in ints.items():
     if len(v) < 10:
       continue
+    final_users.add(u)
     v = sorted(v, key=lambda tup: tup[1])
     l0 = len(v)
     for j in range(l0):
@@ -60,11 +76,14 @@ def interact_split(interact, user_index=None, item_index=None, orig=False, debug
       else:
         interact_te[ind3, :] = val
         ind3 += 1
+      final_items.add(val[1])
+
 
   interact_tr = interact_tr[:ind1, :]
   interact_va = interact_va[:ind2, :]
   interact_te = interact_te[:ind3, :]
   print("train, valid, and test sizes %d/%d/%d" %(ind1, ind2, ind3))
+  print("# of users: {}; # of items: {}".format(len(final_users), len(final_items)))
   return interact_tr, interact_va, interact_te
 
 def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000, 
@@ -83,7 +102,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
 
   from preprocess import create_dictionary, tokenize_attribute_map, filter_cat, filter_mulhot, pickle_save
   import attribute
-  from load_ml100k_data import load_user, load_movie, load_interactions
+  from load_ml1m_data import load_user, load_movie, load_interactions
 
   if not path.isdir(data_dir):
     mkdir(data_dir)
@@ -91,8 +110,8 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
   users, user_feature_names, user_index = load_user()
   items, item_feature_names, item_index = load_movie()
   items = process_items(items)
-  # users = process_users(users)
-  user_feature_names = ['id', 'age', 'gender', 'work']
+
+  user_feature_names = ['id', 'gender', 'age', 'job']
   N = len(users)
   M = len(items)
 
@@ -118,7 +137,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
       list(interact_te[:, 3]))
 
   # create_dictionary
-  ## TODO
+
   user_feature_types = [0, 0, 0, 0]
   u_inds = [p[0] for p in data_tr]
   create_dictionary(data_dir, u_inds, users, user_feature_types, 
@@ -136,7 +155,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
 
 
   # create_dictionary
-  item_feature_types = [0, 1]
+  item_feature_types = [0, 1, 1]
 
   i_inds = [p[1] for p in data_tr]
   create_dictionary(data_dir, i_inds, items, item_feature_types, 

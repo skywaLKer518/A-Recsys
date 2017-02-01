@@ -2,8 +2,8 @@ import pandas as pd
 import numpy as np
 from scipy.sparse import coo_matrix
 
-def load_csv(filename, sep = '\t', types = 1):
-    data = pd.read_csv(filename, delimiter=sep)
+def load_csv(filename, sep = '\t', types = 1, header=0):
+    data = pd.read_csv(filename, delimiter=sep, header=header)
     if types == 0:
         return data
     columns = list(data.columns)

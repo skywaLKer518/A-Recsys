@@ -24,8 +24,12 @@ sys.path.insert(0, '../attributes')
 import embed_attribute
 from xing_data import data_read as xing_data_read
 from ml_data import data_read as ml_data_read
+from ml1m_data import data_read as ml1m_data_read
+
 from xing_eval import Evaluate as xing_Evaluate
 from ml_eval import Evaluate as ml_Evaluate
+from ml1m_eval import Evaluate as ml1m_Evaluate
+
 import data_iterator
 from data_iterator import DataIterator
 from best_buckets import *
@@ -239,6 +243,10 @@ def read_data(test = False):
     elif FLAGS.dataset == 'ml':
         data_read = ml_data_read
         Evaluate = ml_Evaluate
+    elif FLAGS.dataset == 'ml1m':
+        data_read = ml1m_data_read
+        Evaluate = ml1m_Evaluate
+
 
     _submit = 1 if FLAGS.test else 0
     (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = _submit, ta = FLAGS.ta, logits_size_tr=FLAGS.item_vocab_size, sample=FLAGS.user_sample, old=FLAGS.old_att)
