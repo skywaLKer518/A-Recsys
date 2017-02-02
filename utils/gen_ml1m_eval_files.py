@@ -53,11 +53,12 @@ def gen_label_data(debug = 0):
 
 
 def extract_user_features(users, scale=1):
+  print('extracting user features')
   feature_tokens = {}
   feat2ind = {}
-  subsets1 = [0]
-  user_f = {0:0}
-  V = len(users)
+  subsets1 = [0, 1, 2, 3]
+  user_f = {0:0, 1:1, 2:2, 3:3}
+  V = len(users) + 30
   print('V = {}'.format(V))
   for j in range(len(user_f)):
     feature_tokens[j] = {}
@@ -67,28 +68,32 @@ def extract_user_features(users, scale=1):
   A = lil_matrix((n,V))
 
   for i in range(n):
-    j = 0
-    lv = users[i][j]
-    t = user_f[j]
-    v = lv
-    if v in feature_tokens[t]:
-      A[i, feat2ind[t][v]] = 1
-      feature_tokens[t][v] += 1
-    else:
-      feature_tokens[t][v] = 1
-      feat2ind[t][v] = ind
-      A[i, ind] = 1
-      ind += 1
+    for j in subsets1:
+      lv = users[i][j]
+      t = user_f[j]
+      v = lv
+      if v in feature_tokens[t]:
+        A[i, feat2ind[t][v]] = 1
+        feature_tokens[t][v] += 1
+      else:
+        feature_tokens[t][v] = 1
+        feat2ind[t][v] = ind
+        A[i, ind] = 1
+        ind += 1
   print('ind = {}'.format(ind))
+  # for t in feat2ind:
+  #   print(feat2ind[t], len(feat2ind[t]))
+
   return csr_matrix(A)
 
 def extract_item_features(users, scale=1):
+    print('extracting item features')
     feature_tokens = {}
     feat2ind = {}
-    subsets1 = [0, 1]
-    user_f = {0: 0, 1:1}
+    subsets1 = [0, 1, 2]
+    user_f = {0: 0, 1:1, 2:2}
 
-    V = len(users) + 2773
+    V = len(users) + 4863
     print('V = {}'.format(V))
     for j in range(len(user_f)):
         feature_tokens[j] = {}
@@ -128,6 +133,8 @@ def extract_item_features(users, scale=1):
                     ind += 1
 
     print 'ind = ', ind
+    # for t in feat2ind:
+    #   print(feat2ind[t], len(feat2ind[t]))
     return csr_matrix(A)
 
 
@@ -135,10 +142,13 @@ def gen_features_lightfm():
   users, user_feature_names, user_index = load_user()
   items, item_feature_names, item_index = load_movie()
   items = process_items(items)
+
   itemf = extract_item_features(items)
   uf = extract_user_features(users)
   import numpy
-  numpy.save('../dataset/ml-1m/ml_features', (uf, itemf))
+
+  numpy.save('../baselines/ml-1m/lightfm_features', (uf, itemf))
 
 
-gen_label_data(0)
+# gen_label_data(0)
+gen_features_lightfm()

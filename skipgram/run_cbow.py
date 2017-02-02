@@ -72,7 +72,7 @@ tf.app.flags.DEFINE_string("loss", 'ce',
 tf.app.flags.DEFINE_string("model_option", 'loss',
                             "model to evaluation")
 tf.app.flags.DEFINE_boolean("test", False, "Test on test splits")
-tf.app.flags.DEFINE_integer("n_epoch", 10, "How many epochs to train.")
+tf.app.flags.DEFINE_integer("n_epoch", 1000, "How many epochs to train.")
 
 
 tf.app.flags.DEFINE_integer("num_skips", 3, "Size of each model layer.")

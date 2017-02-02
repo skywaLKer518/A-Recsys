@@ -5,7 +5,7 @@ from load_ml1m_data import load_movie, load_user
 class Evaluate(Evaluation):
     def __init__(self, logit_ind2item_ind, 
         res_filename='../submissions/ml1m_res_T', 
-        hist_filename = '../submissions/mlm_historical_train', ta=1, 
+        hist_filename = '../submissions/ml1m_historical_train', ta=1, 
         old=False, data_dir=None, test=False):
 
         self.logit_ind2item_ind = logit_ind2item_ind
