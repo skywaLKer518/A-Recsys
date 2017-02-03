@@ -198,21 +198,23 @@ def create_model(session, u_attributes=None, i_attributes=None,
   if not os.path.isdir(FLAGS.train_dir):
     os.mkdir(FLAGS.train_dir)
   ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
-  if FLAGS.recommend and ckpt:
-    # print("%s" % ckpt.model_checkpoint_path)
-    # if FLAGS.model_option == 'loss':
-    #   f = os.path.join(FLAGS.train_dir, 'go.ckpt-best')
-    # elif FLAGS.model_option == 'auc':
-    #   f = os.path.join(FLAGS.train_dir, 'go.ckpt-best_auc')
-    # else:
-    #   print("no such models %s" % FLAGS.model_option)
-    #   exit()
-    # ckpt.model_checkpoint_path = f
-    print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
-    logging.info("Reading model parameters from %s" % ckpt.model_checkpoint_path)
-    model.saver.restore(session, ckpt.model_checkpoint_path)
+  # if FLAGS.recommend and ckpt:
+  #   # print("%s" % ckpt.model_checkpoint_path)
+  #   # if FLAGS.model_option == 'loss':
+  #   #   f = os.path.join(FLAGS.train_dir, 'go.ckpt-best')
+  #   # elif FLAGS.model_option == 'auc':
+  #   #   f = os.path.join(FLAGS.train_dir, 'go.ckpt-best_auc')
+  #   # else:
+  #   #   print("no such models %s" % FLAGS.model_option)
+  #   #   exit()
+  #   # ckpt.model_checkpoint_path = f
+  #   print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+  #   logging.info("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+  #   model.saver.restore(session, ckpt.model_checkpoint_path)
 
-  elif ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
+  # # elif ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
+  # elif ckpt:
+  if ckpt:
     print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
     logging.info("Reading model parameters from %s" % ckpt.model_checkpoint_path)
     model.saver.restore(session, ckpt.model_checkpoint_path)

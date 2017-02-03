@@ -70,7 +70,7 @@ tf.app.flags.DEFINE_boolean("test", False, "Test on test splits")
 tf.app.flags.DEFINE_integer("n_epoch", 1000, "How many epochs to train.")
 
 # Xing related
-tf.app.flags.DEFINE_integer("ta", 1, "target_active")
+tf.app.flags.DEFINE_integer("ta", 0, "target_active")
 tf.app.flags.DEFINE_float("user_sample", 1.0, "user sample rate.")
 tf.app.flags.DEFINE_integer("top_N_items", 30,
                             "number of items output")
@@ -100,7 +100,7 @@ def read_data(task):
     u_attr.num_features_cat = 1
     u_attr.num_features_mulhot = 0
 
-  if FLAGS.dataset == 'ml':
+  if FLAGS.dataset in ['ml', 'yelp']:
     print('disabling the lstm-rec fake feature')
     u_attr.num_features_cat = 1
 
@@ -125,21 +125,22 @@ def create_model(session, u_attributes=None, i_attributes=None,
   if not os.path.isdir(FLAGS.train_dir):
     os.mkdir(FLAGS.train_dir)
   ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
-  if FLAGS.recommend and ckpt:
-    print("%s" % ckpt.model_checkpoint_path)
-    if FLAGS.model_option == 'loss':
-      f = os.path.join(FLAGS.train_dir, 'go.ckpt-best')
-    elif FLAGS.model_option == 'auc':
-      f = os.path.join(FLAGS.train_dir, 'go.ckpt-best_auc')
-    else:
-      print("no such models %s" % FLAGS.model_option)
-      exit()
-    ckpt.model_checkpoint_path = f
-    print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
-    logging.info("Reading model parameters from %s" % ckpt.model_checkpoint_path)
-    model.saver.restore(session, ckpt.model_checkpoint_path)
-
-  elif ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
+  # if FLAGS.recommend and ckpt:
+  #   print("%s" % ckpt.model_checkpoint_path)
+  #   if FLAGS.model_option == 'loss':
+  #     f = os.path.join(FLAGS.train_dir, 'go.ckpt-best')
+  #   elif FLAGS.model_option == 'auc':
+  #     f = os.path.join(FLAGS.train_dir, 'go.ckpt-best_auc')
+  #   else:
+  #     print("no such models %s" % FLAGS.model_option)
+  #     exit()
+  #   ckpt.model_checkpoint_path = f
+  #   print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+  #   logging.info("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+  #   model.saver.restore(session, ckpt.model_checkpoint_path)
+  # # elif ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
+  # elif ckpt:
+  if ckpt:
     print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
     logging.info("Reading model parameters from %s" % ckpt.model_checkpoint_path)
     model.saver.restore(session, ckpt.model_checkpoint_path)
@@ -283,8 +284,8 @@ def train():
         if not FLAGS.eval:
           continue
         # Save checkpoint and zero timer and loss.
-        checkpoint_path = os.path.join(FLAGS.train_dir, "go.ckpt")
-        current_model = model.saver.save(sess, checkpoint_path, global_step=model.global_step)
+        # checkpoint_path = os.path.join(FLAGS.train_dir, "go.ckpt")
+        # current_model = model.saver.save(sess, checkpoint_path, global_step=model.global_step)
         
         # Run evals on development set and print their loss/auc.
         l_va = len(data_va)
@@ -320,34 +321,28 @@ def train():
           mylog("  dev: loss %.3f eval_auc %.4f step-time %.4f" % (eval_loss, 
             eval_auc, step_time))
         sys.stdout.flush()
-
-        # if eval_auc > best_auc:
-        #   best_auc = eval_auc
-        #   new_filename = os.path.join(FLAGS.train_dir, "go.ckpt-best_auc")
-        #   shutil.copy(current_model, new_filename)
-        #   patience = FLAGS.patience
         
         if eval_loss < best_loss and not FLAGS.test:
           best_loss = eval_loss
-          new_filename = os.path.join(FLAGS.train_dir, "go.ckpt-best")
-          shutil.copy(current_model, new_filename)
+          # new_filename = os.path.join(FLAGS.train_dir, "go.ckpt-best")
+          # shutil.copy(current_model, new_filename)
           patience = FLAGS.patience
+          checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
+          mylog('Saving best model...')
+          model.saver.save(sess, checkpoint_path, 
+            global_step=0, write_meta_graph = False)
 
         if FLAGS.test:
-          new_filename = os.path.join(FLAGS.train_dir, "go.ckpt-best")
-          shutil.copy(current_model, new_filename)
-
+          checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
+          mylog('Saving best model...')
+          model.saver.save(sess, checkpoint_path, 
+            global_step=0, write_meta_graph = False)
 
         if eval_loss > best_loss: # and eval_auc < best_auc:
           patience -= 1
 
         auc_dev.append(eval_auc)
         losses_dev.append(eval_loss)
-
-        # np.save(os.path.join(FLAGS.train_dir, 'auc_train'), auc_train)
-        # np.save(os.path.join(FLAGS.train_dir, 'auc_dev'), auc_dev)
-        # np.save(os.path.join(FLAGS.train_dir, 'loss_train'), previous_losses)
-        # np.save(os.path.join(FLAGS.train_dir, 'loss_dev'), losses_dev)
 
         if patience < 0 and not FLAGS.test:
           mylog("no improvement for too long.. terminating..")

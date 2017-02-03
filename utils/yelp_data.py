@@ -113,6 +113,7 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
   import cPickle as pickle
 
   data_filename = join(data_dir, 'ml_file')
+  print(data_filename)
   if isfile(data_filename):
     print("ml_data exists, loading")
     (data_tr, data_va, u_attributes, i_attributes, item_ind2logit_ind, 

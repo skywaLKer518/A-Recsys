@@ -66,7 +66,7 @@ tf.app.flags.DEFINE_string("loss", 'ce', "loss function")
 
 tf.app.flags.DEFINE_integer("seed", 0, "dev split random seed.")
 
-tf.app.flags.DEFINE_boolean("test", False, "Test on test splits")
+tf.app.flags.DEFINE_boolean("test", True, "split non-test part by users.")
 tf.app.flags.DEFINE_integer("n_epoch", 40,
                             "How many epochs to train.")
 
@@ -330,7 +330,8 @@ def create_model(session,embAttr,START_ID, run_options, run_metadata):
                      )
 
     ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
-    if FLAGS.recommend or (not FLAGS.fromScratch) and ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
+    # if FLAGS.recommend or (not FLAGS.fromScratch) and ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
+    if FLAGS.recommend or (not FLAGS.fromScratch) and ckpt:
         log_it("Reading model parameters from %s" % ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
     else:
@@ -489,7 +490,7 @@ def train():
 
                 his.append([current_step, train_ppx, eval_ppx])
 
-                if eval_ppx < low_ppx and not FLAGS.test:
+                if eval_ppx < low_ppx:
                     patience = FLAGS.patience
                     low_ppx = eval_ppx
                     low_ppx_step = current_step
@@ -500,15 +501,8 @@ def train():
                     log_it("Best model saved using {} sec".format(time.time()-s))
                 else:
                     patience -= 1
-                
-                if FLAGS.test:
-                    checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
-                    log_it("Saving best model....")
-                    s = time.time()
-                    model.saver.save(sess, checkpoint_path, global_step=0, write_meta_graph = False)
-                    log_it("Best model saved using {} sec".format(time.time()-s))
 
-                if patience <= 0 and not FLAGS.test:
+                if patience <= 0:
                     log_it("Training finished. Running out of patience.")
                     break
 

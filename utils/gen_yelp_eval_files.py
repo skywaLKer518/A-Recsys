@@ -56,9 +56,9 @@ def extract_user_features(users, scale=1):
   print('extracting user features')
   feature_tokens = {}
   feat2ind = {}
-  subsets1 = [0, 1, 2, 3]
-  user_f = {0:0, 1:1, 2:2, 3:3}
-  V = len(users) + 30
+  subsets1 = [0, 1,]
+  user_f = {0:0, 1:1}
+  V = len(users) + 1
   print('V = {}'.format(V))
   for j in range(len(user_f)):
     feature_tokens[j] = {}
@@ -90,10 +90,10 @@ def extract_item_features(users, scale=1):
     print('extracting item features')
     feature_tokens = {}
     feat2ind = {}
-    subsets1 = [0, 1, 2]
-    user_f = {0: 0, 1:1, 2:2}
+    subsets1 = [0, 1, 2, 3, 4, 5, 6, 7]
+    user_f = {0: 0, 1:1, 2:2, 3:3, 4:4, 5:5, 6:6, 7:7}
 
-    V = len(users) + 4863
+    V = len(users) + 60000 - 10688
     print('V = {}'.format(V))
     for j in range(len(user_f)):
         feature_tokens[j] = {}
@@ -140,8 +140,9 @@ def extract_item_features(users, scale=1):
 
 def gen_features_lightfm():
   users, user_feature_names, user_index = load_user()
-  items, item_feature_names, item_index = load_movie()
+  items, item_feature_names, item_index = load_item()
   items = process_items(items)
+  users = process_users(users)
 
   itemf = extract_item_features(items)
   uf = extract_user_features(users)
@@ -150,5 +151,5 @@ def gen_features_lightfm():
   numpy.save('../baselines/yelp/lightfm_features', (uf, itemf))
 
 
-gen_label_data(0)
-# gen_features_lightfm()
+# gen_label_data(0)
+gen_features_lightfm()
