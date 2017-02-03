@@ -98,8 +98,13 @@ def create_dictionary(data_dir, inds, features, feature_types, feature_names,
       vocab_list= vocab_list[:max_size]
     with gfile.GFile(join(data_dir, ("%s_vocab%d_%d"% (prefix, i,
       max_size))), mode="wb") as vocab_file:
-      vocab_list2 = [v for v in vocab_list if v in _START_VOCAB or
-       vocab_counts[name][v] >= threshold]
+
+      if prefix == 'user' and i == 0:
+        vocab_list2 = [v for v in vocab_list if v in _START_VOCAB or
+         vocab_counts[name][v] >= 0]
+      else:
+        vocab_list2 = [v for v in vocab_list if v in _START_VOCAB or
+         vocab_counts[name][v] >= threshold]
       for w in vocab_list2:
         vocab_file.write(str(w) + b"\n")
       minimum_occurance.append(vocab_counts[name][vocab_list2[-1]])
