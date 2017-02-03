@@ -21,6 +21,11 @@ class Task(object):
       from ml1m_eval import Evaluate as Evaluate_ml1m
       self.data_read = data_read_ml1m    
       self.evaluate = Evaluate_ml1m
+    elif name == 'yelp':
+      from yelp_data import data_read as data_read_yelp
+      from yelp_eval import Evaluate as Evaluate_yelp
+      self.data_read = data_read_yelp
+      self.evaluate = Evaluate_yelp
     else:
       print("Error. dataset not used!!")
       exit(-1)

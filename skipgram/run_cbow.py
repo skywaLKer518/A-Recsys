@@ -11,13 +11,7 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 sys.path.insert(0, '../utils')
 
-from xing_data import data_read as data_read_xing
-from ml_data import data_read as data_read_ml
-from ml1m_data import data_read as data_read_ml1m
-
-from xing_eval import Evaluate as Evaluate_xing
-from ml_eval import Evaluate as Evaluate_ml
-from ml1m_eval import Evaluate as Evaluate_ml1m
+from tasks import Task
 
 from prepare_train import positive_items, item_frequency, sample_items, to_week
 from data_iterator import DataIterator
@@ -148,15 +142,8 @@ def prepare_valid(data_va, u_i_seq_tr, end_ind, n=0):
         res[u] = [end_ind] * n
   return res
 
-def read_data():
-  if FLAGS.dataset == 'xing':
-    data_read = data_read_xing
-  elif FLAGS.dataset == 'ml':
-    data_read = data_read_ml
-  elif FLAGS.dataset == 'ml100k':
-    data_read = data_read_ml100k
-  elif FLAGS.dataset == 'ml1m':
-    data_read = data_read_ml1m
+def read_data(task):
+  data_read = task.get_dataread()
   
   _submit = 1 if FLAGS.test else 0
   (data_tr0, data_va0, u_attr, i_attr, item_ind2logit_ind, 
@@ -245,10 +232,11 @@ def train():
       run_metadata = tf.RunMetadata()
       FLAGS.steps_per_checkpoint = 30
     
-    print("reading data")
-    logging.info("reading data")
+    mylog("reading data")
+    task = Task(FLAGS.dataset)
+
     (seq_tr, items_dev, data_tr, data_va, u_attributes, i_attributes,
-      item_ind2logit_ind, logit_ind2item_ind, end_ind) = read_data()
+      item_ind2logit_ind, logit_ind2item_ind, end_ind) = read_data(task)
 
     power = FLAGS.power
     item_pop, p_item = item_frequency(data_tr, power)
@@ -424,22 +412,11 @@ def recommend():
   with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, 
     log_device_placement=FLAGS.device_log)) as sess:
     print("reading data")
+    task = Task(FLAGS.dataset)
     (_, items_dev, _, _, u_attributes, i_attributes, item_ind2logit_ind, 
-      logit_ind2item_ind, _) = read_data()
+      logit_ind2item_ind, _) = read_data(task)
     
-
-    if FLAGS.dataset =='xing':
-      Evaluate = Evaluate_xing
-    elif FLAGS.dataset == 'ml':
-      Evaluate = Evaluate_ml
-    elif FLAGS.dataset == 'ml100k':
-      Evaluate = Evaluate_ml100k
-    elif FLAGS.dataset == 'ml1m':
-      Evaluate = Evaluate_ml1m
-    else:
-      mylog('Error, not implemented.')
-      exit(0)
-      
+    Evaluate = task.get_evaluation()
     evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta, test=FLAGS.test)
     
     model = create_model(sess, u_attributes, i_attributes, item_ind2logit_ind,

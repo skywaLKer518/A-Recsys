@@ -22,13 +22,8 @@ import env
 sys.path.insert(0, '../utils')
 sys.path.insert(0, '../attributes')
 import embed_attribute
-from xing_data import data_read as xing_data_read
-from ml_data import data_read as ml_data_read
-from ml1m_data import data_read as ml1m_data_read
 
-from xing_eval import Evaluate as xing_Evaluate
-from ml_eval import Evaluate as ml_Evaluate
-from ml1m_eval import Evaluate as ml1m_Evaluate
+from tasks import Task
 
 import data_iterator
 from data_iterator import DataIterator
@@ -236,17 +231,9 @@ def split_train_dev(seq_all, ratio = 0.05):
 
 
 
-def read_data(test = False):
-    if FLAGS.dataset == "xing":
-        data_read = xing_data_read
-        Evaluate = xing_Evaluate
-    elif FLAGS.dataset == 'ml':
-        data_read = ml_data_read
-        Evaluate = ml_Evaluate
-    elif FLAGS.dataset == 'ml1m':
-        data_read = ml1m_data_read
-        Evaluate = ml1m_Evaluate
-
+def read_data(task, test = False):
+    data_read = task.get_dataread()
+    Evaluate = task.get_evaluation()
 
     _submit = 1 if FLAGS.test else 0
     (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = _submit, ta = FLAGS.ta, logits_size_tr=FLAGS.item_vocab_size, sample=FLAGS.user_sample, old=FLAGS.old_att)
@@ -366,7 +353,8 @@ def train():
 
     # Read Data
     log_it("Reading Data...")
-    train_set, dev_set, test_set, embAttr, START_ID, item_population, p_item, _, _ = read_data()
+    task = Task(FLAGS.dataset)
+    train_set, dev_set, test_set, embAttr, START_ID, item_population, p_item, _, _ = read_data(task)
     n_targets_train = np.sum([np.sum([len(items) for uid, items in x]) for x in train_set])
     train_bucket_sizes = [len(train_set[b]) for b in xrange(len(_buckets))]
     train_total_size = float(sum(train_bucket_sizes))
@@ -573,7 +561,8 @@ def recommend():
     # Read Data
     log_it("recommend")
     log_it("Reading Data...")
-    _, _, test_set, embAttr, START_ID, _, _, evaluation, uids = read_data(test =True)
+    task = Task(FLAGS.dataset)
+    _, _, test_set, embAttr, START_ID, _, _, evaluation, uids = read_data(task, test =True)
     test_bucket_sizes = [len(test_set[b]) for b in xrange(len(_buckets))]
     test_total_size = int(sum(test_bucket_sizes))
 
