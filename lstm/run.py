@@ -104,6 +104,12 @@ tf.app.flags.DEFINE_string("split", "last", "last: last maxlen only; overlap: ov
 
 tf.app.flags.DEFINE_boolean("old_att", False, "tmp: use attribute_0.8.csv")
 
+# for ensemble 
+tf.app.flags.DEFINE_boolean("ensemble", False, "to ensemble")
+tf.app.flags.DEFINE_string("ensemble_suffix", "", "multiple models suffix: 1,2,3,4,5")
+
+
+
 FLAGS = tf.app.flags.FLAGS
 
 _buckets = []
@@ -595,7 +601,7 @@ def recommend():
         for r, uid in enumerate(uids):
             uid2rank[uid] = r
         rec = np.zeros((n_total_user,30), dtype = int)
-        
+        rec_value = np.zeros((n_total_user,30), dtype = float)
         start = time.time()
 
         for users, inputs, positions, valids, bucket_id in ite:
@@ -610,7 +616,7 @@ def recommend():
                     uid, topk_values, topk_indexes = results[i]
                     rank= uid2rank[uid]
                     rec[rank,:] = topk_indexes                
-
+                    rec_value[rank,:] = topk_values
             n_steps += 1
             
         end = time.time()
@@ -625,9 +631,70 @@ def recommend():
         log_it("METRIC_FORMAT1: {}".format(s4))
         log_it("METRIC_FORMAT2: {}".format(s5))
         
+        # save the two matrix
+        np.save(os.path.join(FLAGS.train_dir,"top_index.npy"),rec)
+        np.save(os.path.join(FLAGS.train_dir,"top_value.npy"),rec_value)
 
+
+def ensemble():
+    # Read Data
+    log_it("Ensemble {} {}".format(FLAGS.train_dir, FLAGS.ensemble_suffix))
+    log_it("Reading Data...")
+    task = Task(FLAGS.dataset)
+    _, _, test_set, embAttr, START_ID, _, _, evaluation, uids = read_data(task, test =True)
+    test_bucket_sizes = [len(test_set[b]) for b in xrange(len(_buckets))]
+    test_total_size = int(sum(test_bucket_sizes))
+
+    # reports
+    log_it(_buckets)
+    log_it("Test:")
+    log_it("total: {}".format(test_total_size))
+    log_it("buckets: {}".format(test_bucket_sizes))
+    
+    # load top_index, and top_value
+    suffixes = FLAGS.ensemble_suffix.split(',')
+    top_indexes = []
+    top_values = []
+    for suffix in suffixes:
+        dir_path = FLAGS.train_dir+suffix
+        log_it("Loading results from {}".format(dir_path))
+        index_path = os.path.join(dir_path,"top_index.npy")
+        value_path = os.path.join(dir_path,"top_value.npy")
+        top_index = np.load(index_path)
+        top_value = np.load(value_path)
+        top_indexes.append(top_index)
+        top_values.append(top_value)
+
+    # ensemble
+    rec = np.zeros(top_indexes[0].shape)
+    for row in xrange(rec.shape[0]):
+        v = {}
+        for i in xrange(len(suffixes)):
+            for col in xrange(rec.shape[1]):
+                index = top_indexes[i][row,col]
+                value = top_values[i][row,col]
+                if index not in v:
+                    v[index] = 0
+                v[index] += value
+        items = [(index,v[index]/len(suffixes)) for index in v ]
+        items = sorted(items,key = lambda x: -x[1])
+        rec[row:] = [x[0] for x in items][:30]
+        
+    R = evaluation.gen_rec(rec, FLAGS.recommend_new)
+    evaluation.eval_on(R)
+    s1, s2, s3, s4, s5 = evaluation.get_scores()
+
+    log_it("Ensemble {} {}".format(FLAGS.train_dir, FLAGS.ensemble_suffix))
+    log_it('scores: \n\t{}\n\t{}\n\t{}\n'.format(s1, s2, s3))
+    
+    log_it("SCORE_FORMAT: {} {} {}".format(s1[0], s2[0], s3[0]))
+    log_it("METRIC_FORMAT1: {}".format(s4))
+    log_it("METRIC_FORMAT2: {}".format(s5))
+
+        
 
 def main(_):
+    print("V 2017-02-06 12:23")
     if FLAGS.test:
         if FLAGS.data_dir[-1] == '/':
             FLAGS.data_dir = FLAGS.data_dir[:-1] + '_test'
@@ -636,6 +703,14 @@ def main(_):
 
     if not os.path.exists(FLAGS.train_dir):
         os.mkdir(FLAGS.train_dir)
+    
+    if FLAGS.ensemble:
+        suffixes = FLAGS.ensemble_suffix.split(',')
+        log_path = os.path.join(FLAGS.train_dir+suffixes[0],"log.ensemble.txt")
+        logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode ="w")
+        ensemble()
+        return 
+
     if FLAGS.recommend:
         log_path = os.path.join(FLAGS.train_dir,"log.recommend.txt")
         logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode ="w")
