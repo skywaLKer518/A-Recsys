@@ -44,7 +44,9 @@ class Evaluation(object):
         r_ex = self.combine_sub(self.hist, rec, 1, old=self.old, users = self.Uatt)
         self.s3 = scores(r_ex, self.T)
 
-        l = metrics(rec, self.T).values()
+        result = metrics(rec, self.T)
+        print(result)
+        l = result.values()
         self.s4 = [item for sublist in l for item in sublist]
         l = metrics(r_ex, self.T).values()
         self.s5 = [item for sublist in l for item in sublist]
@@ -65,6 +67,7 @@ def scores(X, T, opt = 0):
     print 'length of X/T: %i, %i' % (len(X), len(T))
     if opt == 1:
         user_scores = {}
+    
     for _, u in enumerate(T):
         t = T[u]
         if u not in X:
@@ -90,6 +93,14 @@ def scores(X, T, opt = 0):
         R100 += r100
         R1000+= r1000
         US += u_s
+    n_users = float(len(T))
+    P2 = P2 / n_users
+    P4 = P4 / n_users
+    P6 = P6 / n_users
+    P20 = P20 / n_users
+    P30 = P30 / n_users
+    R30 = R30 / n_users
+
     res = (score, P2, P4, R30, US, P6, P20, P30, P100,  R100, R1000)
     print_md('res ', res)
     if opt == 1:

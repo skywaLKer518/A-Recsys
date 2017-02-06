@@ -35,6 +35,8 @@ def load_item_active_csv():
     item_index = build_index(items)
     return items, item_feature_names, item_index
 
+def load_interactions_ta0():
+    return load_interactions(1, 0)
 def load_interactions(submit=1, ta = 1):
     if submit == 1 and ta == 1:
         filename = DIR + 'interactions_ta2.csv'
