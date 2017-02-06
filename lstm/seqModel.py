@@ -45,6 +45,7 @@ class SeqModel(object):
                  use_concat = True,
                  output_feat = 1,
                  no_user_id = True,
+                 topk_n = 30,
                  dtype=tf.float32):
         """Create the model.
         
@@ -79,6 +80,7 @@ class SeqModel(object):
         self.run_options = run_options
         self.run_metadata = run_metadata
         self.output_feat = output_feat
+        self.topk_n = topk_n
         with tf.device(devices[0]):
             self.dropoutRate = tf.Variable(
                 float(dropoutRate), trainable=False, dtype=dtype)        
@@ -402,8 +404,9 @@ class SeqModel(object):
                             losses_full.append(sequence_loss(
                                     outputs_full[-1], t[:bucket], weights[:bucket],softmax_loss_function=softmax_loss_function))
                         topk_value, topk_index = [], []
+
                         for full_logits in outputs_full[-1]:
-                            value, index = tf.nn.top_k(full_logits, 30, sorted = True)
+                            value, index = tf.nn.top_k(tf.nn.softmax(full_logits), self.topk_n, sorted = True)
                             topk_value.append(value)
                             topk_index.append(index)
                         topk_values.append(topk_value)

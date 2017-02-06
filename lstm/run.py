@@ -104,6 +104,9 @@ tf.app.flags.DEFINE_string("split", "last", "last: last maxlen only; overlap: ov
 
 tf.app.flags.DEFINE_boolean("old_att", False, "tmp: use attribute_0.8.csv")
 
+tf.app.flags.DEFINE_integer("topk", 1000,"the topk value")
+
+
 # for ensemble 
 tf.app.flags.DEFINE_boolean("ensemble", False, "to ensemble")
 tf.app.flags.DEFINE_string("ensemble_suffix", "", "multiple models suffix: 1,2,3,4,5")
@@ -331,6 +334,7 @@ def create_model(session,embAttr,START_ID, run_options, run_metadata):
                      use_concat = FLAGS.use_concat,
                      no_user_id=FLAGS.no_user_id,
                      output_feat = FLAGS.output_feat,
+                     topk_n = FLAGS.topk,
                      run_options = run_options,
                      run_metadata = run_metadata
                      )
@@ -600,8 +604,8 @@ def recommend():
         uid2rank = {}
         for r, uid in enumerate(uids):
             uid2rank[uid] = r
-        rec = np.zeros((n_total_user,30), dtype = int)
-        rec_value = np.zeros((n_total_user,30), dtype = float)
+        rec = np.zeros((n_total_user,FLAGS.topk), dtype = int)
+        rec_value = np.zeros((n_total_user,FLAGS.topk), dtype = float)
         start = time.time()
 
         for users, inputs, positions, valids, bucket_id in ite:
@@ -632,8 +636,8 @@ def recommend():
         log_it("METRIC_FORMAT2: {}".format(s5))
         
         # save the two matrix
-        np.save(os.path.join(FLAGS.train_dir,"top_index.npy"),rec)
-        np.save(os.path.join(FLAGS.train_dir,"top_value.npy"),rec_value)
+        np.save(os.path.join(FLAGS.train_dir,"top{}_index.npy".format(FLAGS.topk)),rec)
+        np.save(os.path.join(FLAGS.train_dir,"top{}_value.npy".format(FLAGS.topk)),rec_value)
 
 
 def ensemble():
@@ -658,8 +662,8 @@ def ensemble():
     for suffix in suffixes:
         dir_path = FLAGS.train_dir+suffix
         log_it("Loading results from {}".format(dir_path))
-        index_path = os.path.join(dir_path,"top_index.npy")
-        value_path = os.path.join(dir_path,"top_value.npy")
+        index_path = os.path.join(dir_path,"top{}_index.npy".format(FLAGS.topk))
+        value_path = os.path.join(dir_path,"top{}_value.npy".format(FLAGS.topk))
         top_index = np.load(index_path)
         top_value = np.load(value_path)
         top_indexes.append(top_index)
@@ -678,7 +682,9 @@ def ensemble():
                 v[index] += value
         items = [(index,v[index]/len(suffixes)) for index in v ]
         items = sorted(items,key = lambda x: -x[1])
-        rec[row:] = [x[0] for x in items][:30]
+        rec[row:] = [x[0] for x in items][:FLAGS.topk]
+        if row % 1000 == 0:
+            log_it("Ensembling n {}".format(row))
         
     R = evaluation.gen_rec(rec, FLAGS.recommend_new)
     evaluation.eval_on(R)
@@ -706,13 +712,13 @@ def main(_):
     
     if FLAGS.ensemble:
         suffixes = FLAGS.ensemble_suffix.split(',')
-        log_path = os.path.join(FLAGS.train_dir+suffixes[0],"log.ensemble.txt")
+        log_path = os.path.join(FLAGS.train_dir+suffixes[0],"log.ensemble.txt.{}".format(FLAGS.topk))
         logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode ="w")
         ensemble()
         return 
 
     if FLAGS.recommend:
-        log_path = os.path.join(FLAGS.train_dir,"log.recommend.txt")
+        log_path = os.path.join(FLAGS.train_dir,"log.recommend.txt.{}".format(FLAGS.topk))
         logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode ="w")
         recommend()
     else:
