@@ -23,6 +23,7 @@ class CBOWModel(LinearSeq):
                loss_function='ce',
                logit_size_test=None, 
                dropout=1.0, 
+               top_N_items = 100, 
                use_sep_item=True,
                n_sampled=None, 
                output_feat=1,
@@ -31,7 +32,8 @@ class CBOWModel(LinearSeq):
 
     self.user_size = user_size
     self.item_size = item_size
-
+    self.top_N_items = top_N_items
+    
     if user_attributes is not None:
       user_attributes.set_model_size(size)
       self.user_attributes = user_attributes
@@ -134,5 +136,5 @@ class CBOWModel(LinearSeq):
       zip(gradients, params), global_step=self.global_step)
 
     self.output = logits_test
-    values, self.indices= tf.nn.top_k(self.output, 30, sorted=True)
+    values, self.indices= tf.nn.top_k(self.output, self.top_N_items, sorted=True)
     self.saver = tf.train.Saver(tf.all_variables())

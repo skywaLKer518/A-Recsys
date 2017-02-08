@@ -11,12 +11,8 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 sys.path.insert(0, '../utils')
 
-from xing_data import data_read as data_read_xing
-from ml_data import data_read as data_read_ml
-from ml100k_data import data_read as data_read_ml100k
+from tasks import Task
 
-from xing_eval import Evaluate as Evaluate_xing
-from ml_eval import Evaluate as Evaluate_ml
 from prepare_train import positive_items, item_frequency, sample_items, to_week
 from data_iterator import DataIterator
 # in order to profile
@@ -70,7 +66,7 @@ tf.app.flags.DEFINE_string("loss", 'ce',
 tf.app.flags.DEFINE_string("model_option", 'loss',
                             "model to evaluation")
 tf.app.flags.DEFINE_boolean("test", False, "Test on test splits")
-tf.app.flags.DEFINE_integer("n_epoch", 10, "How many epochs to train.")
+tf.app.flags.DEFINE_integer("n_epoch", 1000, "How many epochs to train.")
 
 
 tf.app.flags.DEFINE_integer("num_skips", 3, "Size of each model layer.")
@@ -79,7 +75,7 @@ tf.app.flags.DEFINE_integer("skip_window", 5, "Size of each model layer.")
 # Xing related
 tf.app.flags.DEFINE_integer("ta", 1, "target_active")
 tf.app.flags.DEFINE_float("user_sample", 1.0, "user sample rate.")
-tf.app.flags.DEFINE_integer("top_N_items", 30,
+tf.app.flags.DEFINE_integer("top_N_items", 100,
                             "number of items output")
 
 FLAGS = tf.app.flags.FLAGS
@@ -146,13 +142,8 @@ def prepare_valid(data_va, u_i_seq_tr, end_ind, n=0):
         res[u] = [end_ind] * n
   return res
 
-def read_data():
-  if FLAGS.dataset == 'xing':
-    data_read = data_read_xing
-  elif FLAGS.dataset == 'ml':
-    data_read = data_read_ml
-  elif FLAGS.dataset == 'ml100k':
-    data_read = data_read_ml100k
+def read_data(task):
+  data_read = task.get_dataread()
   
   _submit = 1 if FLAGS.test else 0
   (data_tr0, data_va0, u_attr, i_attr, item_ind2logit_ind, 
@@ -201,7 +192,8 @@ def create_model(session, u_attributes=None, i_attributes=None,
     FLAGS.learning_rate_decay_factor, u_attributes, i_attributes, 
     item_ind2logit_ind, logit_ind2item_ind, loss_function=loss, 
     n_input_items=FLAGS.ni, use_sep_item=FLAGS.use_sep_item,
-    dropout=FLAGS.keep_prob, output_feat=FLAGS.output_feat, 
+    dropout=FLAGS.keep_prob, top_N_items=FLAGS.top_N_items,
+    output_feat=FLAGS.output_feat, 
     n_sampled=n_sampled)
 
   if not os.path.isdir(FLAGS.train_dir):
@@ -241,10 +233,11 @@ def train():
       run_metadata = tf.RunMetadata()
       FLAGS.steps_per_checkpoint = 30
     
-    print("reading data")
-    logging.info("reading data")
+    mylog("reading data")
+    task = Task(FLAGS.dataset)
+
     (seq_tr, items_dev, data_tr, data_va, u_attributes, i_attributes,
-      item_ind2logit_ind, logit_ind2item_ind, end_ind) = read_data()
+      item_ind2logit_ind, logit_ind2item_ind, end_ind) = read_data(task)
 
     power = FLAGS.power
     item_pop, p_item = item_frequency(data_tr, power)
@@ -397,11 +390,13 @@ def train():
           checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
           model.saver.save(sess, checkpoint_path, 
             global_step=0, write_meta_graph = False)
+          mylog('Saving best model...')
 
         if FLAGS.test:
           checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
           model.saver.save(sess, checkpoint_path, 
             global_step=0, write_meta_graph = False)
+          mylog('Saving current model...')
 
         if eval_loss > best_loss: # and eval_auc < best_auc:
           patience -= 1
@@ -427,20 +422,12 @@ def recommend():
   with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, 
     log_device_placement=FLAGS.device_log)) as sess:
     print("reading data")
+    task = Task(FLAGS.dataset)
     (_, items_dev, _, _, u_attributes, i_attributes, item_ind2logit_ind, 
-      logit_ind2item_ind, _) = read_data()
+      logit_ind2item_ind, _) = read_data(task)
     
 
-    if FLAGS.dataset =='xing':
-      Evaluate = Evaluate_xing
-    elif FLAGS.dataset == 'ml':
-      Evaluate = Evaluate_ml
-    elif FLAGS.dataset == 'ml100k':
-      Evaluate = Evaluate_ml100k
-    else:
-      mylog('Error, not implemented.')
-      exit(0)
-      
+    Evaluate = task.get_evaluation()  
     evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta, test=FLAGS.test)
     
     model = create_model(sess, u_attributes, i_attributes, item_ind2logit_ind,
@@ -449,7 +436,7 @@ def recommend():
     Uinds = evaluation.get_uinds()
     N = len(Uinds)
     print("N = %d" % N)
-    rec = np.zeros((N, 30), dtype=int)
+    rec = np.zeros((N, FLAGS.top_N_items), dtype=int)
     count = 0
     time_start = time.time()
     for idx_s in range(0, N, FLAGS.batch_size):

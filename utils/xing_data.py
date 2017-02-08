@@ -183,6 +183,19 @@ def data_read(data_dir, _submit=0, ta=1, max_vocabulary_size=50000,
     interact_tr = np.append(interact_tr, interact_va, 0)
     data_tr = zip(list(interact_tr[:, 0]), list(interact_tr[:, 1]), 
       list(interact_tr[:, 4]))
+    from submit import load_submit
+    week46 = load_submit('../submissions/res_T_test.csv')
+    data_va = []
+    for u in week46:
+      for ii in week46[u]:
+        u = int(u)
+        ii = int(ii)
+        if u not in user_index_orig:
+          continue
+        if ii not in item_index_orig:
+          continue
+        data_va.append((user_index_orig[u], item_index_orig[ii], 0))
+
   else:
     data_tr = zip(list(interact_tr[:, 0]), list(interact_tr[:, 1]), 
       list(interact_tr[:, 4]))

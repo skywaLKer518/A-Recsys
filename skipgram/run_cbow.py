@@ -75,7 +75,7 @@ tf.app.flags.DEFINE_integer("skip_window", 5, "Size of each model layer.")
 # Xing related
 tf.app.flags.DEFINE_integer("ta", 1, "target_active")
 tf.app.flags.DEFINE_float("user_sample", 1.0, "user sample rate.")
-tf.app.flags.DEFINE_integer("top_N_items", 30,
+tf.app.flags.DEFINE_integer("top_N_items", 100,
                             "number of items output")
 
 FLAGS = tf.app.flags.FLAGS
@@ -192,7 +192,8 @@ def create_model(session, u_attributes=None, i_attributes=None,
     FLAGS.learning_rate_decay_factor, u_attributes, i_attributes,
     item_ind2logit_ind, logit_ind2item_ind, loss_function=loss, 
     n_input_items=FLAGS.ni, use_sep_item=FLAGS.use_sep_item,
-    dropout=FLAGS.keep_prob, output_feat=FLAGS.output_feat, 
+    dropout=FLAGS.keep_prob, top_N_items=FLAGS.top_N_items, 
+    output_feat=FLAGS.output_feat, 
     n_sampled=n_sampled)
 
   if not os.path.isdir(FLAGS.train_dir):
@@ -389,11 +390,13 @@ def train():
           checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
           model.saver.save(sess, checkpoint_path, 
             global_step=0, write_meta_graph = False)
+          mylog('Saving best model...')
 
         if FLAGS.test:
           checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
           model.saver.save(sess, checkpoint_path, 
             global_step=0, write_meta_graph = False)
+          mylog('Saving current model...')
 
         if eval_loss > best_loss: # and eval_auc < best_auc:
           patience -= 1
@@ -427,7 +430,7 @@ def recommend():
     Uinds = evaluation.get_uinds()
     N = len(Uinds)
     print("N = %d" % N)
-    rec = np.zeros((N, 30), dtype=int)
+    rec = np.zeros((N, FLAGS.top_N_items), dtype=int)
     count = 0
     time_start = time.time()
     for idx_s in range(0, N, FLAGS.batch_size):

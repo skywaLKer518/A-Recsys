@@ -142,7 +142,7 @@ def N(val):
 
 def dataset(val):
     if val == 'xing':
-        return "", "--dataset xing"
+        return "xing", "--dataset xing"
     elif val == "ml":
         return "Ml", "--dataset ml --after40 False"
     elif val == 'ml1m':
@@ -228,8 +228,10 @@ def setting1():
     
 
     #ensemble xing full
-    template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "000",False,'xing',50000, False, True, False, True, 0, False, False, ""]
-
+    # template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "000",False,'xing',50000, False, True, False, True, 0, False, False, ""]
+    
+    # ML-1m 
+    template = ["$data_ml1m", 64, 128, 0.5, 0.5, 200, "warp", 0, 1, 50, "001",False,'ml1m',3100, False, True, True, True, 0, True, False, ""]
     params = []
 
     for _seed in xrange(1,9):
@@ -276,20 +278,16 @@ def setting2():
              no_user_id, use_out_items, wFeat, #18
              output_feat, test]
 
-    #template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, False]
+    
 
     # XING sep-out-feat, output_feat
     # template = ["$data_full", 64, 256, 0.4, 1.0, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, True, True, 0]
-
-    # ML-1m 
-    # template = ["$data_ml1m", 64, 256, 0.4, 1.0, 150, "warp", 0, 1, 50, "001",False,'ml1m',3100, False, True, True, True, 1, True]
-
 
     # yelp
     # template = ["$data_yelp", 32, 256, 0.4, 1.0, 150, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, True, True, 1, True]
 
     # yelp, oF
-    template = ["$data_yelp", 32, 256, 0.4, 1.0, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, False, True, 1, True]
+    # template = ["$data_yelp", 32, 256, 0.4, 1.0, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, False, True, 1, True]
 
     # part of users
     # template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 1, 0.3]
@@ -310,16 +308,26 @@ def setting2():
     # template_ml = ["$data_ml", 64, 128, 0.5, 0.5, 150, "ce", 0, 1, 40, "001",False,'ml',13000, False, True, False, False, 1]
     # template_ml = ["$data_ml", 64, 128, 0.5, 0.5, 150, "ce", 0, 1, 40, "001",False,'ml',13000, False, True, True, False, 1]
 
+    # # xing, with test
+    # template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 1, True]
+    # XING with test, no feature or yes feature; not output
+    # template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 0, True]
+    # XING with test, oa1, tuning (smaller h)
+    template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 0, True]
+
+    # ML-1m 
+    # template = ["$data_ml1m", 64, 256, 0.4, 1.0, 200, "warp", 0, 1, 50, "001",False,'ml1m',3100, False, True, True, True, 1, True]
     params = []
 
-    _h = [128]
+    _h = [200]
     # _nouser = [True False]
-    _dropout = [0.4,0.5,0.6]
-    _learning_rate = [0.5]
-    _oa = [2]
+    _dropout = [0.4]
+    _learning_rate = [0.5, 1]
+    _oa = [1, 2]
     # _us = [0.7, 0.3]
     # # # _seeds = [1, 2, 3, 4, 5, 6, 7, 8]
-
+    _loss = ['ce']
+    _wf = [True]
     for lr in _learning_rate:
         for h in _h:
             for oa in _oa:
@@ -395,7 +403,7 @@ def main(setting, acct=0, tf_version=12):
         if acct in [0, 1]:
             cmd = "python run.py " + cmd
         elif acct == 3:
-            cmd = "python run.py " + cmd + ' &'
+            cmd = "python run.py " + cmd
             name = 'i80_' + name
         else:
             cmd = "/nfs/isicvlnas01/share/anaconda/bin/python run.py " + cmd

@@ -104,7 +104,7 @@ tf.app.flags.DEFINE_string("split", "last", "last: last maxlen only; overlap: ov
 
 tf.app.flags.DEFINE_boolean("old_att", False, "tmp: use attribute_0.8.csv")
 
-tf.app.flags.DEFINE_integer("topk", 1000,"the topk value")
+tf.app.flags.DEFINE_integer("topk", 200,"the topk value")
 
 
 # for ensemble 
@@ -660,7 +660,8 @@ def ensemble():
     top_indexes = []
     top_values = []
     for suffix in suffixes:
-        dir_path = FLAGS.train_dir+suffix
+        # dir_path = FLAGS.train_dir+suffix
+        dir_path = FLAGS.train_dir.replace('seed', 'seed' + suffix)
         log_it("Loading results from {}".format(dir_path))
         index_path = os.path.join(dir_path,"top{}_index.npy".format(FLAGS.topk))
         value_path = os.path.join(dir_path,"top{}_value.npy".format(FLAGS.topk))
@@ -712,7 +713,8 @@ def main(_):
     
     if FLAGS.ensemble:
         suffixes = FLAGS.ensemble_suffix.split(',')
-        log_path = os.path.join(FLAGS.train_dir+suffixes[0],"log.ensemble.txt.{}".format(FLAGS.topk))
+        # log_path = os.path.join(FLAGS.train_dir+suffixes[0],"log.ensemble.txt.{}".format(FLAGS.topk))
+        log_path = os.path.join(FLAGS.train_dir.replace('seed', 'seed'+suffixes[0]),"log.ensemble.txt.{}".format(FLAGS.topk))
         logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode ="w")
         ensemble()
         return 

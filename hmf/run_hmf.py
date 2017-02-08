@@ -72,7 +72,7 @@ tf.app.flags.DEFINE_integer("n_epoch", 1000, "How many epochs to train.")
 # Xing related
 tf.app.flags.DEFINE_integer("ta", 0, "target_active")
 tf.app.flags.DEFINE_float("user_sample", 1.0, "user sample rate.")
-tf.app.flags.DEFINE_integer("top_N_items", 30,
+tf.app.flags.DEFINE_integer("top_N_items", 100,
                             "number of items output")
 
 FLAGS = tf.app.flags.FLAGS
@@ -119,8 +119,8 @@ def create_model(session, u_attributes=None, i_attributes=None,
     FLAGS.learning_rate_decay_factor, u_attributes, i_attributes, 
     item_ind2logit_ind, logit_ind2item_ind, loss_function = loss, GPU=gpu, 
     logit_size_test=logit_size_test, nonlinear=FLAGS.nonlinear, 
-    dropout=FLAGS.keep_prob, n_sampled=n_sampled, indices_item=ind_item, 
-    hidden_size=FLAGS.hidden_size)
+    dropout=FLAGS.keep_prob, n_sampled=n_sampled, indices_item=ind_item,
+    top_N_items=FLAGS.top_N_items, hidden_size=FLAGS.hidden_size)
 
   if not os.path.isdir(FLAGS.train_dir):
     os.mkdir(FLAGS.train_dir)
@@ -370,7 +370,7 @@ def recommend():
     Uinds = evaluation.get_uinds()
     N = len(Uinds)
     print("N = %d" % N)
-    rec = np.zeros((N, 30), dtype=int)
+    rec = np.zeros((N, FLAGS.top_N_items), dtype=int)
     count = 0
     time_start = time.time()
     for idx_s in range(0, N, FLAGS.batch_size):

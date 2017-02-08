@@ -24,10 +24,11 @@ class LatentProductModel(object):
                logit_ind2item_ind=None, loss_function='ce', GPU=None, 
                logit_size_test=None, nonlinear=None, dropout=1.0, 
                n_sampled=None, indices_item=None, dtype=tf.float32, 
-               hidden_size=500):
+               top_N_items=100, hidden_size=500):
 
     self.user_size = user_size
     self.item_size = item_size
+    self.top_N_items = top_N_items
 
     if user_attributes is not None:
       user_attributes.set_model_size(size)
@@ -142,7 +143,7 @@ class LatentProductModel(object):
       zip(gradients, params), global_step=self.global_step)
 
     self.output = logits
-    values, self.indices= tf.nn.top_k(self.output, 30, sorted=True)
+    values, self.indices= tf.nn.top_k(self.output, self.top_N_items, sorted=True)
     self.saver = tf.train.Saver(tf.all_variables())
 
   def prepare_warp(self, pos_item_set, pos_item_set_eval):
