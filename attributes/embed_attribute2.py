@@ -104,18 +104,20 @@ class EmbeddingAttribute(object):
     return
 
   def prepare_placeholder(self, batch_size, prefix, device='/gpu:0'):
-    self.u_indices['input'] = self._placeholders('user', prefix + 'input', batch_size, device=device)
+    self.u_indices[prefix + 'input'] = self._placeholders('user', prefix + 'input', batch_size, device=device)
+    self.u_indices[prefix + 'input' + '_batch_size'] = batch_size
+
     # item -- positive/negative sample indices
-    
     print("construct postive/negative items/scores ")
-    self.i_indices['pos'] = self._placeholders('item', prefix + 'pos', batch_size, device=device)
-    self.i_indices['neg'] = self._placeholders('item', prefix + 'neg', batch_size, device=device)
+    self.i_indices[prefix + 'pos'] = self._placeholders('item', prefix + 'pos', batch_size, device=device)
+    self.i_indices[prefix + 'neg'] = self._placeholders('item', prefix + 'neg', batch_size, device=device)
     
     # input items (for lstm etc)
     print("construct input item")
     for step in xrange(self.input_steps):
       name_ = prefix + 'input{}'.format(step)
       self.i_indices[name_] = self._placeholders('item', name_, batch_size, device=device)
+      self.i_indices[name_ + '_batch_size'] = batch_size
 
 
   def _var_indices(self, size, name='sampled', opt='item', device='/gpu:0'):
@@ -220,8 +222,9 @@ class EmbeddingAttribute(object):
       target_item_emb = tf.reduce_mean(cat_l + mulhot_l, 0)
       return tf.reduce_sum(tf.mul(latent, target_item_emb), 1) + i_bias
 
-  def get_batch_user(self, keep_prob, batch_size, concat=True, no_id=False, device='/gpu:0'):
-    u_inds = self.u_indices['input']
+  def get_batch_user(self, keep_prob, prefix, concat=True, no_id=False, device='/gpu:0'):
+    u_inds = self.u_indices[prefix + 'input']
+    batch_size = self.u_indices[prefix + 'input' + '_batch_size']
     with tf.device(device):
       if concat:
         embedded_user, user_b = self._get_embedded(self.user_embs_cat, 
@@ -237,11 +240,12 @@ class EmbeddingAttribute(object):
       embedded_user = tf.nn.dropout(embedded_user, keep_prob)
     return embedded_user, user_b  
 
-  def get_batch_item(self, name, batch_size, concat=False, keep_prob=1.0, 
+  def get_batch_item(self, name, concat=False, keep_prob=1.0, 
     device='/gpu:0'):
     assert(name in self.i_indices)
     assert(keep_prob == 1.0), 'otherwise not implemented'
     i_inds = self.i_indices[name]
+    batch_size = self.i_indices[name + '_batch_size']
     if concat:
       return self._get_embedded(self.item_embs_cat, self.item_embs_mulhot, 
         self.i_biases_cat, self.i_biases_mulhot, i_inds, batch_size, 
