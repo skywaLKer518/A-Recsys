@@ -631,10 +631,10 @@ class EmbeddingAttribute(object):
 
   def add_input(self, input_feed, user_input, item_input, 
         neg_item_input=None, item_sampled = None, item_sampled_id2idx = None, 
-        forward_only=False, recommend=False, loss=None):
+        forward_only=False, recommend=False, loss=None, prefix = ''):
     # users
     if self.user_attributes is not None:
-      self._add_input(input_feed, 'user', user_input, 'input')
+      self._add_input(input_feed, 'user', user_input, prefix + 'input')
     # pos
     # if self.item_attributes is not None and recommend is False and self.input_steps == 0:
     #   self._add_input(input_feed, 'item', item_input, 'pos')
@@ -644,7 +644,7 @@ class EmbeddingAttribute(object):
     if self.item_attributes is not None and self.input_steps > 0:
       for step in range(len(item_input)):
         self._add_input(input_feed, 'item', item_input[step], 
-          'input{}'.format(step))
+          prefix + 'input{}'.format(step))
 
     # sampled item: when sampled-loss is used
     input_feed_sampled = {}
