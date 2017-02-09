@@ -21,7 +21,7 @@ import env
 
 sys.path.insert(0, '../utils')
 sys.path.insert(0, '../attributes')
-import embed_attribute
+import embed_attribute2 as embed_attribute
 
 from tasks import Task
 

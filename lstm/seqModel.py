@@ -126,8 +126,11 @@ class SeqModel(object):
 
             self.inputs = []
 
+            self.train_prefix = ""
+            self.embeddingAttribute.prepare_placeholder(self.batch_size,self.train_prefix)
+
             if use_concat:
-                user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,concat = True, no_id = no_user_id)
+                user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,self.train_prefix,concat = True, no_id = no_user_id)
                 user_embed_size = self.embeddingAttribute.get_user_model_size(
                     no_id = no_user_id, concat = True)
                 item_embed_size = self.embeddingAttribute.get_item_model_size(
@@ -137,19 +140,17 @@ class SeqModel(object):
                 user_embed_transform = tf.matmul(user_embed, w_input_user)
 
                 for i in xrange(buckets[-1]):
-                    name = "input{}".format(i)
-                    item_embed, _ = self.embeddingAttribute.get_batch_item(name,
-                        self.batch_size, concat = True)
+                    name = "{}input{}".format(self.train_prefix,i)
+                    item_embed, _ = self.embeddingAttribute.get_batch_item(name, concat = True)
                     item_embed_transform = tf.matmul(item_embed, w_input_item)
                     input_embed = user_embed_transform + item_embed_transform
                     self.inputs.append(input_embed)
             else:
-                user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,concat = False, no_id = no_user_id)
+                user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,self.train_prefix,concat = False, no_id = no_user_id)
                 
                 for i in xrange(buckets[-1]):
-                    name = "input{}".format(i)
-                    item_embed, _ = self.embeddingAttribute.get_batch_item(name,
-                        self.batch_size, concat = False)
+                    name = "{}input{}".format(self.train_prefix,i)
+                    item_embed, _ = self.embeddingAttribute.get_batch_item(name, concat = False)
                     item_embed = tf.reduce_mean(item_embed, 0)
                     input_embed = tf.reduce_mean([user_embed, item_embed], 0)
                     self.inputs.append(input_embed)
@@ -250,7 +251,38 @@ class SeqModel(object):
 
             # operation: one step RNN 
             with tf.variable_scope("",reuse=True):
-                self.beam_step_outputs, self.beam_step_state = rnn.rnn(self.single_cell,self.beam_step_inputs,initial_state = self.before_state)
+
+                self.beam_inputs = []
+                self.beam_prefix = "beam"
+                self.embeddingAttribute.prepare_placeholder(self.beam_size,self.beam_prefix)
+
+                if use_concat:
+                    user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,self.beam_prefix,concat = True, no_id = no_user_id)
+                    user_embed_size = self.embeddingAttribute.get_user_model_size(
+                        no_id = no_user_id, concat = True)
+                    item_embed_size = self.embeddingAttribute.get_item_model_size(
+                        concat=True)
+                    w_input_user = tf.get_variable("w_input_user",[user_embed_size, size], dtype = dtype)
+                    w_input_item = tf.get_variable("w_input_item",[item_embed_size, size], dtype = dtype)
+                    user_embed_transform = tf.matmul(user_embed, w_input_user)
+
+                    for i in xrange(buckets[-1]):
+                        name = "{}input{}".format(self.beam_prefix,i)
+                        item_embed, _ = self.embeddingAttribute.get_batch_item(name, concat = True)
+                        item_embed_transform = tf.matmul(item_embed, w_input_item)
+                        input_embed = user_embed_transform + item_embed_transform
+                        self.beam_inputs.append(input_embed)
+                else:
+                    user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,self.beam_prefix, concat = False, no_id = no_user_id)
+
+                    for i in xrange(buckets[-1]):
+                        name = "{}input{}".format(self.beam_prefix,i)
+                        item_embed, _ = self.embeddingAttribute.get_batch_item(name, concat = False)
+                        item_embed = tf.reduce_mean(item_embed, 0)
+                        input_embed = tf.reduce_mean([user_embed, item_embed], 0)
+                        self.beam_inputs.append(input_embed)
+
+                self.beam_step_outputs, self.beam_step_state = rnn.rnn(self.single_cell,self.beam_inputs,initial_state = self.before_state)
 
             with tf.variable_scope("beam_search"):
                 # operate: copy beam_step_state to after_state
@@ -272,7 +304,7 @@ class SeqModel(object):
             length = self.buckets[bucket_id]
             
             input_feed = {}            
-            (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = True, recommend = True)
+            (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = True, recommend = True, prefix = self.train_prefix)
             input_feed[self.sequence_length.name] = sequence_length
             
             output_feed = [self.final2before.ops]
@@ -299,7 +331,7 @@ class SeqModel(object):
                 input_feed[self.target_ids[l].name] = targets[l]
 
         #print(input_feed)
-        (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = forward_only, recommend = recommend, loss = self.loss, item_sampled_id2idx=item_sampled_id2idx)
+        (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = forward_only, recommend = recommend, loss = self.loss, item_sampled_id2idx=item_sampled_id2idx, prefix = self.train_prefix)
         if self.loss in ["warp", "mw"]:
             session.run(self.set_mask[self.loss], input_feed_warp)
         
@@ -332,7 +364,7 @@ class SeqModel(object):
 
         input_feed = {}
 
-        (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = True, recommend = True, loss = self.loss)
+        (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = True, recommend = True, loss = self.loss,prefix = self.train_prefix)
 
         # output_feed
         output_feed = {}
@@ -490,7 +522,7 @@ class SeqModel(object):
                                 x = bucket_outputs[i]
                                 ids = self.target_ids[i]
                                 bucket_outputs0.append(self.embeddingAttribute.get_prediction(x, pool='sampled', device=devices[2], output_feat=self.output_feat))
-                                t.append(self.embeddingAttribute.get_target_score(x, ids, device=devices[2]))
+                                t.append(self.embeddingAttribute.get_target_score(x, ids, self.train_prefix, device=devices[2]))
                             bucket_outputs = bucket_outputs0
 
                         outputs.append(bucket_outputs)
