@@ -307,7 +307,7 @@ def read_data(task, test = False):
             u_attr.num_features_mulhot = 0 
 
 
-        embAttr = embed_attribute.EmbeddingAttribute(u_attr, i_attr, FLAGS.batch_size, FLAGS.n_sampled, _buckets[-1], FLAGS.use_sep_item, item_ind2logit_ind, logit_ind2item_ind, devices=devices)
+        embAttr = embed_attribute.EmbeddingAttribute(u_attr, i_attr, FLAGS.n_sampled, _buckets[-1], FLAGS.use_sep_item, item_ind2logit_ind, logit_ind2item_ind, devices=devices)
 
         if FLAGS.loss in ["warp", 'mw']:
             prepare_warp(embAttr, seq_tr0, seq_va0)
