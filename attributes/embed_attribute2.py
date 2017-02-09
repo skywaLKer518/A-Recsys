@@ -583,7 +583,7 @@ class EmbeddingAttribute(object):
     target = tf.select(mask2, logits2, self.zero_logits['mw'])
     return tf.log(1 + tf.reduce_sum(tf.nn.relu(target), 1)) # scale or not??
 
-  def _prepare_warp_vars(self, loss= 'warp', mb):
+  def _prepare_warp_vars(self, loss= 'warp', mb=1):
     V = self.n_sampled if loss == 'mw' else self.logit_size
     # mb = self.batch_size
     self.idx_flattened0 = tf.range(0, mb) * V
