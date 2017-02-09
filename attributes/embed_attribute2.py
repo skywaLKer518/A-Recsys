@@ -69,6 +69,7 @@ class EmbeddingAttribute(object):
       self.i_biases2_cat, self.i_biases2_mulhot = self._embedded_bias(
         item_attributes, 'item_output', device=devices[-1])
     
+    # placeholders
     # input users
     self.u_indices = {}    
     self.i_indices = {}
@@ -209,7 +210,8 @@ class EmbeddingAttribute(object):
       logits = tf.transpose(tf.reduce_mean(innerps, 0))
     return logits
 
-  def get_target_score(self, latent, inds, mb, device='/gpu:0'):
+  def get_target_score(self, latent, inds, prefix, device='/gpu:0'):
+    mb = self.i_indices[prefix + 'input' + '_batch_size']
     item_emb_cat = self.item_embs2_cat if self.item_output else self.item_embs_cat
     i_biases_cat = self.i_biases2_cat if self.item_output else self.i_biases_cat
     item_embs_mulhot = self.item_embs2_mulhot if self.item_output else self.item_embs_mulhot
