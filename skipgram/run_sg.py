@@ -436,6 +436,11 @@ def recommend():
     Uinds = evaluation.get_uinds()
     N = len(Uinds)
     print("N = %d" % N)
+    Uinds = [p for p in Uinds if p in items_dev]
+    mylog("new N = {}, (reduced from original {})".format(len(Uinds), N))
+    if len(Uinds) < N:
+      evaluation.set_uinds(Uinds)
+    N = len(Uinds)
     rec = np.zeros((N, FLAGS.top_N_items), dtype=int)
     count = 0
     time_start = time.time()

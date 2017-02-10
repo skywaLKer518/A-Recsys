@@ -21,7 +21,7 @@ class Evaluation(object):
         return R
 
     def get_user_n(self):
-        return len(self.T)
+        return len(self.Uinds)
 
     def get_uids(self):
         return list(self.T.keys())

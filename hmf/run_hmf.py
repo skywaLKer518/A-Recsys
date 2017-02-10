@@ -75,6 +75,8 @@ tf.app.flags.DEFINE_float("user_sample", 1.0, "user sample rate.")
 tf.app.flags.DEFINE_integer("top_N_items", 100,
                             "number of items output")
 
+tf.app.flags.DEFINE_string("saverec", False, "")
+
 FLAGS = tf.app.flags.FLAGS
 
 def mylog(msg):
@@ -404,6 +406,11 @@ def recommend():
     mylog("SCORE_FORMAT: {} {} {} {} ".format(s1[0], s2[0], s3[0], s3[4]))
     mylog("METRIC_FORMAT1: {}".format(s4))
     mylog("METRIC_FORMAT2: {}".format(s5))
+    if FLAGS.saverec:
+      name_inds = os.path.join(FLAGS.train_dir, "indices.npy")
+      np.save(name_inds, rec)
+
+
   return
 
 def main(_):

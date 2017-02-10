@@ -32,3 +32,6 @@ class Evaluate(Evaluation):
         self.old = old
         self.combine_sub = combine_sub
         return
+
+    def set_uinds(self, uinds):
+        self.Uinds = uinds

@@ -16,3 +16,6 @@ mf/*.json
 raw_data/*/*
 baselines/*
 data/*
+*/*/*.npy
+*.npy
+*/*.npy
