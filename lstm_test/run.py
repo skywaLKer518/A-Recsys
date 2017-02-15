@@ -106,7 +106,6 @@ tf.app.flags.DEFINE_boolean("old_att", False, "tmp: use attribute_0.8.csv")
 
 tf.app.flags.DEFINE_integer("topk", 200,"the topk value")
 
-
 # for ensemble 
 tf.app.flags.DEFINE_boolean("ensemble", False, "to ensemble")
 tf.app.flags.DEFINE_string("ensemble_suffix", "", "multiple models suffix: 1,2,3,4,5")
@@ -114,6 +113,10 @@ tf.app.flags.DEFINE_string("ensemble_suffix", "", "multiple models suffix: 1,2,3
 # for beam_search
 tf.app.flags.DEFINE_boolean("beam_search", False, "to beam_search")
 tf.app.flags.DEFINE_integer("beam_size", 10,"the beam size")
+tf.app.flags.DEFINE_integer("beam_step", 3,"the beam step")
+tf.app.flags.DEFINE_boolean("print_beam", False, "to print beam info")
+tf.app.flags.DEFINE_boolean("no_repeat", False, "no repeat")
+
 
 
 FLAGS = tf.app.flags.FLAGS
@@ -727,9 +730,14 @@ def beam_search():
 
         log_it("Creating Model")
         model = create_model(sess, embAttr, START_ID, run_options, run_metadata)
+        log_it("before init_beam_decoder()")
         show_all_variables()
-        model.init_beam_decoder()
-        
+        model.init_beam_decoder(beam_size = FLAGS.beam_size, max_steps = FLAGS.beam_step)
+        model.init_beam_variables(sess)
+        log_it("after init_beam_decoder()")
+        show_all_variables()
+
+
         sess.run(model.dropoutRate.assign(1.0))
 
         start_id = 0
@@ -740,19 +748,100 @@ def beam_search():
         ite = dite.next_sequence(stop = True, recommend = True)
 
         n_total_user = len(uids)
-        n_recommended = 0
         uid2rank = {}
         for r, uid in enumerate(uids):
             uid2rank[uid] = r
         rec = np.zeros((n_total_user,FLAGS.topk), dtype = int)
-        rec_value = np.zeros((n_total_user,FLAGS.topk), dtype = float)
-        start = time.time()
+        
 
+    
+        i_sent = 0
         for users, inputs, positions, valids, bucket_id in ite:
-            print(inputs)
-            print(positions)
-            results = model.beam_step(sess, index=0, user_input = users, item_inputs = inputs, sequence_length = positions, bucket_id = bucket_id)
-            break
+            # user : [0]
+            # inputs: [[pad_id],[1],[2],[3],[pad_id],[pad_id]]
+            # positions: [3]
+
+            print("--- decoding {}/{} sent ---".format(i_sent, n_total_user))
+            i_sent += 1
+            users_beam = users * FLAGS.beam_size
+            last_history = inputs[positions[0]]
+            inputs_beam = [last_history * FLAGS.beam_size]
+            inputs[positions[0]] = list(inputs[0])
+            # inputs: [[pad_id],[1],[2],[pad_id],[pad_id],[pad_id]]
+            positions[0] -= 1
+            # positions:[2]
+            
+            scores = [0.0] * FLAGS.beam_size
+            sentences = [[] for x in xrange(FLAGS.beam_size)]
+            beam_parent = range(FLAGS.beam_size)
+
+            for i in xrange(FLAGS.beam_step):
+                if i == 0:
+                    top_value, top_index = model.beam_step(sess, index=i, user_input = users, item_inputs = inputs, sequence_length = positions, user_input_beam = users_beam, item_inputs_beam = inputs_beam)
+                else:
+                    top_value, top_index = model.beam_step(sess, index=i, user_input_beam = users_beam, item_inputs_beam = inputs_beam, beam_parent = beam_parent)
+                    
+
+                #print(top_value)
+                #print(top_index)
+                # expand
+                global_queue = []
+
+                if i == 0:
+                    nrow = 1
+                else:
+                    nrow = top_index[0].shape[0]
+
+                for row in xrange(nrow):
+                    for col in xrange(top_index[0].shape[1]):
+                        score = scores[row] + np.log(top_value[0][row,col])
+                        word_index = top_index[0][row,col]
+                        beam_index = row
+                        
+                        if FLAGS.no_repeat:
+                            if not word_index in sentences[beam_index]:
+                                global_queue.append((score, beam_index, word_index))
+                        else:
+                            global_queue.append((score, beam_index, word_index))                         
+
+                global_queue = sorted(global_queue, key = lambda x : -x[0])
+
+                inputs_beam = []
+                beam_parent = []
+                scores = []
+                temp_sentences = []
+
+                if FLAGS.print_beam:
+                    print("--------- Step {} --------".format(i))
+
+                for j, (score, beam_index, word_index) in enumerate(global_queue[:FLAGS.beam_size]):
+                    if FLAGS.print_beam:
+                        print("Beam:{} Father:{} word:{} score:{}".format(j,beam_index,word_index,score))
+                    beam_parent.append(beam_index)
+                    inputs_beam.append(word_index)
+                    scores.append(score)
+                    temp_sentences.append(sentences[beam_index] + [word_index])
+                    
+                inputs_beam = [inputs_beam]
+                sentences = temp_sentences
+
+            if FLAGS.print_beam:
+                print(sentences)
+
+            uid = users[0]
+            rank = uid2rank[uid]
+            rec[rank,:] = sentences[0]
+            
+            
+        R = evaluation.gen_rec(rec, FLAGS.recommend_new)
+        evaluation.eval_on(R)
+        s1, s2, s3, s4, s5 = evaluation.get_scores()
+        log_it('scores: \n\t{}\n\t{}\n\t{}\n'.format(s1, s2, s3))
+
+        log_it("SCORE_FORMAT: {} {} {}".format(s1[0], s2[0], s3[0]))
+        log_it("METRIC_FORMAT1: {}".format(s4))
+        log_it("METRIC_FORMAT2: {}".format(s5))
+        
 
         
     
@@ -771,6 +860,8 @@ def main(_):
     if FLAGS.beam_search:
         FLAGS.batch_size = 1
         FLAGS.n_bucket = 1
+        log_path = os.path.join(FLAGS.train_dir,"log.beam_search.txt.{}".format(FLAGS.topk))
+        logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode ="w")
         beam_search()
         return 
 

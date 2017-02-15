@@ -82,7 +82,9 @@ class SeqModel(object):
         self.output_feat = output_feat
         self.topk_n = topk_n
         self.dtype = dtype
-
+        self.use_concat = use_concat
+        self.no_user_id = no_user_id
+        self.num_layers = num_layers
         with tf.device(devices[0]):
             self.dropoutRate = tf.Variable(
                 float(dropoutRate), trainable=False, dtype=dtype)        
@@ -97,7 +99,7 @@ class SeqModel(object):
         with tf.device(devices[1]):
             single_cell = tf.nn.rnn_cell.LSTMCell(size, state_is_tuple=True)
             single_cell = rnn_cell.DropoutWrapper(single_cell,input_keep_prob = self.dropoutRate)
-            if num_layers >= 1:
+            if num_layers > 1:
                 single_cell = tf.nn.rnn_cell.MultiRNNCell([single_cell] * num_layers, state_is_tuple=True)
             single_cell = rnn_cell.DropoutWrapper(single_cell, output_keep_prob = self.dropoutRate)
         
@@ -129,7 +131,7 @@ class SeqModel(object):
             self.train_prefix = ""
             self.embeddingAttribute.prepare_placeholder(self.batch_size,self.train_prefix)
 
-            if use_concat:
+            if self.use_concat:
                 user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,self.train_prefix,concat = True, no_id = no_user_id)
                 user_embed_size = self.embeddingAttribute.get_user_model_size(
                     no_id = no_user_id, concat = True)
@@ -195,6 +197,9 @@ class SeqModel(object):
         self.beam_size = beam_size
 
         init_state = self.single_cell.zero_state(1, self.dtype)
+        if self.num_layers == 1:
+            init_state = [init_state]
+
         self.before_state = []
         self.after_state = []
         print(init_state)
@@ -220,7 +225,11 @@ class SeqModel(object):
                 
                 # the final_state after processing the start state 
             with tf.variable_scope("",reuse=True):
-                _, self.beam_final_state = rnn.rnn(self.single_cell,self.inputs,initial_state = init_state, sequence_length = self.sequence_length)
+                if len(init_state) == 1:
+                    _, beam_final_state = rnn.rnn(self.single_cell,self.inputs,initial_state = init_state[0], sequence_length = self.sequence_length)
+                    self.beam_final_state = [beam_final_state]
+                else:
+                    _, self.beam_final_state = rnn.rnn(self.single_cell,self.inputs,initial_state = init_state, sequence_length = self.sequence_length)
                 
             with tf.variable_scope("beam_search"):
                 # copy the final_state to before_state
@@ -256,33 +265,37 @@ class SeqModel(object):
                 self.beam_prefix = "beam"
                 self.embeddingAttribute.prepare_placeholder(self.beam_size,self.beam_prefix)
 
-                if use_concat:
-                    user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,self.beam_prefix,concat = True, no_id = no_user_id)
+                if self.use_concat:
+                    user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,self.beam_prefix,concat = True, no_id = self.no_user_id)
                     user_embed_size = self.embeddingAttribute.get_user_model_size(
-                        no_id = no_user_id, concat = True)
+                        no_id = self.no_user_id, concat = True)
                     item_embed_size = self.embeddingAttribute.get_item_model_size(
                         concat=True)
                     w_input_user = tf.get_variable("w_input_user",[user_embed_size, size], dtype = dtype)
                     w_input_item = tf.get_variable("w_input_item",[item_embed_size, size], dtype = dtype)
                     user_embed_transform = tf.matmul(user_embed, w_input_user)
 
-                    for i in xrange(buckets[-1]):
+                    for i in xrange(1): # only one step 
                         name = "{}input{}".format(self.beam_prefix,i)
                         item_embed, _ = self.embeddingAttribute.get_batch_item(name, concat = True)
                         item_embed_transform = tf.matmul(item_embed, w_input_item)
                         input_embed = user_embed_transform + item_embed_transform
                         self.beam_inputs.append(input_embed)
                 else:
-                    user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,self.beam_prefix, concat = False, no_id = no_user_id)
+                    user_embed, _ = self.embeddingAttribute.get_batch_user(1.0,self.beam_prefix, concat = False, no_id = self.no_user_id)
 
-                    for i in xrange(buckets[-1]):
+                    for i in xrange(1):
                         name = "{}input{}".format(self.beam_prefix,i)
                         item_embed, _ = self.embeddingAttribute.get_batch_item(name, concat = False)
                         item_embed = tf.reduce_mean(item_embed, 0)
                         input_embed = tf.reduce_mean([user_embed, item_embed], 0)
                         self.beam_inputs.append(input_embed)
 
-                self.beam_step_outputs, self.beam_step_state = rnn.rnn(self.single_cell,self.beam_inputs,initial_state = self.before_state)
+                if len(self.before_state) == 1:
+                    self.beam_step_outputs, beam_step_state = rnn.rnn(self.single_cell,self.beam_inputs,initial_state = self.before_state[0])
+                    self.beam_step_state = [beam_step_state]
+                else:
+                    self.beam_step_outputs, self.beam_step_state = rnn.rnn(self.single_cell,self.beam_inputs,initial_state = self.before_state)
 
             with tf.variable_scope("beam_search"):
                 # operate: copy beam_step_state to after_state
@@ -292,29 +305,74 @@ class SeqModel(object):
                     copy_h = self.after_state[i].h.assign(self.beam_step_state[i].h)
                     self.beam2after_ops.append(copy_c)
                     self.beam2after_ops.append(copy_h)
+
+            self.beam_step_outputs_full_logits = [self.embeddingAttribute.get_prediction(x, device=self.devices[0], output_feat=self.output_feat) for x in self.beam_step_outputs]
+            self.beam_top_value = []
+            self.beam_top_index = []
+            for full_logits in self.beam_step_outputs_full_logits:
+                value, index = tf.nn.top_k(tf.nn.softmax(full_logits), self.beam_size, sorted = True)
+                self.beam_top_value.append(value)
+                self.beam_top_index.append(index)
+
+
+
     
+    def init_beam_variables(self,session):
+        all_vars = tf.all_variables()
+        beam_vars_inits = []
+        for var in all_vars:
+            if var.name.startswith("beam_search"):
+                beam_vars_inits.append(var.initializer)
+        session.run(beam_vars_inits)
 
     def show_before_state(self):
-        for i in xrange(self.before_state):
+        print("before_state")
+        for i in xrange(len(self.before_state)):
             print(self.before_state[i].c.eval())
             print(self.before_state[i].h.eval())
 
-    def beam_step(self, session, index = 0, beam_input = None, user_input=None, item_inputs=None,sequence_length = None, bucket_id = 0):
-        if index == 0:
-            length = self.buckets[bucket_id]
-            
+    def show_after_state(self):
+        print("after_state")
+        for i in xrange(len(self.after_state)):
+            print(self.after_state[i].c.eval())
+            print(self.after_state[i].h.eval())
+
+
+
+    def beam_step(self, session, index = 0, beam_input = None, user_input=None, item_inputs=None,sequence_length = None, user_input_beam = None, item_inputs_beam = None, beam_parent = None, bucket_id = 0):
+
+        if index == 0:            
+            # go through the history by LSTM 
             input_feed = {}            
             (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = True, recommend = True, prefix = self.train_prefix)
             input_feed[self.sequence_length.name] = sequence_length
             
-            output_feed = [self.final2before.ops]
+            output_feed = []
+            output_feed += self.final2before_ops
             
-            self.show_before_state()
             _ = session.run(output_feed, input_feed)
-            self.show_before_state()
-
+            
         else:
-            pass
+            # copy the after_state to before states
+            input_feed = {}
+            input_feed[self.beam_parent.name] = beam_parent
+            output_feed = []
+            output_feed += self.after2before_ops
+            _ = session.run(output_feed, input_feed)
+        # Run one step of RNN
+        input_feed = {}
+
+        (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input_beam, item_inputs_beam, forward_only = True, recommend = True, prefix = self.beam_prefix)
+
+        output_feed = {}
+        output_feed['value'] = self.beam_top_value
+        output_feed['index'] = self.beam_top_index
+        output_feed['ops'] = self.beam2after_ops
+
+        outputs = session.run(output_feed,input_feed)
+        
+        return outputs['value'], outputs['index']
+
 
 
     def step(self,session, user_input, item_inputs, targets, target_weights, 
@@ -496,7 +554,9 @@ class SeqModel(object):
         outputs_full = []
         topk_values = []
         topk_indexes = []
+        
         softmax_loss_function = lambda x,y: self.embeddingAttribute.compute_loss(x ,y, loss=self.loss, device = devices[2])
+        self.softmax_loss_function = softmax_loss_function
 
         with tf.device(devices[1]):
             init_state = cell.zero_state(self.batch_size, dtype)
