@@ -1,6 +1,6 @@
 import numpy as np
 
-def metrics(X, T, Ns=[2,5,10,20,30], metrics=['prec', 'recall', 'map', 'ndcg']):
+def metrics(X, T, Ns=[1,2,5,10,20,30], metrics=['prec', 'recall', 'map', 'ndcg']):
   n_users = float(len(T))
   N_pos = len(Ns)
   funcs = {'prec':PRECISION, 'recall':RECALL, 'map':MAP, 'ndcg':NDCG}
@@ -28,7 +28,7 @@ def metrics(X, T, Ns=[2,5,10,20,30], metrics=['prec', 'recall', 'map', 'ndcg']):
       res[m][i] = res[m][i] / n_users
   return res
 
-def PRECISION(X, T, Ns=[2,5,10,20,30], cumsum_x=None):
+def PRECISION(X, T, Ns=[1,2,5,10,20,30], cumsum_x=None):
     ''' return PRECISION@N '''
     # assert(Ns[-1] <= len(X))
     l = len(cumsum_x)
@@ -37,7 +37,7 @@ def PRECISION(X, T, Ns=[2,5,10,20,30], cumsum_x=None):
     
     return [cumsum_x[min(n-1, l-1)] * 1.0 / min(n,l)  for n in Ns]
 
-def RECALL(X, T, Ns=[2,5,10,20,30], cumsum_x=None):
+def RECALL(X, T, Ns=[1,2,5,10,20,30], cumsum_x=None):
     ''' return RECALL@N '''
     # assert (len(T) > 0)
     n_t = len(T)
@@ -48,7 +48,7 @@ def RECALL(X, T, Ns=[2,5,10,20,30], cumsum_x=None):
     return [cumsum_x[min(n-1, l-1)] * 1.0 / n_t for n in Ns]
 
 
-def MAP(X, T, Ns=[2,5,10,20,30], cumsum_x=None):
+def MAP(X, T, Ns=[1,2,5,10,20,30], cumsum_x=None):
     ''' return MAP@N N = 2, 5, 10, 20, 30 '''
     l = len(X)
     if l == 0:
@@ -60,7 +60,7 @@ def MAP(X, T, Ns=[2,5,10,20,30], cumsum_x=None):
 
 N_max = 30
 discounts = [1.0 / np.log2(2+n) for n in range(N_max)]
-def NDCG(X, T, Ns=[2,5,10,20,30], cumsum_x=None):
+def NDCG(X, T, Ns=[1,2,5,10,20,30], cumsum_x=None):
     ''' return NDCG@N N = 2, 5, 10, 20, 30 '''
     l = len(X)
     if l == 0:

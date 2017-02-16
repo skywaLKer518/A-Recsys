@@ -265,6 +265,7 @@ def read_data(task, test = False):
 
     # UNK and START
     START_ID = i_attr.get_item_last_index()
+    log_it("START_ID: {}".format(START_ID))
     item_ind2logit_ind[START_ID] = 0
     seq_all = form_sequence(data_tr,maxlen = FLAGS.L)
     seq_tr0, seq_va0 = split_train_dev(seq_all,ratio=0.05)
@@ -616,6 +617,9 @@ def recommend():
 
         for users, inputs, positions, valids, bucket_id in ite:
 
+            #print(users,inputs,positions)
+            
+
             results = model.step_recommend(sess, users, inputs, positions, bucket_id)
             
             for i, valid in enumerate(valids):
@@ -627,7 +631,12 @@ def recommend():
                     rank= uid2rank[uid]
                     rec[rank,:] = topk_indexes                
                     rec_value[rank,:] = topk_values
+
+                    #print(topk_indexes)
+                    #print(topk_values)
+
             n_steps += 1
+            
             
         end = time.time()
         log_it("Time used {} sec for {} steps {} users ".format(end-start, n_steps, n_recommended))
@@ -751,7 +760,7 @@ def beam_search():
         uid2rank = {}
         for r, uid in enumerate(uids):
             uid2rank[uid] = r
-        rec = np.zeros((n_total_user,FLAGS.topk), dtype = int)
+        rec = np.zeros((n_total_user,FLAGS.beam_step), dtype = int)
         
 
     
@@ -762,18 +771,22 @@ def beam_search():
             # positions: [3]
 
             print("--- decoding {}/{} sent ---".format(i_sent, n_total_user))
+
+
             i_sent += 1
             users_beam = users * FLAGS.beam_size
             last_history = inputs[positions[0]]
             inputs_beam = [last_history * FLAGS.beam_size]
             inputs[positions[0]] = list(inputs[0])
             # inputs: [[pad_id],[1],[2],[pad_id],[pad_id],[pad_id]]
-            positions[0] -= 1
+            #positions[0] -= 1
             # positions:[2]
             
             scores = [0.0] * FLAGS.beam_size
             sentences = [[] for x in xrange(FLAGS.beam_size)]
             beam_parent = range(FLAGS.beam_size)
+
+            #print(users,inputs,positions)
 
             for i in xrange(FLAGS.beam_step):
                 if i == 0:
@@ -781,7 +794,8 @@ def beam_search():
                 else:
                     top_value, top_index = model.beam_step(sess, index=i, user_input_beam = users_beam, item_inputs_beam = inputs_beam, beam_parent = beam_parent)
                     
-
+        
+                
                 #print(top_value)
                 #print(top_index)
                 # expand
@@ -831,6 +845,7 @@ def beam_search():
             uid = users[0]
             rank = uid2rank[uid]
             rec[rank,:] = sentences[0]
+            #print(uid, rank)
             
             
         R = evaluation.gen_rec(rec, FLAGS.recommend_new)
@@ -841,9 +856,14 @@ def beam_search():
         log_it("SCORE_FORMAT: {} {} {}".format(s1[0], s2[0], s3[0]))
         log_it("METRIC_FORMAT1: {}".format(s4))
         log_it("METRIC_FORMAT2: {}".format(s5))
-        
 
-        
+        # save the one matrix
+        np.save(os.path.join(FLAGS.train_dir,"top{}_index.beam.npy".format(FLAGS.topk)),rec)
+
+
+def show_flags():
+
+    return repr(FLAGS.__dict__)
     
 
 def main(_):
@@ -862,6 +882,7 @@ def main(_):
         FLAGS.n_bucket = 1
         log_path = os.path.join(FLAGS.train_dir,"log.beam_search.txt.{}".format(FLAGS.topk))
         logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode ="w")
+        log_it(show_flags())
         beam_search()
         return 
 
@@ -870,12 +891,14 @@ def main(_):
         # log_path = os.path.join(FLAGS.train_dir+suffixes[0],"log.ensemble.txt.{}".format(FLAGS.topk))
         log_path = os.path.join(FLAGS.train_dir.replace('seed', 'seed'+suffixes[0]),"log.ensemble.txt.{}".format(FLAGS.topk))
         logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode ="w")
+        log_it(show_flags())
         ensemble()
         return 
 
     if FLAGS.recommend:
         log_path = os.path.join(FLAGS.train_dir,"log.recommend.txt.{}".format(FLAGS.topk))
         logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode ="w")
+        log_it(show_flags())
         recommend()
         return 
     else:
@@ -886,6 +909,7 @@ def main(_):
         else:
             filemode = "a"
         logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode = filemode)
+        log_it(show_flags())
         train()
     
 if __name__ == "__main__":

@@ -349,8 +349,8 @@ class SeqModel(object):
             
             output_feed = []
             output_feed += self.final2before_ops
-            
             _ = session.run(output_feed, input_feed)
+
             
         else:
             # copy the after_state to before states
