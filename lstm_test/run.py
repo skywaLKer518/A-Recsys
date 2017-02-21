@@ -880,7 +880,7 @@ def main(_):
     if FLAGS.beam_search:
         FLAGS.batch_size = 1
         FLAGS.n_bucket = 1
-        log_path = os.path.join(FLAGS.train_dir,"log.beam_search.txt.{}".format(FLAGS.topk))
+        log_path = os.path.join(FLAGS.train_dir,"log.beam_search.txt.{}".format(FLAGS.beam_step))
         logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode ="w")
         log_it(show_flags())
         beam_search()
