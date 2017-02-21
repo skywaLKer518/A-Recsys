@@ -86,6 +86,7 @@ tf.app.flags.DEFINE_boolean("profile", False, "False = no profile, True = profil
 tf.app.flags.DEFINE_boolean("use_sep_item", False, "use separate embedding parameters for output items.")
 tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
+tf.app.flags.DEFINE_boolean("no_input_item_feature", False, "not using attributes at input layer")
 tf.app.flags.DEFINE_boolean("use_concat", False, "use concat or mean")
 tf.app.flags.DEFINE_boolean("no_user_id", True, "use user id or not")
 
@@ -334,6 +335,7 @@ def create_model(session,embAttr,START_ID, run_options, run_metadata):
                      use_concat = FLAGS.use_concat,
                      no_user_id=FLAGS.no_user_id,
                      output_feat = FLAGS.output_feat,
+                     no_input_item_feature = FLAGS.no_input_item_feature,
                      topk_n = FLAGS.topk,
                      run_options = run_options,
                      run_metadata = run_metadata

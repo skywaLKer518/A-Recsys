@@ -206,6 +206,7 @@ class EmbeddingAttribute(object):
     return logits
 
   def get_target_score(self, latent, inds, device='/gpu:0'):
+    ''' TODO: max-pooling bug'''
     item_emb_cat = self.item_embs2_cat if self.item_output else self.item_embs_cat
     i_biases_cat = self.i_biases2_cat if self.item_output else self.i_biases_cat
     item_embs_mulhot = self.item_embs2_mulhot if self.item_output else self.item_embs_mulhot
@@ -236,18 +237,20 @@ class EmbeddingAttribute(object):
     return embedded_user, user_b  
 
   def get_batch_item(self, name, batch_size, concat=False, keep_prob=1.0, 
-    device='/gpu:0'):
+    no_attribute = False, device='/gpu:0'):
     assert(name in self.i_indices)
     assert(keep_prob == 1.0), 'otherwise not implemented'
     i_inds = self.i_indices[name]
     if concat:
       return self._get_embedded(self.item_embs_cat, self.item_embs_mulhot, 
         self.i_biases_cat, self.i_biases_mulhot, i_inds, batch_size, 
-        self.item_attributes, 'item', True, device=device)
+        self.item_attributes, 'item', True, 
+        no_attribute=no_attribute, device=device)
     else:
       item_cat, item_mulhot, item_b = self._get_embedded(self.item_embs_cat, 
         self.item_embs_mulhot, self.i_biases_cat, self.i_biases_mulhot, i_inds,
-        batch_size, self.item_attributes, 'item', False, device=device)
+        batch_size, self.item_attributes, 'item', False, 
+        no_attribute=no_attribute, device=device)
       return item_cat + item_mulhot, item_b
 
   def get_sampled_item(self, n_sampled, device='/gpu:0'):
@@ -346,7 +349,7 @@ class EmbeddingAttribute(object):
 
   def _get_embedded(self, embs_cat, embs_mulhot, b_cat, b_mulhot, 
     inds, mb, attributes, prefix='', concatenation=True, no_id=False, 
-    device='/gpu:0'):
+    no_attribute=False, device='/gpu:0'):
     cat_list, mulhot_list = [], []
     bias_cat_list, bias_mulhot_list = [], []
     with tf.device(device):
@@ -362,7 +365,10 @@ class EmbeddingAttribute(object):
         else:
           return cat_list, [], bias
 
-      for i in xrange(attributes.num_features_cat):
+      n1 = 1 if no_attribute else attributes.num_features_cat
+      n2 = 0 if no_attribute else attributes.num_features_mulhot
+
+      for i in xrange(n1):
         if no_id and i == 0:
           continue
         cat_indices = lookup(self.att[prefix][0][i], inds)
@@ -373,7 +379,7 @@ class EmbeddingAttribute(object):
           b = lookup(b_cat[i], cat_indices, 
             name = 'emb_lookup_item_b_{0}'.format(i))
           bias_cat_list.append(b)
-      for i in xrange(attributes.num_features_mulhot):
+      for i in xrange(n2):
         begin_ = lookup(self.att[prefix][2][i], inds)
         size_ = lookup(self.att[prefix][3][i], inds)
         # mulhot_indices, mulhot_segids = batch_slice_segids(

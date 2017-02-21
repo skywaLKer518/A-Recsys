@@ -44,6 +44,7 @@ class SeqModel(object):
                  run_metadata = None,
                  use_concat = True,
                  output_feat = 1,
+                 no_input_item_feature = False,
                  no_user_id = True,
                  topk_n = 30,
                  dtype=tf.float32):
@@ -80,6 +81,7 @@ class SeqModel(object):
         self.run_options = run_options
         self.run_metadata = run_metadata
         self.output_feat = output_feat
+        self.no_input_item_feature = no_input_item_feature
         self.topk_n = topk_n
         with tf.device(devices[0]):
             self.dropoutRate = tf.Variable(
@@ -135,7 +137,7 @@ class SeqModel(object):
                 for i in xrange(buckets[-1]):
                     name = "input{}".format(i)
                     item_embed, _ = self.embeddingAttribute.get_batch_item(name,
-                        self.batch_size, concat = True)
+                        self.batch_size, concat = True, no_attribute=self.no_input_item_feature)
                     item_embed_transform = tf.matmul(item_embed, w_input_item)
                     input_embed = user_embed_transform + item_embed_transform
                     self.inputs.append(input_embed)
@@ -145,7 +147,7 @@ class SeqModel(object):
                 for i in xrange(buckets[-1]):
                     name = "input{}".format(i)
                     item_embed, _ = self.embeddingAttribute.get_batch_item(name,
-                        self.batch_size, concat = False)
+                        self.batch_size, concat = False, no_attribute=self.no_input_item_feature)
                     item_embed = tf.reduce_mean(item_embed, 0)
                     input_embed = tf.reduce_mean([user_embed, item_embed], 0)
                     self.inputs.append(input_embed)
