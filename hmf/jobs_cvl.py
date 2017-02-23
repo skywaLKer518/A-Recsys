@@ -1,7 +1,7 @@
 import os
 import sys
 
-head="""
+head_cvl="""
 #!/bin/bash
 
 hostname
@@ -19,13 +19,61 @@ data_ml_part=/nfs/isicvlnas01/users/liukuan/recsys/data/data_ml_part
 data_ml=/nfs/isicvlnas01/users/liukuan/recsys/data/data_ml
 data_part=/nfs/isicvlnas01/users/liukuan/recsys/data/data_part
 data_full=/nfs/isicvlnas01/users/liukuan/recsys/data/data_full
+data_ml1m=/nfs/isicvlnas01/users/liukuan/recsys/data/data_ml1m/
+data_yelp=/nfs/isicvlnas01/users/liukuan/recsys/data/yelp/
 train_dir=/nfs/isicvlnas01/users/liukuan/recsys/train/
 log_dir=/nfs/isicvlnas01/users/liukuan/recsys/train/log/
 
 __cmd__
 """
 
-def main():
+head_hpc2="""
+#!/bin/bash
+#PBS -l walltime=23:59:59
+#PBS -l nodes=1:ppn=16:gpus=2:shared
+#PBS -M kuanl@usc.edu -p 1023
+
+
+source /usr/usc/cuda/8.0/setup.sh
+cd /home/rcf-proj/pn3/kuanl/recsys/hmf/
+
+data_part=/home/rcf-proj/pn3/kuanl/recsys/data/data_part/
+data_full=/home/rcf-proj/pn3/kuanl/recsys/data/data_full/
+data_full07=/home/rcf-proj/pn3/kuanl/recsys/data/data_full0.7/
+data_full03=/home/rcf-proj/pn3/kuanl/recsys/data/data_full0.3/
+data_ml=/home/rcf-proj/pn3/kuanl/recsys/data/data_ml/
+data_ml1m=/home/rcf-proj/pn3/kuanl/recsys/data/data_ml1m/
+data_yelp=/home/rcf-proj/pn3/kuanl/recsys/data/yelp/
+train_dir=/home/rcf-proj/pn3/kuanl/recsys/train/
+
+__cmd__
+"""
+
+head_hpc3="""
+#!/bin/bash
+#PBS -q isi
+#PBS -l walltime=300:00:00
+#PBS -l nodes=1:ppn=16:gpus=2:shared
+
+
+source /usr/usc/cuDNN/7.5-v5.1/setup.sh
+source /usr/usc/cuda/8.0/setup.sh
+# export CUDA_VISIBLE_DEVICES=$1
+cd /home/nlg-05/xingshi/lstm/tensorflow/recsys/hmf/
+
+data_part=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_part
+data_full=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_full
+data_full07=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_full0.7
+data_full03=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_full0.3
+data_ml=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_ml
+data_ml1m=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_ml1m/
+data_yelp=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/yelp/
+train_dir=/home/nlg-05/xingshi/lstm/tensorflow/recsys/train/
+
+__cmd__
+"""
+
+def main(acct=0):
     
     def data_dir(val):
         return "", "--data_dir {}".format(val)
@@ -87,8 +135,25 @@ def main():
         elif val == 'random':
             return 'sa_r', '--sample_type {}'.format(val)
 
-    funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size, n_sampled, n_resample, ta, sampling]
-    
+    def wFeat(val):
+        if val:
+            return '', ''
+        else:
+            return 'woF', '--use_user_feature False --use_item_feature False'
+
+    def test(val):
+        if val:
+            return 't_t', '--test True'
+        else:
+            return '', ''
+
+    def epoch(val):
+        return 'n{}'.format(val), '--n_epoch {}'.format(val)
+
+    # XING
+    # funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size, ta, epoch, test]
+    # template = ["xing", "$data_full", 64, 32, 0.5, 20, 'ce', 4000, 50000, 0, 33, True]
+
     # ml
     # template = ["ml", "$data_ml", 64, 32, 0.5, 0.1, 'warp', 4000, 13000, 1024, 100, 0, 'random']
     # paras = []
@@ -112,20 +177,39 @@ def main():
     #         temp[5] = lr
     #         paras.append(temp)
 
-    template = ["xing", "$data_part", 64, 32, 0.5, 0.1, 'warp', 4000, 50000, 1024, 100, 1, 'random']
-    _lr = [1, 5, 8, 10]
-    _s = ['random', 'permute']
+    # template = ["xing", "$data_part", 64, 32, 0.5, 0.1, 'warp', 4000, 50000, 1024, 100, 1, 'random']
+    
+    funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size, ta, epoch, test]
+    template = ["ml1m", "$data_ml1m", 64, 32, 0.5, 0.1, 'warp', 2000, 3100, 0, 307, True]
+
+    # yelp
+    # funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size,  ta]
+    # template = ["yelp", "$data_yelp", 64, 32, 0.5, 0.1, 'ce', 4000, 80000, 0]
+
+    # yelp no features
+    # funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size,  ta, wFeat]
+    # template = ["yelp", "$data_yelp", 64, 32, 0.5, 0.1, 'ce', 4000, 80000, 0, False]
+
+    # yelp test warp
+    # funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size,  ta, epoch, test]
+    # template = ["yelp", "$data_yelp", 64, 32, 0.5, 0.1, 'ce', 4000, 80000, 0, 26, True]    
+    
+    _lr = [0.1]
+    _s = [32]
+    _loss = ['ce']
     paras = []
     for s in _s:
         for lr in _lr:
-            temp = list(template)
-            temp[5] = lr
-            temp[-1] = s
-            paras.append(temp)
+            for L in _loss:
+                temp = list(template)
+                temp[5] = lr
+                temp[3] = s
+                temp[6] = L
+                paras.append(temp)
 
 
     def get_name_cmd(para):
-        name = ""
+        name = "hmf_"
         cmd = []
         for func, para in zip(funcs,para):
             n, c = func(para)
@@ -139,10 +223,21 @@ def main():
         cmd = " ".join(cmd)
         return name, cmd
 
+    if acct == 0: # isicvl
+        head = head_cvl
+    elif acct == 1:
+        head = head_hpc2 # kuanl
+    else:
+        head = head_hpc3 # xing hpc
+
     # train
     for para in paras:
         name, cmd = get_name_cmd(para)
-        cmd = "/nfs/isicvlnas01/share/anaconda/bin/python run_hmf.py " + cmd
+        if acct == 0:
+            cmd = "/nfs/isicvlnas01/share/anaconda/bin/python run_hmf.py " + cmd
+        else:
+            cmd = "python run_hmf.py " + cmd
+
         fn = "../jobs/{}.sh".format(name)
         f = open(fn,'w')
         content = head.replace("__cmd__",cmd)
@@ -150,23 +245,45 @@ def main():
         f.close()
         
     # recommend
-    batch_job_name = 'xing_recommend_h32_compare_sampling'
+    # batch_job_name = 'xing_recommend_h32_compare_sampling'
+    # batch_job_name = 'ml1m_recommend_ce_h_lr'
+    # batch_job_name = 'ml1m_recommend_loss_h16_lr'
+    # batch_job_name = 'yelp_hmf_recommend_ce_h32_lr'
+    # batch_job_name = 'yelp_hmf_recommend_warp_h_lr'
+    # batch_job_name = 'yelp_hmf_recommend_ce_h16_lr'
+    # batch_job_name = 'yelp_hmf_recommend_ce_h_lr_wof'
+    # batch_job_name = 'yelp_hmf_recommend_warp_test1'
+    # batch_job_name = 'xing_hmf_recommend_warp_test1'
+    # batch_job_name = 'xing_hmf_recommend_ce_test1'
+    # batch_job_name = 'ml1m_hmf_recommend_warp_test1'
+    batch_job_name = 'ml1m_hmf_recommend_ce_test1'
+
     cmds = ''
     for para in paras:
         name, cmd = get_name_cmd(para)
-        cmd = "/nfs/isicvlnas01/share/anaconda/bin/python run_hmf.py " + cmd + ' --recommend True'
+        if acct == 0:
+            cmd = "/nfs/isicvlnas01/share/anaconda/bin/python run_hmf.py " + cmd + ' --recommend True'
+        else:
+            cmd = "python run_hmf.py " + cmd + ' --recommend True'
         cmds += cmd + '\n'
         
     fn = "../jobs/{}.sh".format(batch_job_name)
     f = open(fn,'w')
     content = head.replace("__cmd__",cmds)
+    content = content.replace("23:59:59", "0:59:59")
     f.write(content)
     f.close()
 
 if __name__ == "__main__":
-    main()
 
-    
+    if len(sys.argv) > 1 and int(sys.argv[1]) == 1: # hpc Kuan
+        main(1)
+    elif len(sys.argv) > 1 and int(sys.argv[1]) == 2: # hpc xing
+        main(2)
+    elif len(sys.argv) > 1 and int(sys.argv[1]) == 3: # i80
+        main(3)        
+    else:
+        main()    
 
     
     

@@ -19,3 +19,6 @@ data/*
 */*/*.npy
 *.npy
 */*.npy
+res/*
+tmp/*
+others/*

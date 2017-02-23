@@ -194,6 +194,12 @@ def randseed(val):
 def output_feat(val):
     return 'oa{}'.format(val), '--output_feat {}'.format(val)
 
+def no_input_feat(val):
+    if val:
+        return 'noi', '--no_input_item_feature True'
+    else:
+        return '', '--no_input_item_feature False'
+
 def test(val):
     if val == False:
         return '', '--test False'
@@ -231,7 +237,13 @@ def setting1():
     # template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "000",False,'xing',50000, False, True, False, True, 0, False, False, ""]
     
     # ML-1m 
-    template = ["$data_ml1m", 64, 128, 0.5, 0.5, 200, "warp", 0, 1, 50, "001",False,'ml1m',3100, False, True, True, True, 0, True, False, ""]
+    # template = ["$data_ml1m", 64, 128, 0.5, 0.5, 200, "warp", 0, 1, 50, "001",False,'ml1m',3100, False, True, True, True, 0, True, False, ""]
+    
+    # # yelp, oF
+    template = ["$data_yelp", 32, 128, 0.6, 0.5, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, False, True, 0, True, False, ""]
+
+    # XING with test, no feature or yes feature; not output (OF)
+    # template = ["$data_full", 64, 256, 0.5, 0.5, 250, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 0, True, False, ""]
     params = []
 
     for _seed in xrange(1,9):
@@ -270,24 +282,40 @@ def setting2():
     #          output_feat, user_sample]
 
     # output_feat
+    # funcs = [data_dir, batch_size, size,       #3
+    #          dropout, learning_rate, n_epoch,  #6
+    #          loss, ta, num_layers,             #9
+    #          L, N, use_concat,                 #12
+    #          dataset, item_vocab_size, fromScratch, #15
+    #          no_user_id, use_out_items, wFeat, #18
+    #          output_feat, test]
+
+    # input item feat
     funcs = [data_dir, batch_size, size,       #3
              dropout, learning_rate, n_epoch,  #6
              loss, ta, num_layers,             #9
              L, N, use_concat,                 #12
              dataset, item_vocab_size, fromScratch, #15
              no_user_id, use_out_items, wFeat, #18
-             output_feat, test]
-
-    
-
-    # XING sep-out-feat, output_feat
-    # template = ["$data_full", 64, 256, 0.4, 1.0, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, True, True, 0]
+             no_input_feat, output_feat, test]
 
     # yelp
     # template = ["$data_yelp", 32, 256, 0.4, 1.0, 150, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, True, True, 1, True]
 
     # yelp, oF
     # template = ["$data_yelp", 32, 256, 0.4, 1.0, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, False, True, 1, True]
+
+    # yelp, oT
+    # template = ["$data_yelp", 32, 128, 0.6, 1.0, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, True, True, 0, True]
+
+    # # yelp, oT/oF, oa0
+    # template = ["$data_yelp", 32, 128, 0.6, 1.0, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, True, True, 0, True]
+
+    # yelp, oT/oF, oa1, noi
+    template = ["$data_yelp", 32, 128, 0.5, 1.0, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, True, True, True, 1, True]
+
+    # XING sep-out-feat, output_feat
+    # template = ["$data_full", 64, 256, 0.4, 1.0, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, True, True, 0]    
 
     # part of users
     # template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 1, 0.3]
@@ -308,37 +336,49 @@ def setting2():
     # template_ml = ["$data_ml", 64, 128, 0.5, 0.5, 150, "ce", 0, 1, 40, "001",False,'ml',13000, False, True, False, False, 1]
     # template_ml = ["$data_ml", 64, 128, 0.5, 0.5, 150, "ce", 0, 1, 40, "001",False,'ml',13000, False, True, True, False, 1]
 
-    # # xing, with test
+    
+    # XING, with test
     # template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 1, True]
-    # XING with test, no feature or yes feature; not output
+    
+    # XING with test, no feature or yes feature; not output (OF)
     # template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 0, True]
+    
+    # XING with test, no feature or yes feature; separate output (OT)
+    # template = ["$data_full", 64, 256, 0.5, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, True, True, 0, True]
+
+    # XING with test, yes feature; no input feature
+    # template = ["$data_full", 64, 256, 0.5, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, True, True, True, 1, True]
+
     # XING with test, oa1, tuning (smaller h)
-    template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 0, True]
+    # template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 0, True]
 
     # ML-1m 
     # template = ["$data_ml1m", 64, 256, 0.4, 1.0, 200, "warp", 0, 1, 50, "001",False,'ml1m',3100, False, True, True, True, 1, True]
+    
     params = []
 
-    _h = [200]
-    # _nouser = [True False]
-    _dropout = [0.4]
-    _learning_rate = [0.5, 1]
-    _oa = [1, 2]
+    _h = [64]
+    _dropout = [0.5]
+    _learning_rate = [1, 0.5]
+    _oa = [1]
     # _us = [0.7, 0.3]
     # # # _seeds = [1, 2, 3, 4, 5, 6, 7, 8]
     _loss = ['ce']
-    _wf = [True]
+    _of = [True, False]
+    _wf = [True, False]
     for lr in _learning_rate:
         for h in _h:
             for oa in _oa:
                 for dr in _dropout:
-                    temp = list(template)
-                    temp[4] = lr
-                    temp[2] = h
-                    temp[18] = oa
-                    # temp[0] = '$data_full' + str(us).replace('.', '')
-                    temp[3] = dr
-                    params.append(temp)
+                    for of in _of:
+                        temp = list(template)
+                        temp[4] = lr
+                        temp[16] = of
+                        temp[2] = h
+                        temp[19] = oa
+                        # temp[0] = '$data_full' + str(us).replace('.', '')
+                        temp[3] = dr
+                        params.append(temp)
     
                     
     
