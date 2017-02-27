@@ -15,12 +15,12 @@ echo $LD_LIBRARY_PATH
 echo $SGE_GPU
 export CUDA_VISIBLE_DEVICES=$SGE_GPU
 
-data_ml_part=/nfs/isicvlnas01/users/liukuan/recsys/data/data_ml_part
-data_ml=/nfs/isicvlnas01/users/liukuan/recsys/data/data_ml
-data_part=/nfs/isicvlnas01/users/liukuan/recsys/data/data_part
-data_full=/nfs/isicvlnas01/users/liukuan/recsys/data/data_full
-data_ml1m=/nfs/isicvlnas01/users/liukuan/recsys/data/data_ml1m/
-data_yelp=/nfs/isicvlnas01/users/liukuan/recsys/data/yelp/
+data_ml_part=/nfs/isicvlnas01/users/liukuan/recsys/cache/data_ml_part
+data_ml=/nfs/isicvlnas01/users/liukuan/recsys/cache/data_ml
+data_part=/nfs/isicvlnas01/users/liukuan/recsys/cache/data_part
+data_full=/nfs/isicvlnas01/users/liukuan/recsys/cache/data_full
+data_ml1m=/nfs/isicvlnas01/users/liukuan/recsys/cache/data_ml1m/
+data_yelp=/nfs/isicvlnas01/users/liukuan/recsys/cache/yelp/
 train_dir=/nfs/isicvlnas01/users/liukuan/recsys/train/
 log_dir=/nfs/isicvlnas01/users/liukuan/recsys/train/log/
 
@@ -37,13 +37,13 @@ head_hpc2="""
 source /usr/usc/cuda/8.0/setup.sh
 cd /home/rcf-proj/pn3/kuanl/recsys/hmf/
 
-data_part=/home/rcf-proj/pn3/kuanl/recsys/data/data_part/
-data_full=/home/rcf-proj/pn3/kuanl/recsys/data/data_full/
-data_full07=/home/rcf-proj/pn3/kuanl/recsys/data/data_full0.7/
-data_full03=/home/rcf-proj/pn3/kuanl/recsys/data/data_full0.3/
-data_ml=/home/rcf-proj/pn3/kuanl/recsys/data/data_ml/
-data_ml1m=/home/rcf-proj/pn3/kuanl/recsys/data/data_ml1m/
-data_yelp=/home/rcf-proj/pn3/kuanl/recsys/data/yelp/
+data_part=/home/rcf-proj/pn3/kuanl/recsys/cache/data_part/
+data_full=/home/rcf-proj/pn3/kuanl/recsys/cache/data_full/
+data_full07=/home/rcf-proj/pn3/kuanl/recsys/cache/data_full0.7/
+data_full03=/home/rcf-proj/pn3/kuanl/recsys/cache/data_full0.3/
+data_ml=/home/rcf-proj/pn3/kuanl/recsys/cache/data_ml/
+data_ml1m=/home/rcf-proj/pn3/kuanl/recsys/cache/data_ml1m/
+data_yelp=/home/rcf-proj/pn3/kuanl/recsys/cache/yelp/
 train_dir=/home/rcf-proj/pn3/kuanl/recsys/train/
 
 __cmd__
@@ -61,13 +61,13 @@ source /usr/usc/cuda/8.0/setup.sh
 # export CUDA_VISIBLE_DEVICES=$1
 cd /home/nlg-05/xingshi/lstm/tensorflow/recsys/hmf/
 
-data_part=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_part
-data_full=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_full
-data_full07=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_full0.7
-data_full03=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_full0.3
-data_ml=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_ml
-data_ml1m=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_ml1m/
-data_yelp=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/yelp/
+data_part=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/data_part
+data_full=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/data_full
+data_full07=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/data_full0.7
+data_full03=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/data_full0.3
+data_ml=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/data_ml
+data_ml1m=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/data_ml1m/
+data_yelp=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/yelp/
 train_dir=/home/nlg-05/xingshi/lstm/tensorflow/recsys/train/
 
 __cmd__

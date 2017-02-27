@@ -2,9 +2,9 @@ from pandatools import write_csv, load_csv, pd
 from os.path import join
 
 
-def load_submit(sub_id):
-    SUBMIT_DIR = '../submissions/'
-    filename = SUBMIT_DIR + sub_id
+def load_submit(sub_id, submit_dir = '../submissions/'):
+    
+    filename = join(submit_dir, sub_id)
     data = load_csv(filename, types=0)
     x = data.set_index('user_id').to_dict()['items']
     for _, key in enumerate(x):
@@ -17,14 +17,14 @@ def load_submit(sub_id):
             x[key] = []
     return x
 
-def format_submit(X, sub_id):
+def format_submit(X, sub_id, submit_dir = '../submissions/'):
     '''
     save recommendation result to submission file
     input:
         X : dict. Ex: X[1400] = 1232,1123,5325
         sub_id: submission id
     '''
-    SUBMIT_DIR = '../submissions/'
+    
 
     header = ['user_id', 'items']
     for pos, key in enumerate(X):
@@ -35,11 +35,12 @@ def format_submit(X, sub_id):
             print 'not a list. No need to convert.'
             break
     x = pd.DataFrame(X.items())
-    write_csv(x, SUBMIT_DIR+sub_id, header)
+    write_csv(x, join(submit_dir, sub_id), header)
     return
 
 
-def combine_sub(r1, r2, opt = 0, old=False, users=None):
+# def combine_sub(r1, r2, opt = 0, old=False, users=None):
+def combine_sub(r1, r2, opt = 0, users=None):
     rec = {}
     for i in range(len(users)):
         uid = users[i, 0]

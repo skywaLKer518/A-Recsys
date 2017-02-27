@@ -22,3 +22,7 @@ data/*
 res/*
 tmp/*
 others/*
+preprocess/*
+*/*.sh
+cache/*
+train/*

@@ -106,8 +106,8 @@ class LatentProductModel(object):
     self.auc = 0.5 - 0.5 * tf.reduce_mean(tf.sign(neg_pos))
 
     # mini batch version
-    print("sampled prediction")
     if self.n_sampled is not None:
+      print("sampled prediction")
       sampled_logits = m.get_prediction(embedded_user, 'sampled')
       # embedded_item, item_b = m.get_sampled_item(self.n_sampled)
       # sampled_logits = tf.matmul(embedded_user, tf.transpose(embedded_item)) + item_b
@@ -144,7 +144,7 @@ class LatentProductModel(object):
 
     self.output = logits
     values, self.indices= tf.nn.top_k(self.output, self.top_N_items, sorted=True)
-    self.saver = tf.train.Saver(tf.all_variables())
+    self.saver = tf.train.Saver(tf.global_variables())
 
   def prepare_warp(self, pos_item_set, pos_item_set_eval):
     self.att_emb.prepare_warp(pos_item_set, pos_item_set_eval)

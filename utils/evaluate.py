@@ -1,24 +1,39 @@
 from eval_metrics import metrics
+from submit import load_submit, combine_sub
+from load_data import load_users, load_items
 
 class Evaluation(object):
-    def __init__(self, logit_ind2item_ind, res_filename='../submissions/ml_res_T', 
-        hist_filename = '../submissions/ml_historical_train', ta=1, old=False, data_dir=None, test=False):
-        return
+    # def __init__(self, res_filename='../submissions/ml_res_T', 
+    #     hist_filename = '../submissions/ml_historical_train', ta=1, old=False, data_dir=None, test=False):
+    #     return
+    def __init__(self, raw_data_dir, test=False):
 
-    def gen_rec(self, rec, recommend_new=False):
-        R = {}
-        N = self.get_user_n()
-        if not recommend_new:
-            for i in xrange(N):
-                uid = self.Uatt[self.Uinds[i], 0]
-                R[uid] = [self.Iatt[self.logit_ind2item_ind[logid], 0] for logid in list(rec[i, :])]
-        else:       
-            for i in xrange(N):
-                uid = self.Uatt[self.Uinds[i], 0]
-                R[uid] = [self.Iatt[logid, 0] for logid in list(rec[i, :])]
-        for k, v in R.items():
-            R[k] = ','.join(str(xx) for xx in v)
-        return R
+        res_filename = 'res_T_test.csv' if test else 'res_T.csv'
+        self.T = load_submit(res_filename, submit_dir=raw_data_dir)
+        hist_filename = 'historical_train_test.csv' if test else 'historical_train.csv'
+        self.hist = load_submit(hist_filename, submit_dir=raw_data_dir)
+        
+        self.Iatt, _, self.Iid2ind = load_items(raw_data_dir)
+        self.Uatt, _, self.Uid2ind = load_users(raw_data_dir)
+
+        self.Uids = self.get_uids()
+        self.Uinds = [self.Uid2ind[v] for v in self.Uids]
+        self.combine_sub = combine_sub
+        return
+    # def gen_rec(self, rec, recommend_new=False):
+    #     R = {}
+    #     N = self.get_user_n()
+    #     if not recommend_new:
+    #         for i in xrange(N):
+    #             uid = self.Uatt[self.Uinds[i], 0]
+    #             R[uid] = [self.Iatt[self.logit_ind2item_ind[logid], 0] for logid in list(rec[i, :])]
+    #     else:       
+    #         for i in xrange(N):
+    #             uid = self.Uatt[self.Uinds[i], 0]
+    #             R[uid] = [self.Iatt[logid, 0] for logid in list(rec[i, :])]
+    #     for k, v in R.items():
+    #         R[k] = ','.join(str(xx) for xx in v)
+    #     return R
 
     def get_user_n(self):
         return len(self.Uinds)
@@ -38,10 +53,10 @@ class Evaluation(object):
             rec[k] = v.split(',')
         self.s1 = scores(rec, self.T)
 
-        r_combine = self.combine_sub(self.hist, rec, old=self.old, users = self.Uatt)
+        r_combine = self.combine_sub(self.hist, rec, users = self.Uatt)
         self.s2 = scores(r_combine, self.T)
 
-        r_ex = self.combine_sub(self.hist, rec, 1, old=self.old, users = self.Uatt)
+        r_ex = self.combine_sub(self.hist, rec, 1, users = self.Uatt)
         self.s3 = scores(r_ex, self.T)
 
         result = metrics(rec, self.T)
