@@ -70,7 +70,7 @@ def load_interactions(data_dir, sep='\t'):
     names.append(name)
   return ints, names[0]
 
-def data_read(data_dir, _submit=0):
+def load_raw_data(data_dir, _submit=0):
   users, u_attr, user_index = load_users(data_dir)
   items, i_attr, item_index = load_items(data_dir)
   ints, names = load_interactions(data_dir)
@@ -93,3 +93,4 @@ def data_read(data_dir, _submit=0):
     data_va = zip(list(interact_va[:, 0]), list(interact_va[:, 1]), 
       list(interact_va[:, 2]))
   return users, items, data_tr, data_va, u_attr, i_attr, user_index, item_index
+

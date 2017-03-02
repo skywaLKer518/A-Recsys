@@ -12,10 +12,8 @@ import tensorflow as tf
 sys.path.insert(0, '../utils')
 sys.path.insert(0, '../attributes')
 
-import cPickle as pickle
 
-from load_data import data_read
-from comb_attribute import HET, MIX
+from input_attribute import read_data
 from prepare_train import positive_items, item_frequency, sample_items
 
 tf.app.flags.DEFINE_float("learning_rate", 0.1, "Learning rate.")
@@ -86,67 +84,6 @@ def mylog(msg):
   logging.info(msg)
   return
 
-def read_data(raw_data_dir=FLAGS.raw_data, data_dir=FLAGS.data_dir, 
-  combine_att=FLAGS.combine_att, logits_size_tr=FLAGS.item_vocab_size, 
-  thresh=FLAGS.item_vocab_min_thresh, use_user_feature=FLAGS.use_user_feature,
-  use_item_feature=FLAGS.use_item_feature, test=FLAGS.test):
-
-  data_filename = os.path.join(data_dir, 'data')
-  if os.path.isfile(data_filename):
-    mylog("data file {} exists! loading..".format(data_filename))
-    (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
-      logit_ind2item_ind, user_index, item_index) = pickle.load(
-      open(data_filename, 'rb'))
-    print(u_attr.num_features_cat, u_attr.num_features_mulhot, 
-      u_attr.features_cat, u_attr.features_mulhot, u_attr.mulhot_starts, 
-      u_attr.mulhot_lengths)
-    print(i_attr.num_features_cat, i_attr.num_features_mulhot, 
-      i_attr.features_cat, i_attr.features_mulhot, i_attr.mulhot_starts, 
-      i_attr.mulhot_lengths)
-    # exit(0)
-  else:
-    _submit = 1 if test else 0
-    (users, items, data_tr, data_va, user_features, item_features, 
-      user_index, item_index) = data_read(
-      data_dir = raw_data_dir, _submit=_submit)
-    if not use_user_feature:
-      n = len(users)
-      users = users[:, 0].reshape(n, 1)
-      user_features = ([user_features[0][0]], [user_features[1][0]])
-    if not use_item_feature:
-      m = len(items)
-      items = items[:, 0].reshape(m, 1)
-      item_features = ([item_features[0][0]], [item_features[1][0]])
-
-    if combine_att == 'het':
-      het = HET(data_dir=data_dir, logits_size_tr=logits_size_tr, threshold=thresh)
-      u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind = het.get_attributes(
-        users, items, data_tr, user_features, item_features)
-    elif combine_att == 'mix':
-      mix = MIX(data_dir=data_dir, logits_size_tr=logits_size_tr, 
-        threshold=thresh)
-      users2, items2, user_features, item_features = mix.mix_attr(users, items, 
-        user_features, item_features)
-      (u_attr, i_attr, item_ind2logit_ind, 
-        logit_ind2item_ind) = mix.get_attributes(users2, items2, data_tr, 
-        user_features, item_features)
-
-    mylog("saving data format to data directory")
-    from preprocess import pickle_save
-    # pickle_save((data_tr, data_va, u_attr, i_attr, 
-    #   item_ind2logit_ind, logit_ind2item_ind), data_filename)
-    pickle_save((data_tr, data_va, u_attr, i_attr, 
-      item_ind2logit_ind, logit_ind2item_ind, user_index, item_index), data_filename)
-    # exit(0)
-  print('length of item_ind2logit_ind', len(item_ind2logit_ind))
-
-  if FLAGS.dataset in ['ml', 'yelp']:
-    print('disabling the lstm-rec fake feature')
-    u_attr.num_features_cat = 1
-
-  return (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
-    logit_ind2item_ind, user_index, item_index)
-
 def create_model(session, u_attributes=None, i_attributes=None, 
   item_ind2logit_ind=None, logit_ind2item_ind=None, 
   loss = FLAGS.loss, logit_size_test=None, ind_item = None):  
@@ -177,7 +114,11 @@ def create_model(session, u_attributes=None, i_attributes=None,
     session.run(tf.initialize_all_variables())
   return model
 
-def train(train_dir=FLAGS.train_dir, data_dir=FLAGS.data_dir, 
+def train(raw_data=FLAGS.raw_data, train_dir=FLAGS.train_dir, mylog=mylog,
+  data_dir=FLAGS.data_dir, combine_att=FLAGS.combine_att, test=FLAGS.test, 
+  logits_size_tr=FLAGS.item_vocab_size, thresh=FLAGS.item_vocab_min_thresh,
+  use_user_feature=FLAGS.use_user_feature, 
+  use_item_feature=FLAGS.use_item_feature,
   batch_size=FLAGS.batch_size, steps_per_checkpoint=FLAGS.steps_per_checkpoint, 
   loss_func=FLAGS.loss, max_patience=FLAGS.patience, go_test=FLAGS.test,
   max_epoch=FLAGS.n_epoch, sample_type=FLAGS.sample_type, power=FLAGS.power,  
@@ -196,7 +137,16 @@ def train(train_dir=FLAGS.train_dir, data_dir=FLAGS.data_dir,
     
     mylog("reading data")
     (data_tr, data_va, u_attributes, i_attributes,item_ind2logit_ind, 
-      logit_ind2item_ind, _, _) = read_data(data_dir=data_dir)
+      logit_ind2item_ind, _, _) = read_data(
+      raw_data_dir=raw_data, 
+      data_dir=data_dir, 
+      combine_att=combine_att, 
+      logits_size_tr=logits_size_tr, 
+      thresh=thresh, 
+      use_user_feature=use_user_feature,
+      use_item_feature=use_item_feature, 
+      test=test, 
+      mylog=mylog)
 
     mylog("train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
@@ -376,15 +326,28 @@ def train(train_dir=FLAGS.train_dir, data_dir=FLAGS.data_dir,
           break
   return
 
-def recommend(target_uids=[], data_dir=FLAGS.data_dir, 
-  loss=FLAGS.loss, top_n=FLAGS.top_N_items, 
+def recommend(target_uids=[], raw_data=FLAGS.raw_data, data_dir=FLAGS.data_dir, 
+  combine_att=FLAGS.combine_att, logits_size_tr=FLAGS.item_vocab_size, 
+  item_vocab_min_thresh=FLAGS.item_vocab_min_thresh, loss=FLAGS.loss, 
+  top_n=FLAGS.top_N_items, test=FLAGS.test, mylog=mylog,
+  use_user_feature=FLAGS.use_user_feature, 
+  use_item_feature=FLAGS.use_item_feature,
   batch_size=FLAGS.batch_size, device_log=FLAGS.device_log):
 
   with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, 
     log_device_placement=device_log)) as sess:
     mylog("reading data")
     (_, _, u_attributes, i_attributes, item_ind2logit_ind, 
-      logit_ind2item_ind, user_index, item_index) = read_data(data_dir=data_dir)
+      logit_ind2item_ind, user_index, item_index) = read_data(
+      raw_data_dir=raw_data, 
+      data_dir=data_dir, 
+      combine_att=combine_att, 
+      logits_size_tr=logits_size_tr, 
+      thresh=item_vocab_min_thresh, 
+      use_user_feature=use_user_feature,
+      use_item_feature=use_item_feature, 
+      test=test, 
+      mylog=mylog)
 
     model = create_model(sess, u_attributes, i_attributes, item_ind2logit_ind,
       logit_ind2item_ind, loss=loss, ind_item=None)

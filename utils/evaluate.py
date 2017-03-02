@@ -1,12 +1,17 @@
 from eval_metrics import metrics
-from submit import load_submit, combine_sub
-from load_data import load_users, load_items
+from submit import load_submit, combine_sub, format_submit
+from load_data import load_users, load_items, load_interactions
+from os.path import isfile, join
+
 
 class Evaluation(object):
 
     def __init__(self, raw_data_dir, test=False):
 
         res_filename = 'res_T_test.csv' if test else 'res_T.csv'
+        if not isfile(join(raw_data_dir, res_filename)):
+            print('eval file does not exist. creating ... ')
+            self.create_eval_file(raw_data_dir)
         self.T = load_submit(res_filename, submit_dir=raw_data_dir)
         hist_filename = 'historical_train_test.csv' if test else 'historical_train.csv'
         self.hist = load_submit(hist_filename, submit_dir=raw_data_dir)
@@ -47,5 +52,55 @@ class Evaluation(object):
 
     def get_scores(self):
         return self.s_self, self.s_ex
+
+    def create_eval_file(self, raw_data):
+        DIR = raw_data
+        interact, names = load_interactions(data_dir=DIR)
+
+        interact_tr, interact_va, interact_te = interact
+
+        data_tr = zip(list(interact_tr[:, 0]), list(interact_tr[:, 1]), list(interact_tr[:, 2]))
+        data_va = zip(list(interact_va[:, 0]), list(interact_va[:, 1]), list(interact_va[:, 2]))
+        data_te = zip(list(interact_te[:, 0]), list(interact_te[:, 1]), list(interact_te[:, 2]))
+
+        seq_tr, seq_va, seq_te = {}, {}, {}
+
+        for u, i , t in data_tr:
+            if u not in seq_tr:
+                seq_tr[u] = []
+            seq_tr[u].append((i, t))
+
+        for u, i , t in data_va:
+            if u not in seq_va:
+                seq_va[u] = []
+            seq_va[u].append((i,t))
+
+        for u, i , t in data_te:
+            if u not in seq_te:
+                seq_te[u] = []
+            seq_te[u].append(i)
+
+        for u, v in seq_tr.items():
+            l = sorted(v, key = lambda x:x[1], reverse=True)
+            seq_tr[u] = ','.join([str(p[0]) for p in l])
+
+        for u, v in seq_va.items():
+            l = sorted(v, key = lambda x:x[1], reverse=True)
+            seq_va[u] = ','.join(str(p[0]) for p in l)
+
+        for u, v in seq_te.items():
+            seq_te[u] = ','.join(str(p) for p in seq_te[u])
+
+
+        format_submit(seq_tr, 'historical_train.csv', submit_dir=DIR)  
+        format_submit(seq_va, 'res_T.csv', submit_dir=DIR)
+        format_submit(seq_te, 'res_T_test.csv', submit_dir=DIR)
+
+        seq_va_tr = seq_va
+        for u in seq_tr:
+            if u in seq_va:
+                seq_va_tr[u] = seq_va[u] +','+ seq_tr[u]
+        format_submit(seq_va_tr, 'historical_train_test.csv', submit_dir=DIR)
+        return
 
 

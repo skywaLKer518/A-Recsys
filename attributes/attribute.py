@@ -48,3 +48,30 @@ class Attributes(object):
 
   def get_item_last_index(self):
     return len(self.features_cat[0]) - 1
+
+  def overview(self, out=None):
+    def p(val):
+      if out:
+        out(val)
+      else:
+        print(val)
+    p('# of categorical attributes: {}'.format(self.num_features_cat))
+    p('# of multi-hot   attributes: {}'.format(self.num_features_mulhot))
+    p('====attributes values===')
+    if self.num_features_cat > 0:
+      p('\tinput categorical:')
+      p('\t{}'.format(self.features_cat))
+      if hasattr(self, 'full_cat_tr'):
+        p('\toutput categorical:')
+        p('\t{}'.format(self.full_cat_tr))
+    if self.num_features_mulhot > 0:
+      p('\tinput multi-hot:')
+      p('\t values: {}'.format(self.features_mulhot))
+      p('\t starts:{}'.format(self.mulhot_starts))
+      p('\t length:{}'.format(self.mulhot_lengths))  
+      if hasattr(self, 'full_values_tr'):
+        p('\toutput multi-hot:')
+        p('\t values:{}'.format(self.full_values_tr))
+        p('\t starts:{}'.format(self.full_segids_tr))
+        p('\t length:{}'.format(self.full_lengths_tr))
+    p('\n')

@@ -90,8 +90,8 @@ def create_dictionary(data_dir, inds, features, feature_types, feature_names,
 
     # max_size += len(_START_VOCAB) 
 
-    if len(vocab_list) > max_size:
-      vocab_list= vocab_list[:max_size]
+    # if len(vocab_list) > max_size:
+    #   vocab_list= vocab_list[:max_size]
     with gfile.GFile(join(data_dir, ("%s_vocab%d_%d"% (prefix, i,
       max_size))), mode="wb") as vocab_file:
 
@@ -101,6 +101,9 @@ def create_dictionary(data_dir, inds, features, feature_types, feature_names,
       else:
         vocab_list2 = [v for v in vocab_list if v in _START_VOCAB or
          vocab_counts[name][v] >= threshold]
+      if len(vocab_list2) > max_size:
+        print("vocabulary {}_{} longer than max_vocabulary_size {}. Truncate the tail".format(prefix, len(vocab_list2), max_size))
+        vocab_list2= vocab_list2[:max_size]
       for w in vocab_list2:
         vocab_file.write(str(w) + b"\n")
       minimum_occurance.append(vocab_counts[name][vocab_list2[-1]])
@@ -147,6 +150,7 @@ def create_dictionary_mix(data_dir, inds, features, feature_types,
     vocab_list2 = [v for v in vocab_list if v in _START_VOCAB or (v in vocab and 
       vocab[v] >= threshold) or (v in vocab_uid and vocab_uid[v] >= threshold)]
     if len(vocab_list2) > max_size:
+      print("vocabulary {}_{} longer than max_vocabulary_size {}. Truncate the tail".format(prefix, len(vocab_list2), max_size))
       vocab_list2 = vocab_list2[:max_size]
 
     for w in vocab_list2:
