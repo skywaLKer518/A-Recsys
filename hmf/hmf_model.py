@@ -144,7 +144,8 @@ class LatentProductModel(object):
 
     self.output = logits
     values, self.indices= tf.nn.top_k(self.output, self.top_N_items, sorted=True)
-    self.saver = tf.train.Saver(tf.global_variables())
+    # self.saver = tf.train.Saver(tf.global_variables())
+    self.saver = tf.train.Saver(tf.all_variables())
 
   def prepare_warp(self, pos_item_set, pos_item_set_eval):
     self.att_emb.prepare_warp(pos_item_set, pos_item_set_eval)

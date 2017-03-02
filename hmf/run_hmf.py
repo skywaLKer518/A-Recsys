@@ -15,7 +15,7 @@ sys.path.insert(0, '../attributes')
 import cPickle as pickle
 
 from load_data import data_read
-from comb_attribute import HET
+from comb_attribute import HET, MIX
 from prepare_train import positive_items, item_frequency, sample_items
 
 tf.app.flags.DEFINE_float("learning_rate", 0.1, "Learning rate.")
@@ -47,6 +47,7 @@ tf.app.flags.DEFINE_integer("steps_per_checkpoint", 4000,
                             "How many training steps to do per checkpoint.")
 tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
+tf.app.flags.DEFINE_string("combine_att", 'het', "method to combine attributes: het or mix")
 tf.app.flags.DEFINE_boolean("recommend", False,
                             "Set to True for recommend items.")
 tf.app.flags.DEFINE_boolean("recommend_new", False,
@@ -86,42 +87,58 @@ def mylog(msg):
   return
 
 def read_data(raw_data_dir=FLAGS.raw_data, data_dir=FLAGS.data_dir, 
-  logits_size_tr=FLAGS.item_vocab_size, thresh=FLAGS.item_vocab_min_thresh):
+  combine_att=FLAGS.combine_att, logits_size_tr=FLAGS.item_vocab_size, 
+  thresh=FLAGS.item_vocab_min_thresh, use_user_feature=FLAGS.use_user_feature,
+  use_item_feature=FLAGS.use_item_feature, test=FLAGS.test):
 
-  _submit = 1 if FLAGS.test else 0
-  # (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
-  #   logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = _submit, ta = FLAGS.ta, 
-  #   logits_size_tr=FLAGS.item_vocab_size, sample=FLAGS.user_sample)
-  
   data_filename = os.path.join(data_dir, 'data')
   if os.path.isfile(data_filename):
     mylog("data file {} exists! loading..".format(data_filename))
     (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
       logit_ind2item_ind, user_index, item_index) = pickle.load(
       open(data_filename, 'rb'))
+    print(u_attr.num_features_cat, u_attr.num_features_mulhot, 
+      u_attr.features_cat, u_attr.features_mulhot, u_attr.mulhot_starts, 
+      u_attr.mulhot_lengths)
+    print(i_attr.num_features_cat, i_attr.num_features_mulhot, 
+      i_attr.features_cat, i_attr.features_mulhot, i_attr.mulhot_starts, 
+      i_attr.mulhot_lengths)
+    # exit(0)
   else:
+    _submit = 1 if test else 0
     (users, items, data_tr, data_va, user_features, item_features, 
       user_index, item_index) = data_read(
       data_dir = raw_data_dir, _submit=_submit)
-    het = HET(data_dir=data_dir, logits_size_tr=logits_size_tr, threshold=thresh)
-    u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind = het.get_attributes(
-      users, items, data_tr, user_features, item_features)
+    if not use_user_feature:
+      n = len(users)
+      users = users[:, 0].reshape(n, 1)
+      user_features = ([user_features[0][0]], [user_features[1][0]])
+    if not use_item_feature:
+      m = len(items)
+      items = items[:, 0].reshape(m, 1)
+      item_features = ([item_features[0][0]], [item_features[1][0]])
+
+    if combine_att == 'het':
+      het = HET(data_dir=data_dir, logits_size_tr=logits_size_tr, threshold=thresh)
+      u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind = het.get_attributes(
+        users, items, data_tr, user_features, item_features)
+    elif combine_att == 'mix':
+      mix = MIX(data_dir=data_dir, logits_size_tr=logits_size_tr, 
+        threshold=thresh)
+      users2, items2, user_features, item_features = mix.mix_attr(users, items, 
+        user_features, item_features)
+      (u_attr, i_attr, item_ind2logit_ind, 
+        logit_ind2item_ind) = mix.get_attributes(users2, items2, data_tr, 
+        user_features, item_features)
 
     mylog("saving data format to data directory")
     from preprocess import pickle_save
+    # pickle_save((data_tr, data_va, u_attr, i_attr, 
+    #   item_ind2logit_ind, logit_ind2item_ind), data_filename)
     pickle_save((data_tr, data_va, u_attr, i_attr, 
       item_ind2logit_ind, logit_ind2item_ind, user_index, item_index), data_filename)
-  
+    # exit(0)
   print('length of item_ind2logit_ind', len(item_ind2logit_ind))
-
-  if not FLAGS.use_item_feature:
-    mylog("NOT using item attributes")
-    i_attr.num_features_cat = 1
-    i_attr.num_features_mulhot = 0
-  if not FLAGS.use_user_feature:
-    mylog("NOT using user attributes")
-    u_attr.num_features_cat = 1
-    u_attr.num_features_mulhot = 0
 
   if FLAGS.dataset in ['ml', 'yelp']:
     print('disabling the lstm-rec fake feature')
@@ -156,7 +173,8 @@ def create_model(session, u_attributes=None, i_attributes=None,
   else:
     print("Created model with fresh parameters.")
     logging.info("Created model with fresh parameters.")
-    session.run(tf.global_variables_initializer())
+    # session.run(tf.global_variables_initializer())
+    session.run(tf.initialize_all_variables())
   return model
 
 def train(train_dir=FLAGS.train_dir, data_dir=FLAGS.data_dir, 
@@ -418,34 +436,28 @@ def recommend(target_uids=[], data_dir=FLAGS.data_dir,
 
 def compute_scores(raw_data_dir=FLAGS.raw_data, data_dir=FLAGS.data_dir,
   dataset=FLAGS.dataset, save_recommendation=FLAGS.saverec,
-  train_dir=FLAGS.train_dir, ta=FLAGS.ta, test=FLAGS.test):
-  # from tasks import Task
-  # task = Task(dataset)
-  # Evaluate = task.get_evaluation()
+  train_dir=FLAGS.train_dir, test=FLAGS.test):
+  
   from evaluate import Evaluation as Evaluate
   evaluation = Evaluate(raw_data_dir, test=test)
-
-  # uu = evaluation.get_uids()
-  # print(int(len(uu)/10))
+ 
   R = recommend(evaluation.get_uids(), data_dir=data_dir)
 
   for k, v in R.items():
     R[k] = ','.join(str(xx) for xx in v)
   evaluation.eval_on(R)
-  s1, s2, s3, s4, s5 = evaluation.get_scores()
-  mylog('scores: \n\t{}\n\t{}\n\t{}\n'.format(s1, s2, s3))
-  mylog("SCORE_FORMAT: {} {} {} {} ".format(s1[0], s2[0], s3[0], s3[4]))
-  mylog("METRIC_FORMAT1: {}".format(s4))
-  mylog("METRIC_FORMAT2: {}".format(s5))
+  scores_self, scores_ex = evaluation.get_scores()
+  # mylog('scores: \n\t{}\n\t{}\n\t{}\n'.format(s1, s2, s3))
+  # mylog("SCORE_FORMAT: {} {} {} {} ".format(s1[0], s2[0], s3[0], s3[4]))
+  mylog("====evaluation scores (NDCG, RECALL, PRECISION, MAP) @ 2,5,10,20,30====")
+  mylog("METRIC_FORMAT (self): {}".format(scores_self))
+  mylog("METRIC_FORMAT (ex  ): {}".format(scores_ex))
   if save_recommendation:
     name_inds = os.path.join(train_dir, "indices.npy")
     np.save(name_inds, rec)
 
 def main(_):
   
-  # logging.debug('This message should go to the log file')
-  # logging.info('So should this')
-  # logging.warning('And this, too')
   if FLAGS.test:
     if FLAGS.data_dir[-1] == '/':
       FLAGS.data_dir = FLAGS.data_dir[:-1] + '_test'

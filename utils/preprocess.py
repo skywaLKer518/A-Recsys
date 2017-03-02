@@ -71,11 +71,6 @@ def create_dictionary(data_dir, inds, features, feature_types, feature_names,
       elif feature_types[ii] == 1:
         if not isinstance(uf[ii], list):
           uf[ii] = uf[ii].split(',')
-          # print(type(uf[ii]))
-          # print ii, prefix
-          # print uf[ii]
-          # print("Error in create_dictionary! Feature has to be of type list. {} Got.".format(type(uf[ii])))
-          # exit()
         for t in uf[ii]:
           vocab_counts[name][t] = vocab_counts[name][t] + 1 if t in vocab_counts[name] else 1
 
@@ -102,13 +97,62 @@ def create_dictionary(data_dir, inds, features, feature_types, feature_names,
 
       if prefix == 'user' and i == 0:
         vocab_list2 = [v for v in vocab_list if v in _START_VOCAB or
-         vocab_counts[name][v] >= 0]
+         vocab_counts[name][v] >= threshold]
       else:
         vocab_list2 = [v for v in vocab_list if v in _START_VOCAB or
          vocab_counts[name][v] >= threshold]
       for w in vocab_list2:
         vocab_file.write(str(w) + b"\n")
       minimum_occurance.append(vocab_counts[name][vocab_list2[-1]])
+  with gfile.GFile(join(data_dir, "%s_minimum_occurance_%d" %(prefix, 
+    max_size)), mode="wb") as sum_file:
+    sum_file.write('\n'.join([str(v) for v in minimum_occurance]))
+
+  return
+
+def create_dictionary_mix(data_dir, inds, features, feature_types, 
+  feature_names, max_vocabulary_size=50000, logits_size_tr = 50000, 
+  threshold = 2, prefix='user'):
+  filename = 'vocab0_%d' % max_vocabulary_size
+  if isfile(join(data_dir, filename)):
+    print("vocabulary exists!")
+    return
+  vocab_counts = {}
+  num_uf = len(feature_names)
+  assert(len(feature_types) == num_uf), 'length of feature_types should be the same length of feature_names {} vs {}'.format(len(feature_types), num_uf)
+
+  vocab_uid = {}
+  vocab = {}
+  for u in inds: # u index
+    uf = features[u, 0]
+
+    if not isinstance(uf, list):
+      uf = uf.split(',')
+    for t in uf:
+      if t.startswith('uid'):
+        vocab_uid[t] = vocab_uid[t] + 1 if t in vocab_uid else 1
+      else:
+        vocab[t] = vocab[t] + 1 if t in vocab else 1
+
+  minimum_occurance = []
+  
+  vocab_list = _START_VOCAB + vocab_uid.keys() + sorted(vocab, 
+    key=vocab.get, reverse=True)
+  
+  max_size = max_vocabulary_size
+
+  with gfile.GFile(join(data_dir, ("%s_vocab%d_%d"% (prefix, 0,
+    max_size))), mode="wb") as vocab_file:
+
+    vocab_list2 = [v for v in vocab_list if v in _START_VOCAB or (v in vocab and 
+      vocab[v] >= threshold) or (v in vocab_uid and vocab_uid[v] >= threshold)]
+    if len(vocab_list2) > max_size:
+      vocab_list2 = vocab_list2[:max_size]
+
+    for w in vocab_list2:
+      vocab_file.write(str(w) + b"\n")
+    min_occurance = vocab[vocab_list2[-1]] if vocab_list2[-1] in vocab else vocab_uid[vocab_list2[-1]]
+    minimum_occurance.append(min_occurance)
   with gfile.GFile(join(data_dir, "%s_minimum_occurance_%d" %(prefix, 
     max_size)), mode="wb") as sum_file:
     sum_file.write('\n'.join([str(v) for v in minimum_occurance]))
@@ -129,15 +173,12 @@ def tokenize_attribute_map(data_dir, features, feature_types, max_vocabulary_siz
     ut = feature_types[i]
     if feature_types[i] > 1: 
       continue
-    if prefix == 'user' and i == 0:
-      max_size = len(features)
-    elif prefix == 'item' and i == 0:
-      max_size = logits_size_tr + len(_START_VOCAB)
-    else:
-      max_size = max_vocabulary_size
 
-    vocabulary_path = join(data_dir, "%s_vocab%d_%d" %(prefix, i, 
-      max_size))
+    path = "%s_vocab%d_" %(prefix, i)
+    vocabulary_paths = [f for f in listdir(data_dir) if f.startswith(path)]
+    assert(len(vocabulary_paths) == 1)
+    vocabulary_path = join(data_dir, vocabulary_paths[0])
+
     vocab, _ = initialize_vocabulary(vocabulary_path)
 
     N = len(features)
@@ -155,7 +196,10 @@ def tokenize_attribute_map(data_dir, features, feature_types, max_vocabulary_siz
       starts, lengs, vals = [idx], [], []
       v_sizes_mulhot.append(len(vocab))
       for n in range(N):
-        val = [vocab.get(str(v), UNK_ID) for v in uf[n]]
+        elem = uf[n]
+        if not isinstance(elem, list):
+          elem = elem.split(',')
+        val = [vocab.get(str(v), UNK_ID) for v in elem]
         val_ = [v for v in val if v != UNK_ID]
         if len(val_) == 0:
           val_ = [UNK_ID]
@@ -213,14 +257,13 @@ def filter_mulhot(data_dir, items, feature_types, max_vocabulary_size,
     full_index, full_index_tr = [], [] 
     lengs, lengs_tr = [], []
     ut = feature_types[i]
-    if feature_types[i] == 1: 
-      if prefix == 'item' and i == 0:
-        max_size = logits_size_tr
-      else:
-        max_size = max_vocabulary_size
+    if feature_types[i] == 1:
 
-      vocabulary_path = join(data_dir, "%s_vocab%d_%d" %(prefix, i, 
-        max_size))
+      path = "%s_vocab%d_" %(prefix, i)
+      vocabulary_paths = [f for f in listdir(data_dir) if f.startswith(path)]
+      assert(len(vocabulary_paths)==1), 'more than one dictionaries found! delete unnecessary ones to fix this.'
+      vocabulary_path = join(data_dir, vocabulary_paths[0])
+      
       vocab, _ = initialize_vocabulary(vocabulary_path)
       
       uf = items[:, i]
@@ -228,7 +271,11 @@ def filter_mulhot(data_dir, items, feature_types, max_vocabulary_size,
       segids = []
 
       for n in xrange(N):
-        val = [vocab.get(v, UNK_ID) for v in uf[n]]
+        elem = uf[n]
+        if not isinstance(elem, list):
+          elem = elem.split(',')
+
+        val = [vocab.get(v, UNK_ID) for v in elem]
         val_ = [v for v in val if v != UNK_ID]
         if len(val_) == 0:
           val_ = [UNK_ID]
@@ -245,7 +292,11 @@ def filter_mulhot(data_dir, items, feature_types, max_vocabulary_size,
       segids_tr = []
       for n in xrange(L):
         i_ind = logit_ind2item_ind[n]
-        val = [vocab.get(v, UNK_ID) for v in uf[i_ind]]
+        elem = uf[i_ind]
+        if not isinstance(elem, list):
+          elem = elem.split(',')
+
+        val = [vocab.get(v, UNK_ID) for v in elem]
         val_ = [v for v in val if v != UNK_ID]
         if len(val_) == 0:
           val_ = [UNK_ID]

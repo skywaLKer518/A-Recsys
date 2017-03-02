@@ -15,12 +15,13 @@ echo $LD_LIBRARY_PATH
 echo $SGE_GPU
 export CUDA_VISIBLE_DEVICES=$SGE_GPU
 
-data_ml_part=/nfs/isicvlnas01/users/liukuan/recsys/cache/data_ml_part
-data_ml=/nfs/isicvlnas01/users/liukuan/recsys/cache/data_ml
-data_part=/nfs/isicvlnas01/users/liukuan/recsys/cache/data_part
-data_full=/nfs/isicvlnas01/users/liukuan/recsys/cache/data_full
-data_ml1m=/nfs/isicvlnas01/users/liukuan/recsys/cache/data_ml1m/
-data_yelp=/nfs/isicvlnas01/users/liukuan/recsys/cache/yelp/
+data_xing_mix=/nfs/isicvlnas01/users/liukuan/recsys/cache/xing_mix/
+data_xing_het=/nfs/isicvlnas01/users/liukuan/recsys/cache/xing_het/
+data_yelp_mix=/nfs/isicvlnas01/users/liukuan/recsys/cache/yelp_mix/
+data_yelp_het=/nfs/isicvlnas01/users/liukuan/recsys/cache/yelp_het/
+raw_xing=/nfs/isicvlnas01/users/liukuan/recsys/raw_data/xing/
+raw_yelp=/nfs/isicvlnas01/users/liukuan/recsys/raw_data/yelp/
+
 train_dir=/nfs/isicvlnas01/users/liukuan/recsys/train/
 log_dir=/nfs/isicvlnas01/users/liukuan/recsys/train/log/
 
@@ -37,13 +38,14 @@ head_hpc2="""
 source /usr/usc/cuda/8.0/setup.sh
 cd /home/rcf-proj/pn3/kuanl/recsys/hmf/
 
-data_part=/home/rcf-proj/pn3/kuanl/recsys/cache/data_part/
-data_full=/home/rcf-proj/pn3/kuanl/recsys/cache/data_full/
-data_full07=/home/rcf-proj/pn3/kuanl/recsys/cache/data_full0.7/
-data_full03=/home/rcf-proj/pn3/kuanl/recsys/cache/data_full0.3/
-data_ml=/home/rcf-proj/pn3/kuanl/recsys/cache/data_ml/
-data_ml1m=/home/rcf-proj/pn3/kuanl/recsys/cache/data_ml1m/
-data_yelp=/home/rcf-proj/pn3/kuanl/recsys/cache/yelp/
+
+data_xing_mix=/home/rcf-proj/pn3/kuanl/recsys/cache/xing_mix/
+data_xing_het=/home/rcf-proj/pn3/kuanl/recsys/cache/xing_het/
+data_yelp_mix=/home/rcf-proj/pn3/kuanl/recsys/cache/yelp_mix/
+data_yelp_het=/home/rcf-proj/pn3/kuanl/recsys/cache/yelp_het/
+raw_xing=/home/rcf-proj/pn3/kuanl/recsys/raw_data/xing/
+raw_yelp=/home/rcf-proj/pn3/kuanl/recsys/raw_data/yelp/
+
 train_dir=/home/rcf-proj/pn3/kuanl/recsys/train/
 
 __cmd__
@@ -61,13 +63,14 @@ source /usr/usc/cuda/8.0/setup.sh
 # export CUDA_VISIBLE_DEVICES=$1
 cd /home/nlg-05/xingshi/lstm/tensorflow/recsys/hmf/
 
-data_part=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/data_part
-data_full=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/data_full
-data_full07=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/data_full0.7
-data_full03=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/data_full0.3
-data_ml=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/data_ml
-data_ml1m=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/data_ml1m/
-data_yelp=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/yelp/
+
+data_xing_mix=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/xing_mix/
+data_xing_het=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/xing_het/
+data_yelp_mix=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/yelp_mix/
+data_yelp_het=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/yelp_het/
+
+raw_xing=/home/nlg-05/xingshi/lstm/tensorflow/recsys/raw_data/xing/
+raw_yelp=/home/nlg-05/xingshi/lstm/tensorflow/recsys/raw_data/yelp/
 train_dir=/home/nlg-05/xingshi/lstm/tensorflow/recsys/train/
 
 __cmd__
@@ -76,8 +79,11 @@ __cmd__
 def main(acct=0):
     
     def data_dir(val):
-        return "", "--data_dir {}".format(val)
-    
+        return "{}".format(val[1]), "--data_dir {}".format(val[0])
+
+    def rawdata(val):
+        return "", "--raw_data {}".format(val)
+
     def train_dir(val):
         return "", "--train_dir {}".format(val)
 
@@ -150,9 +156,13 @@ def main(acct=0):
     def epoch(val):
         return 'n{}'.format(val), '--n_epoch {}'.format(val)
 
+    def combine(val):
+        return "", "--combine_att {}".format(val)
+
+
     # XING
-    # funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size, ta, epoch, test]
-    # template = ["xing", "$data_full", 64, 32, 0.5, 20, 'ce', 4000, 50000, 0, 33, True]
+    funcs = [dataset, data_dir, rawdata, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size, combine, epoch, test]
+    template = ["xing", ["$data_xing_mix", "mix"], "$raw_xing", 64, 32, 0.5, 20, 'ce', 4000, 50000, 'mix', 1000, False]
 
     # ml
     # template = ["ml", "$data_ml", 64, 32, 0.5, 0.1, 'warp', 4000, 13000, 1024, 100, 0, 'random']
@@ -179,12 +189,12 @@ def main(acct=0):
 
     # template = ["xing", "$data_part", 64, 32, 0.5, 0.1, 'warp', 4000, 50000, 1024, 100, 1, 'random']
     
-    funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size, ta, epoch, test]
-    template = ["ml1m", "$data_ml1m", 64, 32, 0.5, 0.1, 'warp', 2000, 3100, 0, 307, True]
+    # funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size, ta, epoch, test]
+    # template = ["ml1m", "$data_ml1m", 64, 32, 0.5, 0.1, 'warp', 2000, 3100, 0, 307, True]
 
     # yelp
-    # funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size,  ta]
-    # template = ["yelp", "$data_yelp", 64, 32, 0.5, 0.1, 'ce', 4000, 80000, 0]
+    # funcs = [dataset, data_dir,rawdata, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size,  combine, epoch, test]
+    # template = ["yelp", ["$data_yelp_mix", "mix"], "$raw_yelp", 64, 32, 0.5, 0.1, 'ce', 4000, 80000, 'mix', 1000, False]
 
     # yelp no features
     # funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size,  ta, wFeat]
@@ -194,17 +204,18 @@ def main(acct=0):
     # funcs = [dataset, data_dir, batch_size, size, dropout, learning_rate, loss, ckpt, item_vocab_size,  ta, epoch, test]
     # template = ["yelp", "$data_yelp", 64, 32, 0.5, 0.1, 'ce', 4000, 80000, 0, 26, True]    
     
-    _lr = [0.1]
+    # _lr = [0.3, 0.5, 1, 3, 5] # yelp
+    _lr = [1, 5, 8, 10,]
     _s = [32]
-    _loss = ['ce']
+    _loss = ['warp']
     paras = []
     for s in _s:
         for lr in _lr:
             for L in _loss:
                 temp = list(template)
-                temp[5] = lr
-                temp[3] = s
-                temp[6] = L
+                temp[6] = lr
+                temp[4] = s
+                temp[7] = L
                 paras.append(temp)
 
 
@@ -256,7 +267,11 @@ def main(acct=0):
     # batch_job_name = 'xing_hmf_recommend_warp_test1'
     # batch_job_name = 'xing_hmf_recommend_ce_test1'
     # batch_job_name = 'ml1m_hmf_recommend_warp_test1'
-    batch_job_name = 'ml1m_hmf_recommend_ce_test1'
+    # batch_job_name = 'ml1m_hmf_recommend_ce_test1'
+    batch_job_name = 'xing_hmf_recommend_warp_mix'
+    # batch_job_name = 'xing_hmf_recommend_warp_new'
+    # batch_job_name = 'xing_hmf_recommend_warp_new_pruning2'
+    # batch_job_name = 'yelp_hmf_recommend_mix'
 
     cmds = ''
     for para in paras:

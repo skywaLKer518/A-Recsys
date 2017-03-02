@@ -62,6 +62,10 @@ def load_interactions(data_dir, sep='\t'):
   for s in suffix:
     filename = filename0 + s
     interact, name = load_csv(filename, False)
+    assert(interact.shape[1] in [2, 3])
+    if interact.shape[1] == 2:
+      l = interact.shape[0]
+      interact = np.append(interact, np.zeros((l, 1), dtype=int), 1)
     ints.append(interact)
     names.append(name)
   return ints, names[0]
