@@ -2,80 +2,86 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import math, os, shutil, sys
+import math, os, sys
 import random, time
 import logging
-
 import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 sys.path.insert(0, '../utils')
 sys.path.insert(0, '../attributes')
 
-
 from input_attribute import read_data
 from prepare_train import positive_items, item_frequency, sample_items
 
-tf.app.flags.DEFINE_float("learning_rate", 0.1, "Learning rate.")
-tf.app.flags.DEFINE_float("keep_prob", 0.5, "dropout rate.")
-tf.app.flags.DEFINE_float("power", 0.5, "related to sampling rate.")
-tf.app.flags.DEFINE_float("learning_rate_decay_factor", 1.0,
-                          "Learning rate decays by this much.")
-tf.app.flags.DEFINE_float("max_gradient_norm", 5.0,
-                          "Clip gradients to this norm.")
-tf.app.flags.DEFINE_integer("batch_size", 64,
-                            "Batch size to use during training.")
-tf.app.flags.DEFINE_integer("size", 20, "Size of each model layer.")
-tf.app.flags.DEFINE_integer("hidden_size", 500, "when nonlinear proj used")
-tf.app.flags.DEFINE_integer("n_resample", 50, "iterations before resample.")
-tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
-tf.app.flags.DEFINE_integer("user_vocab_size", 150000, "User vocabulary size.")
-tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
-tf.app.flags.DEFINE_integer("item_vocab_min_thresh", 2, "filter inactive tokens.")
-tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
+# datasets, paths, and preprocessing
 tf.app.flags.DEFINE_string("dataset", "xing", ".")
 tf.app.flags.DEFINE_string("raw_data", "../raw_data", "input data directory")
 tf.app.flags.DEFINE_string("data_dir", "./cache0", "Cached data directory")
 tf.app.flags.DEFINE_string("train_dir", "./tmp", "Training directory.")
-tf.app.flags.DEFINE_integer("max_train_data_size", 0,
-                            "Limit on the size of training data (0: no limit).")
-tf.app.flags.DEFINE_integer("patience", 20,
-                            "exit if the model can't improve for $patience evals")
-tf.app.flags.DEFINE_integer("steps_per_checkpoint", 4000,
-                            "How many training steps to do per checkpoint.")
+tf.app.flags.DEFINE_boolean("test", False, "Test on test splits")
+tf.app.flags.DEFINE_string("combine_att", 'mix', "method to combine attributes: het or mix")
 tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
-tf.app.flags.DEFINE_string("combine_att", 'het', "method to combine attributes: het or mix")
+tf.app.flags.DEFINE_integer("user_vocab_size", 150000, "User vocabulary size.")
+tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
+tf.app.flags.DEFINE_integer("item_vocab_min_thresh", 2, "filter inactive tokens.")
+
+# tuning hypers
+tf.app.flags.DEFINE_string("loss", 'ce', "loss function: ce, warp, (mw, mce, bpr)")
+tf.app.flags.DEFINE_float("learning_rate", 0.1, "Learning rate.")
+tf.app.flags.DEFINE_float("keep_prob", 0.5, "dropout rate.")
+tf.app.flags.DEFINE_float("learning_rate_decay_factor", 1.0,
+                          "Learning rate decays by this much.")
+tf.app.flags.DEFINE_integer("batch_size", 64,
+                            "Batch size to use during training.")
+tf.app.flags.DEFINE_integer("size", 20, "Size of each embedding.")
+tf.app.flags.DEFINE_integer("patience", 20,
+                            "exit if the model can't improve for $patience evals")
+tf.app.flags.DEFINE_integer("n_epoch", 1000, "How many epochs to train.")
+tf.app.flags.DEFINE_integer("steps_per_checkpoint", 4000,
+                            "How many training steps to do per checkpoint.")
+
+# to recommend
 tf.app.flags.DEFINE_boolean("recommend", False,
                             "Set to True for recommend items.")
+tf.app.flags.DEFINE_string("saverec", False, "")
+tf.app.flags.DEFINE_integer("top_N_items", 100,
+                            "number of items output")
 tf.app.flags.DEFINE_boolean("recommend_new", False,
                             "Set to True for recommend new items that were not used to train.")
+
+# nonlinear
+tf.app.flags.DEFINE_string("nonlinear", 'linear', "nonlinear activation")
+tf.app.flags.DEFINE_integer("hidden_size", 500, "when nonlinear proj used")
+tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
+
+# algorithms with sampling
+tf.app.flags.DEFINE_float("power", 0.5, "related to sampling rate.")
+tf.app.flags.DEFINE_integer("n_resample", 50, "iterations before resample.")
+tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
+
+tf.app.flags.DEFINE_string("sample_type", 'random', "random, sweep, permute")
+tf.app.flags.DEFINE_float("user_sample", 1.0, "user sample rate.")
+
+# 
+tf.app.flags.DEFINE_integer("gpu", -1, "gpu card number")
+tf.app.flags.DEFINE_boolean("profile", False, "False = no profile, True = profile")
 tf.app.flags.DEFINE_boolean("device_log", False,
                             "Set to True for logging device usages.")
 tf.app.flags.DEFINE_boolean("eval", True,
                             "Set to True for evaluation.")
 tf.app.flags.DEFINE_boolean("use_more_train", False,
                             "Set true if use non-appearred items to train.")
-tf.app.flags.DEFINE_boolean("profile", False, "False = no profile, True = profile")
-
-tf.app.flags.DEFINE_string("loss", 'ce',
-                            "loss function")
 tf.app.flags.DEFINE_string("model_option", 'loss',
                             "model to evaluation")
-tf.app.flags.DEFINE_string("log", 'log/log0', "logfile")
-tf.app.flags.DEFINE_string("nonlinear", 'linear', "nonlinear activation")
-tf.app.flags.DEFINE_string("sample_type", 'random', "random, sweep, permute")
-tf.app.flags.DEFINE_integer("gpu", -1, "gpu card number")
-tf.app.flags.DEFINE_boolean("test", False, "Test on test splits")
-tf.app.flags.DEFINE_integer("n_epoch", 1000, "How many epochs to train.")
 
+# tf.app.flags.DEFINE_integer("max_train_data_size", 0,
+#                             "Limit on the size of training data (0: no limit).")
 # Xing related
-tf.app.flags.DEFINE_integer("ta", 0, "target_active")
-tf.app.flags.DEFINE_float("user_sample", 1.0, "user sample rate.")
-tf.app.flags.DEFINE_integer("top_N_items", 100,
-                            "number of items output")
+# tf.app.flags.DEFINE_integer("ta", 0, "target_active")
 
-tf.app.flags.DEFINE_string("saverec", False, "")
+
 
 FLAGS = tf.app.flags.FLAGS
 
