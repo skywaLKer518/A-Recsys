@@ -1,7 +1,7 @@
 # A-RecSys : a Tensorflow Toolkit for Implicit Recommendation Tasks
 
 ## A-RecSys
-A-RecSys implements a set of implicit recommendation algorithms and is designed to be used in large scale recommendation settings. It extends traditional matrix factorization models and focuses on attribute embedding and applying sequence models.
+A-RecSys implements a set of implicit recommendation algorithms and is designed to be used in large scale recommendation settings. It extends traditional matrix factorization algorithms and focuses on attribute embedding and applying sequence models.
 
 
 Currently the models and features supported by A-RecSys include,
@@ -49,7 +49,7 @@ bash run_lstm.sh 64 1 False
 (Code has been tested on TF 0.8 and above.)
 
 ### recommend
-You can switch to "recommend" mode from "training" by see flag *recommend* to 'true'. In the above HMF example, it would be
+You can switch to "recommend" mode from "training" by setting flag *recommend* to 'true'. In the above HMF example, it would be
 
 ``` 
 cd examples/
@@ -69,7 +69,7 @@ Please cite the following if you find this helpful.
 }
 
 ## Feedback
-Please let us know your comments and suggestions. Thanks!
+Your comments and suggestions are more than welcome! We really appreciate that!
 
 Kuan Liu kuanl@usc.edu
 Xing Shi xingshi@usc.edu
