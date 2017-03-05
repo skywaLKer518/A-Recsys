@@ -32,7 +32,7 @@ def format_submit(X, sub_id, submit_dir = '../submissions/'):
         if isinstance(l, list):
             X[key] = ','.join(str(xx) for xx in l)
         else:
-            print 'not a list. No need to convert.'
+            # print 'not a list. No need to convert.'
             break
     x = pd.DataFrame(X.items())
     write_csv(x, join(submit_dir, sub_id), header)

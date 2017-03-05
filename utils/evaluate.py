@@ -38,6 +38,11 @@ class Evaluation(object):
         self.res = rec
 
         tmp_filename = 'rec'
+        for k, v in rec.items():
+            rec[k] = [str(v) for v in rec[k]]
+            # if isinstance(R[k], list):
+
+        #     R[k] = ','.join(str(xx) for xx in v)
         # for k, v in rec.items():
         #     rec[k] = v.split(',')
 

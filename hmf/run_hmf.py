@@ -411,9 +411,7 @@ def compute_scores(raw_data_dir=FLAGS.raw_data, data_dir=FLAGS.data_dir,
   evaluation = Evaluate(raw_data_dir, test=test)
  
   R = recommend(evaluation.get_uids(), data_dir=data_dir)
-
-  # for k, v in R.items():
-  #   R[k] = ','.join(str(xx) for xx in v)
+  
   evaluation.eval_on(R)
   scores_self, scores_ex = evaluation.get_scores()
   mylog("====evaluation scores (NDCG, RECALL, PRECISION, MAP) @ 2,5,10,20,30====")
@@ -434,10 +432,12 @@ def main(_):
   if not os.path.exists(FLAGS.train_dir):
     os.mkdir(FLAGS.train_dir)
   if not FLAGS.recommend:
+    mylog('train')
     log_path = os.path.join(FLAGS.train_dir,"log.txt")
     logging.basicConfig(filename=log_path,level=logging.DEBUG)
     train(data_dir=FLAGS.data_dir)
   else:
+    mylog('recommend')
     log_path = os.path.join(FLAGS.train_dir,"log.recommend.txt")
     logging.basicConfig(filename=log_path,level=logging.DEBUG)
     compute_scores(data_dir=FLAGS.data_dir)

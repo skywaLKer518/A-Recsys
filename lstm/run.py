@@ -34,7 +34,7 @@ from tensorflow.python.client import timeline
 from prepare_train import positive_items, item_frequency, sample_items, to_week
 
 # datasets, paths, and preprocessing
-tf.app.flags.DEFINE_string("dataset", "xing", "xing or ml")
+tf.app.flags.DEFINE_string("dataset", "xing", "dataset name")
 tf.app.flags.DEFINE_string("raw_data", "../raw_data", "input data directory")
 tf.app.flags.DEFINE_string("data_dir", "./cache0/", "Data directory")
 tf.app.flags.DEFINE_string("train_dir", "./train", "Training directory.")
@@ -43,7 +43,7 @@ tf.app.flags.DEFINE_string("combine_att", 'mix', "method to combine attributes: 
 tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
 tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
 tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
-tf.app.flags.DEFINE_integer("item_vocab_min_thresh", 2, "filter inactive tokens.")
+tf.app.flags.DEFINE_integer("vocab_min_thresh", 2, "filter inactive tokens.")
 
 # tuning hypers
 tf.app.flags.DEFINE_string("loss", 'ce', "loss function: ce, warp")
@@ -58,8 +58,8 @@ tf.app.flags.DEFINE_integer("batch_size", 64,
                             "Batch size to use during training/evaluation.")
 tf.app.flags.DEFINE_integer("size", 128, "Size of each model layer.")
 tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
-tf.app.flags.DEFINE_integer("n_epoch", 40,
-                            "How many epochs to train.")
+tf.app.flags.DEFINE_integer("n_epoch", 500,
+                            "Maximum number of epochs in training.")
 tf.app.flags.DEFINE_integer("L", 30,"max length")
 tf.app.flags.DEFINE_integer("n_bucket", 10,
                             "num of buckets to run.")
@@ -197,7 +197,8 @@ def form_sequence(data, maxlen = 100):
                 else:
                     tmp = tmp[maxlen:]
 
-    mylog("All item: {} Rest item: {} Remove item: {}".format(n_all_item, n_rest_item, n_all_item - n_rest_item))
+    # count below not valid any more
+    # mylog("All item: {} Rest item: {} Remove item: {}".format(n_all_item, n_rest_item, n_all_item - n_rest_item))
 
     return dd
 
@@ -234,7 +235,7 @@ def split_train_dev(seq_all, ratio = 0.05):
 
 
 def get_data(raw_data, data_dir=FLAGS.data_dir, combine_att=FLAGS.combine_att, 
-    logits_size_tr=FLAGS.item_vocab_size, thresh=FLAGS.item_vocab_min_thresh, 
+    logits_size_tr=FLAGS.item_vocab_size, thresh=FLAGS.vocab_min_thresh, 
     use_user_feature=FLAGS.use_user_feature, test=FLAGS.test, mylog=mylog,
     use_item_feature=FLAGS.use_item_feature, recommend = False):
 
