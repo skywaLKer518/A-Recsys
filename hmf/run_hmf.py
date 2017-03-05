@@ -412,12 +412,10 @@ def compute_scores(raw_data_dir=FLAGS.raw_data, data_dir=FLAGS.data_dir,
  
   R = recommend(evaluation.get_uids(), data_dir=data_dir)
 
-  for k, v in R.items():
-    R[k] = ','.join(str(xx) for xx in v)
+  # for k, v in R.items():
+  #   R[k] = ','.join(str(xx) for xx in v)
   evaluation.eval_on(R)
   scores_self, scores_ex = evaluation.get_scores()
-  # mylog('scores: \n\t{}\n\t{}\n\t{}\n'.format(s1, s2, s3))
-  # mylog("SCORE_FORMAT: {} {} {} {} ".format(s1[0], s2[0], s3[0], s3[4]))
   mylog("====evaluation scores (NDCG, RECALL, PRECISION, MAP) @ 2,5,10,20,30====")
   mylog("METRIC_FORMAT (self): {}".format(scores_self))
   mylog("METRIC_FORMAT (ex  ): {}".format(scores_ex))
@@ -435,8 +433,6 @@ def main(_):
 
   if not os.path.exists(FLAGS.train_dir):
     os.mkdir(FLAGS.train_dir)
-  if not os.path.exists(FLAGS.data_dir):
-    os.mkdir(FLAGS.data_dir)
   if not FLAGS.recommend:
     log_path = os.path.join(FLAGS.train_dir,"log.txt")
     logging.basicConfig(filename=log_path,level=logging.DEBUG)

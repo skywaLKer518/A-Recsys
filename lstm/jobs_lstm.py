@@ -12,13 +12,14 @@ source $NLGHOME/sh/init_tensorflow.sh
 # export CUDA_VISIBLE_DEVICES=$1
 cd /home/nlg-05/xingshi/lstm/tensorflow/recsys/lstm/
 
-data_part=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_part
-data_full=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_full
-data_full07=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_full0.7
-data_full03=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_full0.3
-data_ml=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_ml
-data_ml1m=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_ml1m/
-data_yelp=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/yelp/
+data_xing_mix=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/xing_mix/
+data_xing_het=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/xing_het/
+data_yelp_mix=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/yelp_mix/
+data_yelp_het=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/yelp_het/
+
+raw_xing=/home/nlg-05/xingshi/lstm/tensorflow/recsys/raw_data/xing/
+raw_yelp=/home/nlg-05/xingshi/lstm/tensorflow/recsys/raw_data/yelp/
+
 train_dir=/home/nlg-05/xingshi/lstm/tensorflow/recsys/train/
 
 __cmd__
@@ -31,20 +32,20 @@ head_hpc1="""
 #PBS -l walltime=300:00:00
 #PBS -l nodes=1:ppn=16:gpus=2:shared
 
-
 source /usr/usc/cuDNN/7.5-v5.1/setup.sh
 source /usr/usc/cuda/8.0/setup.sh
 
 # export CUDA_VISIBLE_DEVICES=$1
 cd /home/nlg-05/xingshi/lstm/tensorflow/recsys/lstm/
 
-data_part=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_part
-data_full=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_full
-data_full07=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_full0.7
-data_full03=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_full0.3
-data_ml=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_ml
-data_ml1m=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/data_ml1m/
-data_yelp=/home/nlg-05/xingshi/lstm/tensorflow/recsys/data/yelp/
+data_xing_mix=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/xing_mix/
+data_xing_het=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/xing_het/
+data_yelp_mix=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/yelp_mix/
+data_yelp_het=/home/nlg-05/xingshi/lstm/tensorflow/recsys/cache/yelp_het/
+
+raw_xing=/home/nlg-05/xingshi/lstm/tensorflow/recsys/raw_data/xing/
+raw_yelp=/home/nlg-05/xingshi/lstm/tensorflow/recsys/raw_data/yelp/
+
 train_dir=/home/nlg-05/xingshi/lstm/tensorflow/recsys/train/
 
 __cmd__
@@ -60,13 +61,14 @@ head_hpc2="""
 source /usr/usc/cuda/8.0/setup.sh
 cd /home/rcf-proj/pn3/kuanl/recsys/lstm/
 
-data_part=/home/rcf-proj/pn3/kuanl/recsys/data/data_part/
-data_full=/home/rcf-proj/pn3/kuanl/recsys/data/data_full/
-data_full07=/home/rcf-proj/pn3/kuanl/recsys/data/data_full0.7/
-data_full03=/home/rcf-proj/pn3/kuanl/recsys/data/data_full0.3/
-data_ml=/home/rcf-proj/pn3/kuanl/recsys/data/data_ml/
-data_ml1m=/home/rcf-proj/pn3/kuanl/recsys/data/data_ml1m/
-data_yelp=/home/rcf-proj/pn3/kuanl/recsys/data/yelp/
+data_xing_mix=/home/rcf-proj/pn3/kuanl/recsys/cache/xing_mix/
+data_xing_het=/home/rcf-proj/pn3/kuanl/recsys/cache/xing_het/
+data_yelp_mix=/home/rcf-proj/pn3/kuanl/recsys/cache/yelp_mix/
+data_yelp_het=/home/rcf-proj/pn3/kuanl/recsys/cache/yelp_het/
+
+raw_xing=/home/rcf-proj/pn3/kuanl/recsys/raw_data/xing/
+raw_yelp=/home/rcf-proj/pn3/kuanl/recsys/raw_data/yelp/
+
 train_dir=/home/rcf-proj/pn3/kuanl/recsys/train/
 
 __cmd__
@@ -86,20 +88,24 @@ echo $LD_LIBRARY_PATH
 echo $SGE_GPU
 export CUDA_VISIBLE_DEVICES=$SGE_GPU
 
-data_ml_part=/nfs/isicvlnas01/users/liukuan/recsys/data/data_ml_part
-data_ml=/nfs/isicvlnas01/users/liukuan/recsys/data/data_ml
-data_part=/nfs/isicvlnas01/users/liukuan/recsys/data/data_part
-data_full=/nfs/isicvlnas01/users/liukuan/recsys/data/data_full
-data_full0.7=/nfs/isicvlnas01/users/liukuan/recsys/data/data_full0.7
-data_full0.3=/nfs/isicvlnas01/users/liukuan/recsys/data/data_full0.3
+data_xing_mix=/nfs/isicvlnas01/users/liukuan/recsys/cache/xing_mix/
+data_xing_het=/nfs/isicvlnas01/users/liukuan/recsys/cache/xing_het/
+data_yelp_mix=/nfs/isicvlnas01/users/liukuan/recsys/cache/yelp_mix/
+data_yelp_het=/nfs/isicvlnas01/users/liukuan/recsys/cache/yelp_het/
+raw_xing=/nfs/isicvlnas01/users/liukuan/recsys/raw_data/xing/
+raw_yelp=/nfs/isicvlnas01/users/liukuan/recsys/raw_data/yelp/
+
 train_dir=/nfs/isicvlnas01/users/liukuan/recsys/train/
 log_dir=/nfs/isicvlnas01/users/liukuan/recsys/train/log/
 
 __cmd__
 """
 
+def rawdata(val):
+    return "", "--raw_data {}".format(val)
+
 def data_dir(val):
-    return "", "--data_dir {}".format(val)
+    return "{}".format(val[1]), "--data_dir {}".format(val[0])
     
 def train_dir(val):
     return "", "--train_dir {}".format(val)
@@ -142,7 +148,7 @@ def N(val):
 
 def dataset(val):
     if val == 'xing':
-        return "xing", "--dataset xing"
+        return "xing", "--dataset xing --after40 True"
     elif val == "ml":
         return "Ml", "--dataset ml --after40 False"
     elif val == 'ml1m':
@@ -218,29 +224,31 @@ def ensemble_suffix(val):
     else:
         return "","--ensemble_suffix {}".format(val)
 
+def combine(val):
+    return "", "--combine_att {}".format(val)
 
 ############# Different Settings ###############
 
 def setting1():
     # ensemble
-    funcs = [data_dir, batch_size, size,       #3
+    funcs = [data_dir, batch_size, size,       #3 
              dropout, learning_rate, n_epoch,  #6
              loss, ta, num_layers,             #9
              L, N, use_concat,                 #12
              dataset, item_vocab_size, fromScratch, #15
              no_user_id, use_out_items, wFeat, #18
              randseed, test, ensemble, #21
-             ensemble_suffix]
+             combine, ensemble_suffix, rawdata]
     
 
     #ensemble xing full
-    # template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "000",False,'xing',50000, False, True, False, True, 0, False, False, ""]
+    # template = [["$data_xing_het", "het"], 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "000",False,'xing',50000, False, True, False, True, 0, False, False, "het", "", "$raw_xing"]
     
     # ML-1m 
     # template = ["$data_ml1m", 64, 128, 0.5, 0.5, 200, "warp", 0, 1, 50, "001",False,'ml1m',3100, False, True, True, True, 0, True, False, ""]
     
     # # yelp, oF
-    template = ["$data_yelp", 32, 128, 0.6, 0.5, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, False, True, 0, True, False, ""]
+    template = [["$data_yelp_het", "het"], 32, 128, 0.6, 0.5, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, False, True, 0, True, False, "het", "", "$raw_yelp"]
 
     # XING with test, no feature or yes feature; not output (OF)
     # template = ["$data_full", 64, 256, 0.5, 0.5, 250, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 0, True, False, ""]
@@ -255,7 +263,7 @@ def setting1():
     temp = list(template)
     temp[18] = "Ensem"
     temp[20] = True
-    temp[21] = "1,2,3,4,5,6,7,8"
+    temp[22] = "1,2,3,4,5,6,7,8"
     params.append(temp)
 
     return funcs, params
@@ -282,29 +290,39 @@ def setting2():
     #          output_feat, user_sample]
 
     # output_feat
+    funcs = [dataset, data_dir, rawdata,        #3
+             combine, batch_size, size,         #6
+             dropout, learning_rate, n_epoch,  #9
+             loss, num_layers, L,              #12
+             N, use_concat, item_vocab_size,   #15
+             fromScratch, no_user_id, use_out_items,      #18
+             wFeat, output_feat, test]      #21
+
+    # input item feat
     # funcs = [data_dir, batch_size, size,       #3
     #          dropout, learning_rate, n_epoch,  #6
     #          loss, ta, num_layers,             #9
     #          L, N, use_concat,                 #12
     #          dataset, item_vocab_size, fromScratch, #15
     #          no_user_id, use_out_items, wFeat, #18
-    #          output_feat, test]
-
-    # input item feat
-    funcs = [data_dir, batch_size, size,       #3
-             dropout, learning_rate, n_epoch,  #6
-             loss, ta, num_layers,             #9
-             L, N, use_concat,                 #12
-             dataset, item_vocab_size, fromScratch, #15
-             no_user_id, use_out_items, wFeat, #18
-             no_input_feat, output_feat, test]
+    #          no_input_feat, output_feat, test, # 21
+    #          rawdata, combine]
 
     # yelp
     # template = ["$data_yelp", 32, 256, 0.4, 1.0, 150, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, True, True, 1, True]
 
     # yelp, oF
-    # template = ["$data_yelp", 32, 256, 0.4, 1.0, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, False, True, 1, True]
+    # template = [["$data_yelp_het", 'het'], 32, 256, 0.4, 1.0, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, False, True, 1, True, "$raw_yelp", "het"]
 
+    # yelp, oF new
+
+    # template = ['yelp', ["$data_yelp_mix", "mix"], "$raw_yelp", 
+    #              "mix", 10, 128, 
+    #              0.4, 0.5, 250, 
+    #              "ce", 1, 30, 
+    #              "001",False,80000, 
+    #              False, True, False, 
+    #              True, 1, True]
     # yelp, oT
     # template = ["$data_yelp", 32, 128, 0.6, 1.0, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, True, True, 0, True]
 
@@ -312,7 +330,7 @@ def setting2():
     # template = ["$data_yelp", 32, 128, 0.6, 1.0, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, True, True, 0, True]
 
     # yelp, oT/oF, oa1, noi
-    template = ["$data_yelp", 32, 128, 0.5, 1.0, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, True, True, True, 1, True]
+    # template = [["$data_yelp_het", "het"], 32, 128, 0.5, 1.0, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, True, True, True, 1, True, "$raw_yelp", "het"]
 
     # XING sep-out-feat, output_feat
     # template = ["$data_full", 64, 256, 0.4, 1.0, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, True, True, 0]    
@@ -336,13 +354,30 @@ def setting2():
     # template_ml = ["$data_ml", 64, 128, 0.5, 0.5, 150, "ce", 0, 1, 40, "001",False,'ml',13000, False, True, False, False, 1]
     # template_ml = ["$data_ml", 64, 128, 0.5, 0.5, 150, "ce", 0, 1, 40, "001",False,'ml',13000, False, True, True, False, 1]
 
-    
+
+    # XING, with test new, het
+    template = ['xing', ["$data_xing_het", "het"], "$raw_xing", 
+                 "het", 32, 256, 
+                 0.4, 0.5, 150, 
+                 "ce", 1, 30, 
+                 "001",False,50000, 
+                 False, True, False, 
+                 True, 1, True]
+    # XING, with test new, mix
+    # template = ['xing', ["$data_xing_mix", "mix"], "$raw_xing", 
+    #              "mix", 32, 256, 
+    #              0.4, 0.5, 150, 
+    #              "ce", 1, 30, 
+    #              "001",False,50000, 
+    #              False, True, False, 
+    #              True, 1, True]
+
     # XING, with test
     # template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 1, True]
     
     # XING with test, no feature or yes feature; not output (OF)
-    # template = ["$data_full", 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 0, True]
-    
+    # template = [["$data_xing_het", "het"], 64, 256, 0.4, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, False, True, 0, True]
+
     # XING with test, no feature or yes feature; separate output (OT)
     # template = ["$data_full", 64, 256, 0.5, 0.5, 150, "ce", 0, 1, 30, "001",False,'xing',50000, False, True, True, True, 0, True]
 
@@ -357,27 +392,31 @@ def setting2():
     
     params = []
 
-    _h = [64]
-    _dropout = [0.5]
+    
+    _h = [256] #xing
+    # _h = [128] #yelp
+    # _dropout = [0.6] #yelp
+    _dropout = [0.5] #xing
     _learning_rate = [1, 0.5]
     _oa = [1]
+    _oa = [3]
     # _us = [0.7, 0.3]
     # # # _seeds = [1, 2, 3, 4, 5, 6, 7, 8]
     _loss = ['ce']
-    _of = [True, False]
-    _wf = [True, False]
+    _of = [False]
+    _wf = [True]
     for lr in _learning_rate:
         for h in _h:
             for oa in _oa:
                 for dr in _dropout:
                     for of in _of:
                         temp = list(template)
-                        temp[4] = lr
-                        temp[16] = of
-                        temp[2] = h
+                        temp[7] = lr
+                        temp[17] = of
+                        temp[5] = h
                         temp[19] = oa
                         # temp[0] = '$data_full' + str(us).replace('.', '')
-                        temp[3] = dr
+                        temp[6] = dr
                         params.append(temp)
     
                     

@@ -22,7 +22,7 @@ def item_frequency(data_tr, power):
     item_population.add(i)
   item_population = list(item_population)
   counts = [item_counts[v] for v in item_population]
-  print(len(item_population))
+  # print(len(item_population))
 
   count_sum = sum(counts) * 1.0
 

@@ -20,7 +20,7 @@ from tensorflow.python.ops import rnn_cell
 from tensorflow.python.ops import variable_scope
 
 import data_iterator
-import env
+# import env
 
 class SeqModel(object):
     
@@ -179,7 +179,7 @@ class SeqModel(object):
                     self.gradient_norms.append(norm)
                     self.updates.append(opt.apply_gradients(zip(clipped_gradients, params), global_step=self.global_step))
 
-        self.saver = tf.train.Saver(tf.all_variables())
+        self.saver = tf.train.Saver(tf.global_variables())
 
     def step(self,session, user_input, item_inputs, targets, target_weights, 
         bucket_id, item_sampled=None, item_sampled_id2idx = None, forward_only = False, recommend = False):
@@ -194,7 +194,6 @@ class SeqModel(object):
             if self.loss in ['mw', 'ce']:
                 input_feed[self.target_ids[l].name] = targets[l]
 
-        #print(input_feed)
         (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = forward_only, recommend = recommend, loss = self.loss, item_sampled_id2idx=item_sampled_id2idx)
         if self.loss in ["warp", "mw"]:
             session.run(self.set_mask[self.loss], input_feed_warp)
@@ -232,11 +231,9 @@ class SeqModel(object):
 
         # output_feed
         output_feed = {}
-        #print(pre_length, length)
+
         for pos in range(pre_length,length):                
             output_feed[pos] = [self.topk_values[bucket_id][pos], self.topk_indexes[bucket_id][pos]]
-        #print(len(output_feed))
-        #print(output_feed)
 
         outputs = session.run(output_feed, input_feed, options = self.run_options, run_metadata = self.run_metadata)
         
@@ -365,7 +362,9 @@ class SeqModel(object):
         with tf.device(devices[1]):
             init_state = cell.zero_state(self.batch_size, dtype)
         
-        with ops.op_scope(all_inputs, name, "model_with_buckets"):
+
+        with tf.name_scope(name, "model_with_buckets", all_inputs):
+        # with ops.op_scope(all_inputs, name, "model_with_buckets"):
             for j, bucket in enumerate(buckets):
                 with variable_scope.variable_scope(variable_scope.get_variable_scope(),reuse=True if j > 0 else None):
                     
@@ -441,7 +440,8 @@ def sequence_loss_by_example(logits, targets, weights,
   if len(targets) != len(logits) or len(weights) != len(logits):
     raise ValueError("Lengths of logits, weights, and targets must be the same "
                      "%d, %d, %d." % (len(logits), len(weights), len(targets)))
-  with ops.op_scope(logits + targets + weights,name, "sequence_loss_by_example"):
+  with tf.name_scope(name, "sequence_loss_by_example", logits + targets + weights):
+  # with ops.op_scope(logits + targets + weights,name, "sequence_loss_by_example"):
     log_perp_list = []
     for logit, target, weight in zip(logits, targets, weights):
       if softmax_loss_function is None:
@@ -486,7 +486,8 @@ def sequence_loss(logits, targets, weights,
     ValueError: If len(logits) is different from len(targets) or len(weights).
   """
 
-  with ops.op_scope(logits + targets + weights, name, "sequence_loss"):
+  with tf.name_scope(name, "sequence_loss", logits + targets + weights):
+  # with ops.op_scope(logits + targets + weights, name, "sequence_loss"):
     cost = math_ops.reduce_sum(sequence_loss_by_example(
         logits, targets, weights,
         average_across_timesteps=average_across_timesteps,

@@ -46,8 +46,8 @@ class Attributes(object):
     self.full_lengths_tr = full_lengths_tr
     return
 
-  def get_item_last_index(self):
-    return len(self.features_cat[0]) - 1
+  # def get_item_last_index(self):
+  #   return len(self.features_cat[0]) - 1
 
   def overview(self, out=None):
     def p(val):

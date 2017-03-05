@@ -18,18 +18,19 @@ def read_data(raw_data_dir='../raw_data/data/', data_dir='../cache/data/',
 
   data_filename = os.path.join(data_dir, 'data')
   if os.path.isfile(data_filename):
-    mylog("data file {} exists! loading cached data. \nCaution: change --data_dir if new data (preprocessing) is used.".format(data_filename))
+    mylog("data file {} exists! loading cached data. \nCaution: change cached data dir (--data_dir) if new data (or new preprocessing) is used.".format(data_filename))
     (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, 
       logit_ind2item_ind, user_index, item_index) = pickle.load(
       open(data_filename, 'rb'))
-    u_attr.overview(mylog)
-    i_attr.overview(mylog)
+    # u_attr.overview(mylog)
+    # i_attr.overview(mylog)
 
   else:
+    if not os.path.exists(data_dir):
+      os.mkdir(data_dir)      
     _submit = 1 if test else 0
     (users, items, data_tr, data_va, user_features, item_features, 
-      user_index, item_index) = load_raw_data(
-      data_dir = raw_data_dir, _submit=_submit)
+      user_index, item_index) = load_raw_data(data_dir=raw_data_dir, _submit=_submit)
     if not use_user_feature:
       n = len(users)
       users = users[:, 0].reshape(n, 1)

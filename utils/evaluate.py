@@ -38,8 +38,8 @@ class Evaluation(object):
         self.res = rec
 
         tmp_filename = 'rec'
-        for k, v in rec.items():
-            rec[k] = v.split(',')
+        # for k, v in rec.items():
+        #     rec[k] = v.split(',')
 
         r_ex = self.combine_sub(self.hist, rec, 1, users = self.Uatt)
 

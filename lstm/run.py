@@ -15,15 +15,17 @@ import logging
 
 from seqModel import SeqModel
 
-import pandas as pd
-import configparser
-import env
+# import pandas as pd
+# import configparser
+# import env
 
 sys.path.insert(0, '../utils')
 sys.path.insert(0, '../attributes')
-import embed_attribute
 
-from tasks import Task
+
+import embed_attribute
+from input_attribute import read_data as read_attributed_data
+
 
 import data_iterator
 from data_iterator import DataIterator
@@ -31,7 +33,20 @@ from best_buckets import *
 from tensorflow.python.client import timeline
 from prepare_train import positive_items, item_frequency, sample_items, to_week
 
+# datasets, paths, and preprocessing
+tf.app.flags.DEFINE_string("dataset", "xing", "xing or ml")
+tf.app.flags.DEFINE_string("raw_data", "../raw_data", "input data directory")
+tf.app.flags.DEFINE_string("data_dir", "./cache0/", "Data directory")
+tf.app.flags.DEFINE_string("train_dir", "./train", "Training directory.")
+tf.app.flags.DEFINE_boolean("test", True, "fix to be True as we split non-test part by users.")
+tf.app.flags.DEFINE_string("combine_att", 'mix', "method to combine attributes: het or mix")
+tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
+tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
+tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
+tf.app.flags.DEFINE_integer("item_vocab_min_thresh", 2, "filter inactive tokens.")
 
+# tuning hypers
+tf.app.flags.DEFINE_string("loss", 'ce', "loss function: ce, warp")
 tf.app.flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
 tf.app.flags.DEFINE_float("learning_rate_decay_factor", 0.83,
                           "Learning rate decays by this much.")
@@ -39,86 +54,71 @@ tf.app.flags.DEFINE_float("max_gradient_norm", 5.0,
                           "Clip gradients to this norm.")
 tf.app.flags.DEFINE_float("keep_prob", 0.5, "dropout rate.")
 tf.app.flags.DEFINE_float("power", 0.5, "related to sampling rate.")
+tf.app.flags.DEFINE_integer("batch_size", 64,
+                            "Batch size to use during training/evaluation.")
+tf.app.flags.DEFINE_integer("size", 128, "Size of each model layer.")
+tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
+tf.app.flags.DEFINE_integer("n_epoch", 40,
+                            "How many epochs to train.")
+tf.app.flags.DEFINE_integer("L", 30,"max length")
+tf.app.flags.DEFINE_integer("n_bucket", 10,
+                            "num of buckets to run.")
+tf.app.flags.DEFINE_integer("patience", 10,"exit if the model can't improve for $patence evals")
+#tf.app.flags.DEFINE_integer("steps_per_checkpoint", 200,"How many training steps to do per checkpoint.")
 
+# recommendation
+tf.app.flags.DEFINE_boolean("recommend", False, "Set to True for recommending.")
+tf.app.flags.DEFINE_boolean("recommend_new", False, "TODO.")
+tf.app.flags.DEFINE_integer("topk", 100, "recommend items with the topk values")
+
+# for ensemble 
+tf.app.flags.DEFINE_boolean("ensemble", False, "to ensemble")
+tf.app.flags.DEFINE_string("ensemble_suffix", "", "multiple models suffix: 1,2,3,4,5")
+tf.app.flags.DEFINE_integer("seed", 0, "dev split random seed.")
+
+# attribute model variants
+tf.app.flags.DEFINE_integer("output_feat", 1, "0: no use, 1: use, mean-mulhot, 2: use, max-pool")
+tf.app.flags.DEFINE_boolean("use_sep_item", False, "use separate embedding parameters for output items.")
+tf.app.flags.DEFINE_boolean("no_input_item_feature", False, "not using attributes at input layer")
+tf.app.flags.DEFINE_boolean("use_concat", False, "use concat or mean")
+tf.app.flags.DEFINE_boolean("no_user_id", True, "use user id or not")
+
+# devices
+tf.app.flags.DEFINE_string("N", "000", "GPU layer distribution: [input_embedding, lstm, output_embedding]")
+
+# 
 tf.app.flags.DEFINE_boolean("withAdagrad", True,
                             "withAdagrad.")
 tf.app.flags.DEFINE_boolean("fromScratch", True,
                             "withAdagrad.")
 tf.app.flags.DEFINE_boolean("saveCheckpoint", False,
                             "save Model at each checkpoint.")
-tf.app.flags.DEFINE_integer("batch_size", 100,
-                            "Batch size to use during training.")
-tf.app.flags.DEFINE_integer("size", 128, "Size of each model layer.")
-tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
-tf.app.flags.DEFINE_integer("output_feat", 1, "0: no use, 1: use, mean-mulhot, 2: use, max-pool")
-tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
-tf.app.flags.DEFINE_integer("n_resample", 30, "iterations before resample.")
-tf.app.flags.DEFINE_string("data_dir", "../mf/data0", "Data directory")
-tf.app.flags.DEFINE_string("train_dir", "./train", "Training directory.")
-tf.app.flags.DEFINE_string("N", "000", "GPU layer distribution: [input_embedding, lstm, output_embedding]")
+tf.app.flags.DEFINE_boolean("profile", False, "False = no profile, True = profile")
 
-
-tf.app.flags.DEFINE_integer("max_train_data_size", 0,
-                            "Limit on the size of training data (0: no limit).")
-
-#tf.app.flags.DEFINE_integer("steps_per_checkpoint", 200,"How many training steps to do per checkpoint.")
-tf.app.flags.DEFINE_string("loss", 'ce', "loss function")
-
-tf.app.flags.DEFINE_integer("seed", 0, "dev split random seed.")
-
-tf.app.flags.DEFINE_boolean("test", True, "split non-test part by users.")
-tf.app.flags.DEFINE_integer("n_epoch", 40,
-                            "How many epochs to train.")
-
-tf.app.flags.DEFINE_integer("n_bucket", 10,
-                            "num of buckets to run.")
-
+# others...
 tf.app.flags.DEFINE_integer("ta", 1, "part = 1, full = 0")
 tf.app.flags.DEFINE_float("user_sample", 1.0, "user sample rate.")
 
-tf.app.flags.DEFINE_integer("patience", 10,"exit if the model can't improve for $patence evals")
-
-tf.app.flags.DEFINE_integer("L", 30,"max length")
-tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
-
-tf.app.flags.DEFINE_boolean("profile", False, "False = no profile, True = profile")
-
-tf.app.flags.DEFINE_boolean("use_sep_item", False, "use separate embedding parameters for output items.")
-tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
-tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
-tf.app.flags.DEFINE_boolean("no_input_item_feature", False, "not using attributes at input layer")
-tf.app.flags.DEFINE_boolean("use_concat", False, "use concat or mean")
-tf.app.flags.DEFINE_boolean("no_user_id", True, "use user id or not")
-
-tf.app.flags.DEFINE_boolean("recommend_new", False,
-                            "Set to True for recommend new items that were not used to train.")
-
-tf.app.flags.DEFINE_boolean("recommend", False,
-                            "Set to True for recommend items.")
-
-tf.app.flags.DEFINE_boolean("after40", True,
+tf.app.flags.DEFINE_boolean("after40", False,
                             "whether use items after week 40 only.")
-
-tf.app.flags.DEFINE_string("dataset", "xing", "xing or ml")
-
 tf.app.flags.DEFINE_string("split", "last", "last: last maxlen only; overlap: overlap 1 / 3 of maxlen")
 
+tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
+tf.app.flags.DEFINE_integer("n_resample", 30, "iterations before resample.")
+
+tf.app.flags.DEFINE_integer("max_train_data_size", 0,
+                            "Limit on the size of training data (0: no limit).")
 tf.app.flags.DEFINE_boolean("old_att", False, "tmp: use attribute_0.8.csv")
-
-tf.app.flags.DEFINE_integer("topk", 200,"the topk value")
-
-
-# for ensemble 
-tf.app.flags.DEFINE_boolean("ensemble", False, "to ensemble")
-tf.app.flags.DEFINE_string("ensemble_suffix", "", "multiple models suffix: 1,2,3,4,5")
-
-
 
 FLAGS = tf.app.flags.FLAGS
 
 _buckets = []
 
-                
+def mylog(msg):
+    print(msg)
+    sys.stdout.flush()
+    logging.info(msg)
+
 def split_buckets(array,buckets):
     """
     array : [(user,[items])]
@@ -168,7 +168,6 @@ def form_sequence(data, maxlen = 100):
     Return:
       d : [(user_id, [item_id])]
     """
-    
 
     users = []
     items = []
@@ -178,9 +177,7 @@ def form_sequence(data, maxlen = 100):
             d[u] = []
         d[u].append((i,week))
     
-    
     dd = []
-    
     n_all_item = 0
     n_rest_item = 0
     for u in d:
@@ -200,7 +197,7 @@ def form_sequence(data, maxlen = 100):
                 else:
                     tmp = tmp[maxlen:]
 
-    log_it("All item: {} Rest item: {} Remove item: {}".format(n_all_item, n_rest_item, n_all_item - n_rest_item))
+    mylog("All item: {} Rest item: {} Remove item: {}".format(n_all_item, n_rest_item, n_all_item - n_rest_item))
 
     return dd
 
@@ -215,14 +212,12 @@ def prepare_warp(embAttr, data_tr, data_va):
     embAttr.prepare_warp(pos_item_list, pos_item_list_val) 
 
 def get_device_address(s):
-
     add = []
     if s == "":
         for i in xrange(3):
             add.append("/cpu:0")
     else:
         add = ["/gpu:{}".format(int(x)) for x in s]
-    add
     print(add)
     return add
 
@@ -235,18 +230,25 @@ def split_train_dev(seq_all, ratio = 0.05):
             seq_va.append(item)
         else:
             seq_tr.append(item)
-
     return seq_tr, seq_va
 
 
+def get_data(raw_data, data_dir=FLAGS.data_dir, combine_att=FLAGS.combine_att, 
+    logits_size_tr=FLAGS.item_vocab_size, thresh=FLAGS.item_vocab_min_thresh, 
+    use_user_feature=FLAGS.use_user_feature, test=FLAGS.test, mylog=mylog,
+    use_item_feature=FLAGS.use_item_feature, recommend = False):
 
-
-def read_data(task, test = False):
-    data_read = task.get_dataread()
-    Evaluate = task.get_evaluation()
-
-    _submit = 1 if FLAGS.test else 0
-    (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = _submit, ta = FLAGS.ta, logits_size_tr=FLAGS.item_vocab_size, sample=FLAGS.user_sample, old=FLAGS.old_att)
+    (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind, 
+        user_index, item_index) = read_attributed_data(
+        raw_data_dir=raw_data, 
+        data_dir=data_dir, 
+        combine_att=combine_att, 
+        logits_size_tr=logits_size_tr, 
+        thresh=thresh, 
+        use_user_feature=use_user_feature,
+        use_item_feature=use_item_feature, 
+        test=test, 
+        mylog=mylog)
 
     # remove unk
     data_tr = [p for p in data_tr if (p[1] in item_ind2logit_ind)]
@@ -259,9 +261,13 @@ def read_data(task, test = False):
     item_population, p_item = item_frequency(data_tr, FLAGS.power)
 
     # UNK and START
-    START_ID = i_attr.get_item_last_index()
+    # print(len(item_ind2logit_ind))
+    # print(len(logit_ind2item_ind))
+    # print(len(item_index))
+    START_ID = len(item_index)
+    # START_ID = i_attr.get_item_last_index()
     item_ind2logit_ind[START_ID] = 0
-    seq_all = form_sequence(data_tr,maxlen = FLAGS.L)
+    seq_all = form_sequence(data_tr, maxlen = FLAGS.L)
     seq_tr0, seq_va0 = split_train_dev(seq_all,ratio=0.05)
     
     
@@ -275,8 +281,9 @@ def read_data(task, test = False):
     seq_va = split_buckets(seq_va0,_buckets)
     
     # get test data
-    if test:
-        evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta, old=FLAGS.old_att, data_dir=FLAGS.data_dir, test=FLAGS.test)
+    if recommend:
+        from evaluate import Evaluation as Evaluate
+        evaluation = Evaluate(raw_data, test=test)
         uids = evaluation.get_uinds()
         seq_test = form_sequence_prediction(seq_all, uids, FLAGS.L, START_ID)
         _buckets = calculate_buckets(seq_test, FLAGS.L, FLAGS.n_bucket)
@@ -294,24 +301,22 @@ def read_data(task, test = False):
         u_attr.set_model_size(FLAGS.size)
         i_attr.set_model_size(FLAGS.size)
 
-        if not FLAGS.use_item_feature:
-            log_it("NOT using item attributes")
-            i_attr.num_features_cat = 1
-            i_attr.num_features_mulhot = 0 
+        # if not FLAGS.use_item_feature:
+        #     mylog("NOT using item attributes")
+        #     i_attr.num_features_cat = 1
+        #     i_attr.num_features_mulhot = 0 
 
-        if not FLAGS.use_user_feature:
-            log_it("NOT using user attributes")
-            u_attr.num_features_cat = 1
-            u_attr.num_features_mulhot = 0 
-
+        # if not FLAGS.use_user_feature:
+        #     mylog("NOT using user attributes")
+        #     u_attr.num_features_cat = 1
+        #     u_attr.num_features_mulhot = 0 
 
         embAttr = embed_attribute.EmbeddingAttribute(u_attr, i_attr, FLAGS.batch_size, FLAGS.n_sampled, _buckets[-1], FLAGS.use_sep_item, item_ind2logit_ind, logit_ind2item_ind, devices=devices)
 
         if FLAGS.loss in ["warp", 'mw']:
             prepare_warp(embAttr, seq_tr0, seq_va0)
-            # prepare_warp(embAttr, data_tr, data_va)
 
-    return seq_tr, seq_va, seq_test, embAttr, START_ID, item_population, p_item, evaluation, uids
+    return seq_tr, seq_va, seq_test, embAttr, START_ID, item_population, p_item, evaluation, uids, user_index, item_index, logit_ind2item_ind
 
 
 def create_model(session,embAttr,START_ID, run_options, run_metadata):
@@ -344,30 +349,25 @@ def create_model(session,embAttr,START_ID, run_options, run_metadata):
     ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
     # if FLAGS.recommend or (not FLAGS.fromScratch) and ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
     if FLAGS.recommend or (not FLAGS.fromScratch) and ckpt:
-        log_it("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+        mylog("Reading model parameters from %s" % ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
     else:
-        log_it("Created model with fresh parameters.")
-        session.run(tf.initialize_all_variables())
+        mylog("Created model with fresh parameters.")
+        session.run(tf.global_variables_initializer())
     return model
 
-def log_it(msg):
-    print(msg)
-    sys.stdout.flush()
-    logging.info(msg)
 
 def show_all_variables():
-    all_vars = tf.all_variables()
+    all_vars = tf.global_variables()
     for var in all_vars:
-        log_it(var.name)
+        mylog(var.name)
 
 
-def train():
+def train(raw_data=FLAGS.raw_data):
 
     # Read Data
-    log_it("Reading Data...")
-    task = Task(FLAGS.dataset)
-    train_set, dev_set, test_set, embAttr, START_ID, item_population, p_item, _, _ = read_data(task)
+    mylog("Reading Data...")
+    train_set, dev_set, test_set, embAttr, START_ID, item_population, p_item, _, _, _, _, _ = get_data(raw_data,data_dir=FLAGS.data_dir)
     n_targets_train = np.sum([np.sum([len(items) for uid, items in x]) for x in train_set])
     train_bucket_sizes = [len(train_set[b]) for b in xrange(len(_buckets))]
     train_total_size = float(sum(train_bucket_sizes))
@@ -386,17 +386,17 @@ def train():
     total_steps = steps_per_epoch * n_epoch
 
     # reports
-    log_it(_buckets)
-    log_it("Train:")
-    log_it("total: {}".format(train_total_size))
-    log_it("buckets: {}".format(train_bucket_sizes))
-    log_it("Dev:")
-    log_it("total: {}".format(dev_total_size))
-    log_it("buckets: {}".format(dev_bucket_sizes))
-    log_it("")
-    log_it("Steps_per_epoch: {}".format(steps_per_epoch))
-    log_it("Total_steps:{}".format(total_steps))
-    log_it("Steps_per_checkpoint: {}".format(steps_per_checkpoint))
+    mylog(_buckets)
+    mylog("Train:")
+    mylog("total: {}".format(train_total_size))
+    mylog("bucket sizes: {}".format(train_bucket_sizes))
+    mylog("Dev:")
+    mylog("total: {}".format(dev_total_size))
+    mylog("bucket sizes: {}".format(dev_bucket_sizes))
+    mylog("")
+    mylog("Steps_per_epoch: {}".format(steps_per_epoch))
+    mylog("Total_steps:{}".format(total_steps))
+    mylog("Steps_per_checkpoint: {}".format(steps_per_checkpoint))
 
     # with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement = False, device_count={'CPU':8, 'GPU':1})) as sess:
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement = False)) as sess:
@@ -409,7 +409,7 @@ def train():
             run_options = None
             run_metadata = None
 
-        log_it("Creating Model")
+        mylog("Creating Model.. (this can take a few minutes)")
         model = create_model(sess, embAttr, START_ID, run_options, run_metadata)
         show_all_variables()
     
@@ -418,10 +418,10 @@ def train():
         
         iteType = 0
         if iteType == 0:
-            log_it("withRandom")
+            mylog("withRandom")
             ite = dite.next_random()
         elif iteType == 1:
-            log_it("withSequence")
+            mylog("withSequence")
             ite = dite.next_sequence()
         
         # statistics during training
@@ -466,8 +466,8 @@ def train():
             n_targets_report += np.sum(weights)
 
             if current_step % steps_per_report == 0:                
-                log_it("--------------------"+"Report"+str(current_step)+"-------------------")
-                log_it("StepTime: {} Speed: {} targets / sec in total {} targets".format(report_time/steps_per_report, n_targets_report*1.0 / report_time, n_targets_train))
+                mylog("--------------------"+"Report"+str(current_step)+"-------------------")
+                mylog("StepTime: {} Speed: {} targets / sec in total {} targets".format(report_time/steps_per_report, n_targets_report*1.0 / report_time, n_targets_train))
 
                 report_time = 0
                 n_targets_report = 0
@@ -483,12 +483,12 @@ def train():
 
 
             if current_step % steps_per_checkpoint == 0:
-                log_it("--------------------"+"TRAIN"+str(current_step)+"-------------------")
+                mylog("--------------------"+"TRAIN"+str(current_step)+"-------------------")
                 # Print statistics for the previous epoch.
  
                 loss = loss / n_valid_sents
                 perplexity = math.exp(float(loss)) if loss < 300 else float("inf")
-                log_it("global step %d learning rate %.4f step-time %.2f perplexity " "%.2f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, perplexity))
+                mylog("global step %d learning rate %.4f step-time %.2f perplexity " "%.2f" % (model.global_step.eval(), model.learning_rate.eval(), step_time, perplexity))
                 
                 train_ppx = perplexity
                 
@@ -496,9 +496,9 @@ def train():
                 step_time, loss, n_valid_sents = 0.0, 0.0, 0
                                 
                 # dev data
-                log_it("--------------------" + "DEV" + str(current_step) + "-------------------")
+                mylog("--------------------" + "DEV" + str(current_step) + "-------------------")
                 eval_loss, eval_ppx = evaluate(sess, model, dev_set, item_sampled_id2idx=item_sampled_id2idx)
-                log_it("dev: ppx: {}".format(eval_ppx))
+                mylog("dev: ppx: {}".format(eval_ppx))
 
                 his.append([current_step, train_ppx, eval_ppx])
 
@@ -507,31 +507,22 @@ def train():
                     low_ppx = eval_ppx
                     low_ppx_step = current_step
                     checkpoint_path = os.path.join(FLAGS.train_dir, "best.ckpt")
-                    log_it("Saving best model....")
+                    mylog("Saving best model....")
                     s = time.time()
                     model.saver.save(sess, checkpoint_path, global_step=0, write_meta_graph = False)
-                    log_it("Best model saved using {} sec".format(time.time()-s))
+                    mylog("Best model saved using {} sec".format(time.time()-s))
                 else:
                     patience -= 1
 
                 if patience <= 0:
-                    log_it("Training finished. Running out of patience.")
+                    mylog("Training finished. Running out of patience.")
                     break
 
                 sys.stdout.flush()
 
-
-        #theone = his[low_ppx_step]
-        #log_it("Step: {} Train/Dev: {:2f}/{:2f}".format(theone[0],theone[1],theone[2]))
-
-        #df = pd.DataFrame(his)
-        #df.columns=["step""Train_ppx","Dev_ppx"]
-        #df.to_csv(os.path.join(FLAGS.train_dir,"log.csv"))
-
 def evaluate(sess, model, data_set, item_sampled_id2idx=None):
-    # Run evals on development set and print their perplexity.
+    # Run evals on development set and print their perplexity/loss.
     dropoutRateRaw = FLAGS.keep_prob
-    
     sess.run(model.dropout10_op)
 
     start_id = 0
@@ -543,7 +534,6 @@ def evaluate(sess, model, data_set, item_sampled_id2idx=None):
     dite = DataIterator(model, data_set, len(_buckets), batch_size, None)
     ite = dite.next_sequence(stop = True)
 
-    
     for users, inputs, outputs, weights, bucket_id in ite:
         L = model.step(sess, users, inputs, outputs, weights, bucket_id, forward_only = True)
         loss += L
@@ -553,30 +543,25 @@ def evaluate(sess, model, data_set, item_sampled_id2idx=None):
     loss = loss/(n_valids)
     ppx = math.exp(loss) if loss < 300 else float("inf")
 
-
-
     sess.run(model.dropoutAssign_op)
-
-
-
 
     return loss, ppx
 
-def recommend():
+def recommend(raw_data=FLAGS.raw_data):
     
     # Read Data
-    log_it("recommend")
-    log_it("Reading Data...")
-    task = Task(FLAGS.dataset)
-    _, _, test_set, embAttr, START_ID, _, _, evaluation, uids = read_data(task, test =True)
+    mylog("recommend")
+    mylog("Reading Data...")
+    _, _, test_set, embAttr, START_ID, _, _, evaluation, uids, user_index, item_index, logit_ind2item_ind = get_data(
+        raw_data, data_dir=FLAGS.data_dir, recommend =True)
     test_bucket_sizes = [len(test_set[b]) for b in xrange(len(_buckets))]
     test_total_size = int(sum(test_bucket_sizes))
 
     # reports
-    log_it(_buckets)
-    log_it("Test:")
-    log_it("total: {}".format(test_total_size))
-    log_it("buckets: {}".format(test_bucket_sizes))
+    mylog(_buckets)
+    mylog("Test:")
+    mylog("total: {}".format(test_total_size))
+    mylog("buckets: {}".format(test_bucket_sizes))
     
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement = False)) as sess:
 
@@ -588,7 +573,7 @@ def recommend():
             run_options = None
             run_metadata = None
 
-        log_it("Creating Model")
+        mylog("Creating Model")
         model = create_model(sess, embAttr, START_ID, run_options, run_metadata)
         show_all_variables()
         
@@ -611,51 +596,58 @@ def recommend():
         start = time.time()
 
         for users, inputs, positions, valids, bucket_id in ite:
-
             results = model.step_recommend(sess, users, inputs, positions, bucket_id)
-            
             for i, valid in enumerate(valids):
                 if valid == 1:
                     n_recommended += 1
                     if n_recommended % 1000 == 0:
-                        log_it("Evaluating n {} bucket_id {}".format(n_recommended, bucket_id))
+                        mylog("Evaluating n {} bucket_id {}".format(n_recommended, bucket_id))
                     uid, topk_values, topk_indexes = results[i]
                     rank= uid2rank[uid]
                     rec[rank,:] = topk_indexes                
                     rec_value[rank,:] = topk_values
             n_steps += 1
-            
         end = time.time()
-        log_it("Time used {} sec for {} steps {} users ".format(end-start, n_steps, n_recommended))
+        mylog("Time used {} sec for {} steps {} users ".format(end-start, n_steps, n_recommended))
 
-        R = evaluation.gen_rec(rec, FLAGS.recommend_new)
+        ind2id = {}
+        for iid in item_index:
+            uind = item_index[iid]
+            assert(uind not in ind2id)
+            ind2id[uind] = iid
+
+        R = {}
+        for i in xrange(n_total_user):
+            uid = uids[i]
+            R[uid] = [ind2id[logit_ind2item_ind[v]] for v in list(rec[i, :])]
+
         evaluation.eval_on(R)
-        s1, s2, s3, s4, s5 = evaluation.get_scores()
-        log_it('scores: \n\t{}\n\t{}\n\t{}\n'.format(s1, s2, s3))
 
-        log_it("SCORE_FORMAT: {} {} {}".format(s1[0], s2[0], s3[0]))
-        log_it("METRIC_FORMAT1: {}".format(s4))
-        log_it("METRIC_FORMAT2: {}".format(s5))
+        scores_self, scores_ex = evaluation.get_scores()
+        mylog("====evaluation scores (NDCG, RECALL, PRECISION, MAP) @ 2,5,10,20,30====")
+        mylog("METRIC_FORMAT (self): {}".format(scores_self))
+        mylog("METRIC_FORMAT (ex  ): {}".format(scores_ex))
         
         # save the two matrix
         np.save(os.path.join(FLAGS.train_dir,"top{}_index.npy".format(FLAGS.topk)),rec)
         np.save(os.path.join(FLAGS.train_dir,"top{}_value.npy".format(FLAGS.topk)),rec_value)
 
 
-def ensemble():
+def ensemble(raw_data=FLAGS.raw_data):
     # Read Data
-    log_it("Ensemble {} {}".format(FLAGS.train_dir, FLAGS.ensemble_suffix))
-    log_it("Reading Data...")
-    task = Task(FLAGS.dataset)
-    _, _, test_set, embAttr, START_ID, _, _, evaluation, uids = read_data(task, test =True)
+    mylog("Ensemble {} {}".format(FLAGS.train_dir, FLAGS.ensemble_suffix))
+    mylog("Reading Data...")
+    # task = Task(FLAGS.dataset)
+    _, _, test_set, embAttr, START_ID, _, _, evaluation, uids, user_index, item_index, logit_ind2item_ind = get_data(
+        raw_data, data_dir=FLAGS.data_dir, recommend =True)
     test_bucket_sizes = [len(test_set[b]) for b in xrange(len(_buckets))]
     test_total_size = int(sum(test_bucket_sizes))
 
     # reports
-    log_it(_buckets)
-    log_it("Test:")
-    log_it("total: {}".format(test_total_size))
-    log_it("buckets: {}".format(test_bucket_sizes))
+    mylog(_buckets)
+    mylog("Test:")
+    mylog("total: {}".format(test_total_size))
+    mylog("buckets: {}".format(test_bucket_sizes))
     
     # load top_index, and top_value
     suffixes = FLAGS.ensemble_suffix.split(',')
@@ -664,7 +656,7 @@ def ensemble():
     for suffix in suffixes:
         # dir_path = FLAGS.train_dir+suffix
         dir_path = FLAGS.train_dir.replace('seed', 'seed' + suffix)
-        log_it("Loading results from {}".format(dir_path))
+        mylog("Loading results from {}".format(dir_path))
         index_path = os.path.join(dir_path,"top{}_index.npy".format(FLAGS.topk))
         value_path = os.path.join(dir_path,"top{}_value.npy".format(FLAGS.topk))
         top_index = np.load(index_path)
@@ -687,23 +679,29 @@ def ensemble():
         items = sorted(items,key = lambda x: -x[1])
         rec[row:] = [x[0] for x in items][:FLAGS.topk]
         if row % 1000 == 0:
-            log_it("Ensembling n {}".format(row))
+            mylog("Ensembling n {}".format(row))
         
-    R = evaluation.gen_rec(rec, FLAGS.recommend_new)
+    ind2id = {}
+    for iid in item_index:
+        uind = item_index[iid]
+        assert(uind not in ind2id)
+        ind2id[uind] = iid
+
+    R = {}
+    for i in xrange(n_total_user):
+        uid = uids[i]
+        R[uid] = [ind2id[logit_ind2item_ind[v]] for v in list(rec[i, :])]
+
     evaluation.eval_on(R)
-    s1, s2, s3, s4, s5 = evaluation.get_scores()
 
-    log_it("Ensemble {} {}".format(FLAGS.train_dir, FLAGS.ensemble_suffix))
-    log_it('scores: \n\t{}\n\t{}\n\t{}\n'.format(s1, s2, s3))
-    
-    log_it("SCORE_FORMAT: {} {} {}".format(s1[0], s2[0], s3[0]))
-    log_it("METRIC_FORMAT1: {}".format(s4))
-    log_it("METRIC_FORMAT2: {}".format(s5))
-
+    scores_self, scores_ex = evaluation.get_scores()
+    mylog("====evaluation scores (NDCG, RECALL, PRECISION, MAP) @ 2,5,10,20,30====")
+    mylog("METRIC_FORMAT (self): {}".format(scores_self))
+    mylog("METRIC_FORMAT (ex  ): {}".format(scores_ex))
         
 
 def main(_):
-    print("V 2017-02-06 12:23")
+    print("V 2017-02-28 12:23")
     if FLAGS.test:
         if FLAGS.data_dir[-1] == '/':
             FLAGS.data_dir = FLAGS.data_dir[:-1] + '_test'
