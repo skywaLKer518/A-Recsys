@@ -285,7 +285,7 @@ def get_data(raw_data, data_dir=FLAGS.data_dir, combine_att=FLAGS.combine_att,
     if recommend:
         from evaluate import Evaluation as Evaluate
         evaluation = Evaluate(raw_data, test=test)
-        uids = evaluation.get_uinds()
+        uids = evaluation.get_uinds() # abuse of 'uids'  : actually uinds
         seq_test = form_sequence_prediction(seq_all, uids, FLAGS.L, START_ID)
         _buckets = calculate_buckets(seq_test, FLAGS.L, FLAGS.n_bucket)
         _buckets = sorted(_buckets)
@@ -553,7 +553,7 @@ def recommend(raw_data=FLAGS.raw_data):
     # Read Data
     mylog("recommend")
     mylog("Reading Data...")
-    _, _, test_set, embAttr, START_ID, _, _, evaluation, uids, user_index, item_index, logit_ind2item_ind = get_data(
+    _, _, test_set, embAttr, START_ID, _, _, evaluation, uinds, user_index, item_index, logit_ind2item_ind = get_data(
         raw_data, data_dir=FLAGS.data_dir, recommend =True)
     test_bucket_sizes = [len(test_set[b]) for b in xrange(len(_buckets))]
     test_total_size = int(sum(test_bucket_sizes))
@@ -587,11 +587,11 @@ def recommend(raw_data=FLAGS.raw_data):
         dite = DataIterator(model, test_set, len(_buckets), batch_size, None)
         ite = dite.next_sequence(stop = True, recommend = True)
 
-        n_total_user = len(uids)
+        n_total_user = len(uinds)
         n_recommended = 0
-        uid2rank = {}
-        for r, uid in enumerate(uids):
-            uid2rank[uid] = r
+        uind2rank = {}
+        for r, uind in enumerate(uinds):
+            uind2rank[uind] = r
         rec = np.zeros((n_total_user,FLAGS.topk), dtype = int)
         rec_value = np.zeros((n_total_user,FLAGS.topk), dtype = float)
         start = time.time()
@@ -603,8 +603,8 @@ def recommend(raw_data=FLAGS.raw_data):
                     n_recommended += 1
                     if n_recommended % 1000 == 0:
                         mylog("Evaluating n {} bucket_id {}".format(n_recommended, bucket_id))
-                    uid, topk_values, topk_indexes = results[i]
-                    rank= uid2rank[uid]
+                    uind, topk_values, topk_indexes = results[i]
+                    rank= uind2rank[uind]
                     rec[rank,:] = topk_indexes                
                     rec_value[rank,:] = topk_values
             n_steps += 1
@@ -613,13 +613,20 @@ def recommend(raw_data=FLAGS.raw_data):
 
         ind2id = {}
         for iid in item_index:
-            uind = item_index[iid]
-            assert(uind not in ind2id)
-            ind2id[uind] = iid
+            iind = item_index[iid]
+            assert(iind not in ind2id)
+            ind2id[iind] = iid
+
+        uind2id = {}
+        for uid in user_index:
+            uind = user_index[uid]
+            assert(uind not in uind2id)
+            uind2id[uind] = uid
+
 
         R = {}
         for i in xrange(n_total_user):
-            uid = uids[i]
+            uid = uind2id[uinds[i]]
             R[uid] = [ind2id[logit_ind2item_ind[v]] for v in list(rec[i, :])]
 
         evaluation.eval_on(R)

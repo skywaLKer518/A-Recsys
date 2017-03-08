@@ -13,7 +13,7 @@ rec=${3:-$dfrec}
 if [ $# -ne 3 ]
 then 
 		echo "Number of arguments should be 3!"
-		echo "Usage: bash run_hmf.sh [model_size (e.g. 32)] [learning-rate (e.g. 1)] [recommend (True or False)]"
+		echo "Usage: bash run_lstm.sh [model_size (e.g. 64)] [learning-rate (e.g. 1)] [recommend (True or False)]"
 		if [ $# -gt 3 ]
 		then
 				echo "too many arguments. exit."
