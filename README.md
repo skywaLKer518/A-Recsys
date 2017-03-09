@@ -8,7 +8,7 @@ Currently the models and features supported by A-RecSys include,
 
 #### Models
 + Hybrid matrix factorization model (with deep layer extensions)
-+ Linear sequence models based on skip-gram and CBOW
++ Linear sequence models based on CBOW and skip-gram
 + LSTM-based seq2seq model
 
 
@@ -23,7 +23,7 @@ CSV-formated (sep=\t) input files include
 
 	u.csv	: user file. user id and attribute values.
 	i.csv: item file. item id and attribute values.
-	obs_tr.csv: implicit feedback for training. First two columns are user-id, item-id. Third column, if there is, if for timestamp. 
+	obs_tr.csv: implicit feedback for training. First two columns are user-id, item-id. Third column (optional) is for timestamp. 
 	obs_va.csv: implicit feedback for development.
 	obs_te.csv: implicit feedback for testing.
 	
