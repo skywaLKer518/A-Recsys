@@ -58,6 +58,9 @@ class Evaluation(object):
     def get_scores(self):
         return self.s_self, self.s_ex
 
+    def set_uinds(self, uinds):
+        self.Uinds = uinds
+        
     def create_eval_file(self, raw_data):
         DIR = raw_data
         interact, names = load_interactions(data_dir=DIR)
