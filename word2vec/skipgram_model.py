@@ -10,7 +10,7 @@ sys.path.insert(0, '../attributes')
 import embed_attribute
 
 
-class SkipGramModel(LinearSeq):
+class Model(LinearSeq):
   def __init__(self, user_size, item_size, size,
                batch_size, learning_rate,
                learning_rate_decay_factor, 

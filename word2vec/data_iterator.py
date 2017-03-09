@@ -57,7 +57,7 @@ class DataIterator:
                 self.index = (self.index + 1) % self.l_seq
             yield users, i_items, o_items
 
-    def get_next2(self):
+    def get_next_sg(self):
         # only predict future based on history
         seq = self.seq
         users = np.ndarray(shape=[self.batch_size], dtype=np.int32)
@@ -103,9 +103,9 @@ class DataIterator:
                         break
                 b.append(seq[self.index])
                 self.index = (self.index + 1) % self.l_seq
-            yield users, i_items, o_items
+            yield users, [i_items], o_items
 
-    def get_next3(self):
+    def get_next_cbow(self):
         # cbow, only predict current based on history
         seq = self.seq
         users = np.ndarray(shape=[self.batch_size], dtype=np.int32)

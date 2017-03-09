@@ -2,56 +2,81 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import math, os, shutil, sys
+import math, os, sys
 import random, time
 import logging
 
 import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
+
 sys.path.insert(0, '../utils')
+sys.path.insert(0, '../attributes')
 
-from tasks import Task
 
+from input_attribute import read_data as read_attributed_data
 from prepare_train import positive_items, item_frequency, sample_items, to_week
 from data_iterator import DataIterator
 # in order to profile
 from tensorflow.python.client import timeline
 
+# models
+tf.app.flags.DEFINE_string("model", "cbow", "cbow or skipgram")
+
+# datasets, paths, and preprocessing
+tf.app.flags.DEFINE_string("dataset", "xing", ".")
+tf.app.flags.DEFINE_string("raw_data", "../raw_data", "input data directory")
+tf.app.flags.DEFINE_string("data_dir", "./data0", "Data directory")
+tf.app.flags.DEFINE_string("train_dir", "./test0", "Training directory.")
+tf.app.flags.DEFINE_boolean("test", False, "Test on test splits")
+tf.app.flags.DEFINE_string("combine_att", 'mix', "method to combine attributes: het or mix")
+tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
+tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
+tf.app.flags.DEFINE_integer("user_vocab_size", 150000, "User vocabulary size.")
+tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
+tf.app.flags.DEFINE_integer("vocab_min_thresh", 2, "filter inactive tokens.")
+
+# tuning hypers
+tf.app.flags.DEFINE_string("loss", 'ce', "loss function")
 tf.app.flags.DEFINE_float("learning_rate", 0.1, "Learning rate.")
 tf.app.flags.DEFINE_float("keep_prob", 0.5, "dropout rate.")
-tf.app.flags.DEFINE_float("power", 0.5, "related to sampling rate.")
-tf.app.flags.DEFINE_float("learning_rate_decay_factor", 1.0,
-                          "Learning rate decays by this much.")
-tf.app.flags.DEFINE_float("max_gradient_norm", 5.0,
-                          "Clip gradients to this norm.")
+tf.app.flags.DEFINE_float("learning_rate_decay_factor", 1.0, "Learning rate decays by this much.")
 tf.app.flags.DEFINE_integer("batch_size", 64,
                             "Batch size to use during training.")
 tf.app.flags.DEFINE_integer("size", 20, "Size of each model layer.")
-tf.app.flags.DEFINE_integer("hidden_size", 500, "when nonlinear proj used")
-tf.app.flags.DEFINE_integer("n_resample", 50, "iterations before resample.")
-tf.app.flags.DEFINE_integer("output_feat", 1, "0: no use, 1: use, mean-mulhot, 2: use, max-pool")
-tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
-tf.app.flags.DEFINE_integer("user_vocab_size", 150000, "User vocabulary size.")
-tf.app.flags.DEFINE_integer("item_vocab_size", 50000, "Item vocabulary size.")
-tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
-tf.app.flags.DEFINE_integer("ni", 0, "# of items used to test")
-tf.app.flags.DEFINE_string("dataset", "xing", ".")
-tf.app.flags.DEFINE_string("data_dir", "./data0", "Data directory")
-tf.app.flags.DEFINE_string("train_dir", "./test0", "Training directory.")
-tf.app.flags.DEFINE_integer("max_train_data_size", 0,
-                            "Limit on the size of training data (0: no limit).")
 tf.app.flags.DEFINE_integer("patience", 20,
                             "exit if the model can't improve for $patience evals")
+tf.app.flags.DEFINE_integer("n_epoch", 1000, "How many epochs to train.")
 tf.app.flags.DEFINE_integer("steps_per_checkpoint", 4000,
                             "How many training steps to do per checkpoint.")
-tf.app.flags.DEFINE_boolean("use_user_feature", True, "RT")
-tf.app.flags.DEFINE_boolean("use_item_feature", True, "RT")
-tf.app.flags.DEFINE_boolean("use_sep_item", True, "use separate embedding parameters for output items.")
+
+# to recommend
 tf.app.flags.DEFINE_boolean("recommend", False,
                             "Set to True for recommend items.")
+tf.app.flags.DEFINE_integer("top_N_items", 100,
+                            "number of items output")
 tf.app.flags.DEFINE_boolean("recommend_new", False,
                             "Set to True for recommend new items that were not used to train.")
+
+# algorithms with sampling
+tf.app.flags.DEFINE_float("power", 0.5, "related to sampling rate.")
+tf.app.flags.DEFINE_integer("n_resample", 50, "iterations before resample.")
+tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
+tf.app.flags.DEFINE_float("user_sample", 1.0, "user sample rate.")
+
+
+# attribute model variants
+tf.app.flags.DEFINE_integer("output_feat", 1, "0: no use, 1: use, mean-mulhot, 2: use, max-pool")
+tf.app.flags.DEFINE_boolean("use_sep_item", True, "use separate embedding parameters for output items.")
+tf.app.flags.DEFINE_boolean("no_user_id", False, "use user id or not")
+
+# word2vec hypers
+tf.app.flags.DEFINE_integer("ni", 2, "# of input context items.")
+tf.app.flags.DEFINE_integer("num_skips", 3, "# of output context items.")
+tf.app.flags.DEFINE_integer("skip_window", 5, "Size of each model layer.")
+
+
+# others
 tf.app.flags.DEFINE_boolean("device_log", False,
                             "Set to True for logging device usages.")
 tf.app.flags.DEFINE_boolean("eval", True,
@@ -61,22 +86,11 @@ tf.app.flags.DEFINE_boolean("use_more_train", False,
 tf.app.flags.DEFINE_boolean("profile", False, "False = no profile, True = profile")
 tf.app.flags.DEFINE_boolean("after40", False,
                             "whether use items after week 40 only.")
-tf.app.flags.DEFINE_string("loss", 'ce',
-                            "loss function")
-tf.app.flags.DEFINE_string("model_option", 'loss',
-                            "model to evaluation")
-tf.app.flags.DEFINE_boolean("test", False, "Test on test splits")
-tf.app.flags.DEFINE_integer("n_epoch", 1000, "How many epochs to train.")
+# tf.app.flags.DEFINE_string("model_option", 'loss',
+#                             "model to evaluation")
+# tf.app.flags.DEFINE_integer("max_train_data_size", 0,
+#                             "Limit on the size of training data (0: no limit).")
 
-
-tf.app.flags.DEFINE_integer("num_skips", 3, "Size of each model layer.")
-tf.app.flags.DEFINE_integer("skip_window", 5, "Size of each model layer.")
-
-# Xing related
-tf.app.flags.DEFINE_integer("ta", 1, "target_active")
-tf.app.flags.DEFINE_float("user_sample", 1.0, "user sample rate.")
-tf.app.flags.DEFINE_integer("top_N_items", 100,
-                            "number of items output")
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -142,14 +156,24 @@ def prepare_valid(data_va, u_i_seq_tr, end_ind, n=0):
         res[u] = [end_ind] * n
   return res
 
-def read_data(task):
-  data_read = task.get_dataread()
-  
-  _submit = 1 if FLAGS.test else 0
-  (data_tr0, data_va0, u_attr, i_attr, item_ind2logit_ind, 
-    logit_ind2item_ind) = data_read(FLAGS.data_dir, _submit = _submit, ta = FLAGS.ta, 
-    logits_size_tr=FLAGS.item_vocab_size, sample=FLAGS.user_sample)
-  print('length of item_ind2logit_ind', len(item_ind2logit_ind))
+def get_data(raw_data, data_dir=FLAGS.data_dir, combine_att=FLAGS.combine_att, 
+  logits_size_tr=FLAGS.item_vocab_size, thresh=FLAGS.vocab_min_thresh, 
+  use_user_feature=FLAGS.use_user_feature, test=FLAGS.test, mylog=mylog,
+  use_item_feature=FLAGS.use_item_feature, no_user_id=FLAGS.no_user_id):
+
+  (data_tr0, data_va0, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind, 
+    user_index, item_index) = read_attributed_data(
+    raw_data_dir=raw_data, 
+    data_dir=data_dir, 
+    combine_att=combine_att, 
+    logits_size_tr=logits_size_tr, 
+    thresh=thresh, 
+    use_user_feature=use_user_feature,
+    use_item_feature=use_item_feature, 
+    no_user_id=no_user_id,
+    test=test, 
+    mylog=mylog)
+  mylog('length of item_ind2logit_ind: {}'.format(len(item_ind2logit_ind)))
 
   #remove some rare items in both train and valid set
   #this helps make train/valid set distribution similar 
@@ -160,70 +184,52 @@ def read_data(task):
   data_va = [p for p in data_va0 if (p[1] in item_ind2logit_ind)]
   mylog("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
-  if not FLAGS.use_item_feature:
-    mylog("NOT using item attributes")
-    i_attr.num_features_cat = 1
-    i_attr.num_features_mulhot = 0
-  if not FLAGS.use_user_feature:
-    mylog("NOT using user attributes")
-    u_attr.num_features_cat = 1
-    u_attr.num_features_mulhot = 0
-
-  if FLAGS.dataset == 'ml':
-    print('disabling the lstm-rec fake feature')
-    u_attr.num_features_cat = 1
-
   u_i_seq_tr = get_user_items_seq(data_tr)
-  PAD_ID = i_attr.get_item_last_index()
+
+  PAD_ID = len(item_index)
   seq_tr = form_train_seq(u_i_seq_tr, PAD_ID)
   items_dev = prepare_valid(data_va0, u_i_seq_tr, PAD_ID, FLAGS.ni)
 
   return (seq_tr, items_dev, data_tr, data_va, u_attr, i_attr, 
-    item_ind2logit_ind, logit_ind2item_ind, PAD_ID)
+    item_ind2logit_ind, logit_ind2item_ind, PAD_ID, user_index, item_index)
 
 def create_model(session, u_attributes=None, i_attributes=None, 
   item_ind2logit_ind=None, logit_ind2item_ind=None, 
   loss = FLAGS.loss, logit_size_test=None, ind_item = None):  
   n_sampled = FLAGS.n_sampled if FLAGS.loss in ['mw', 'mce'] else None
-  import skipgram_model
-  model = skipgram_model.SkipGramModel(FLAGS.user_vocab_size, 
+  if FLAGS.model == 'cbow':
+    import cbow_model as w2v_model
+  elif FLAGS.model == 'sg':
+    import skipgram_model as w2v_model
+  else:
+    mylog('not implemented error')
+    error(1)
+    
+  model = w2v_model.Model(FLAGS.user_vocab_size, 
     FLAGS.item_vocab_size, FLAGS.size, 
-    FLAGS.batch_size, FLAGS.learning_rate, 
-    FLAGS.learning_rate_decay_factor, u_attributes, i_attributes, 
+    FLAGS.batch_size, FLAGS.learning_rate,
+    FLAGS.learning_rate_decay_factor, u_attributes, i_attributes,
     item_ind2logit_ind, logit_ind2item_ind, loss_function=loss, 
     n_input_items=FLAGS.ni, use_sep_item=FLAGS.use_sep_item,
-    dropout=FLAGS.keep_prob, top_N_items=FLAGS.top_N_items,
+    dropout=FLAGS.keep_prob, top_N_items=FLAGS.top_N_items, 
     output_feat=FLAGS.output_feat, 
     n_sampled=n_sampled)
 
   if not os.path.isdir(FLAGS.train_dir):
     os.mkdir(FLAGS.train_dir)
   ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
-  if FLAGS.recommend and ckpt:
-    # print("%s" % ckpt.model_checkpoint_path)
-    # if FLAGS.model_option == 'loss':
-    #   f = os.path.join(FLAGS.train_dir, 'go.ckpt-best')
-    # elif FLAGS.model_option == 'auc':
-    #   f = os.path.join(FLAGS.train_dir, 'go.ckpt-best_auc')
-    # else:
-    #   print("no such models %s" % FLAGS.model_option)
-    #   exit()
-    # ckpt.model_checkpoint_path = f
-    print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
-    logging.info("Reading model parameters from %s" % ckpt.model_checkpoint_path)
-    model.saver.restore(session, ckpt.model_checkpoint_path)
-
-  elif ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
-    print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+  
+  if ckpt:
+    mylog("Reading model parameters from %s" % ckpt.model_checkpoint_path)
     logging.info("Reading model parameters from %s" % ckpt.model_checkpoint_path)
     model.saver.restore(session, ckpt.model_checkpoint_path)
   else:
-    print("Created model with fresh parameters.")
+    mylog("Created model with fresh parameters.")
     logging.info("Created model with fresh parameters.")
     session.run(tf.initialize_all_variables())
   return model
 
-def train():
+def train(raw_data=FLAGS.raw_data):
   with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, 
     log_device_placement=FLAGS.device_log)) as sess:
     run_options = None
@@ -234,10 +240,10 @@ def train():
       FLAGS.steps_per_checkpoint = 30
     
     mylog("reading data")
-    task = Task(FLAGS.dataset)
 
     (seq_tr, items_dev, data_tr, data_va, u_attributes, i_attributes,
-      item_ind2logit_ind, logit_ind2item_ind, end_ind) = read_data(task)
+      item_ind2logit_ind, logit_ind2item_ind, end_ind, _, _) = get_data(raw_data,
+      data_dir=FLAGS.data_dir)
 
     power = FLAGS.power
     item_pop, p_item = item_frequency(data_tr, power)
@@ -251,9 +257,14 @@ def train():
       logit_ind2item_ind, loss=FLAGS.loss, ind_item=item_population)
 
     # data iterators
-    dite = DataIterator(seq_tr, end_ind, FLAGS.batch_size, FLAGS.num_skips, 
+    n_skips = FLAGS.ni if FLAGS.model == 'cbow' else FLAGS.num_skips
+    dite = DataIterator(seq_tr, end_ind, FLAGS.batch_size, n_skips, 
       FLAGS.skip_window, False)
-    ite = dite.get_next2()
+    if FLAGS.model == 'sg':
+      ite = dite.get_next_sg()
+    else:
+      ite = dite.get_next_cbow()
+
     mylog('started training')
     step_time, loss, current_step, auc = 0.0, 0.0, 0, 0.0
     
@@ -307,7 +318,7 @@ def train():
       else:
         item_sampled = None
 
-      step_loss = model.step(sess, user_input, [input_items], 
+      step_loss = model.step(sess, user_input, input_items, 
         output_items, item_sampled, item_sampled_id2idx, loss=FLAGS.loss,run_op=run_options, run_meta=run_metadata)
       # step_loss = 0
 
@@ -382,8 +393,6 @@ def train():
         
         if eval_loss < best_loss and not FLAGS.test:
           best_loss = eval_loss
-          # new_filename = os.path.join(FLAGS.train_dir, "go.ckpt-best")
-          # shutil.copy(current_model, new_filename)
           patience = FLAGS.patience
 
           # Save checkpoint and zero timer and loss.
@@ -404,11 +413,6 @@ def train():
         auc_dev.append(eval_auc)
         losses_dev.append(eval_loss)
 
-        # np.save(os.path.join(FLAGS.train_dir, 'auc_train'), auc_train)
-        # np.save(os.path.join(FLAGS.train_dir, 'auc_dev'), auc_dev)
-        # np.save(os.path.join(FLAGS.train_dir, 'loss_train'), previous_losses)
-        # np.save(os.path.join(FLAGS.train_dir, 'loss_dev'), losses_dev)
-
         if patience < 0 and not FLAGS.test:
           mylog("no improvement for too long.. terminating..")
           mylog("best auc %.4f" % best_auc)
@@ -417,39 +421,42 @@ def train():
           break
   return
 
-def recommend():
+def recommend(raw_data=FLAGS.raw_data, test=FLAGS.test, loss=FLAGS.loss, 
+  batch_size=FLAGS.batch_size, topN=FLAGS.top_N_items,
+  device_log=FLAGS.device_log):
 
   with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, 
-    log_device_placement=FLAGS.device_log)) as sess:
-    print("reading data")
-    task = Task(FLAGS.dataset)
-    (_, items_dev, _, _, u_attributes, i_attributes, item_ind2logit_ind, 
-      logit_ind2item_ind, _) = read_data(task)
-    
+    log_device_placement=device_log)) as sess:
+    mylog("reading data")
 
-    Evaluate = task.get_evaluation()  
-    evaluation = Evaluate(logit_ind2item_ind, ta=FLAGS.ta, test=FLAGS.test)
+    (_, items_dev, _, _, u_attributes, i_attributes, item_ind2logit_ind, 
+      logit_ind2item_ind, _, user_index, item_index) = get_data(raw_data, 
+      data_dir=FLAGS.data_dir)
+    
+    from evaluate import Evaluation as Evaluate
+    
+    evaluation = Evaluate(raw_data, test=test)
     
     model = create_model(sess, u_attributes, i_attributes, item_ind2logit_ind,
-      logit_ind2item_ind, loss=FLAGS.loss, ind_item=None)
+      logit_ind2item_ind, loss=loss, ind_item=None)
 
     Uinds = evaluation.get_uinds()
     N = len(Uinds)
-    print("N = %d" % N)
+    mylog("N = %d" % N)
     Uinds = [p for p in Uinds if p in items_dev]
     mylog("new N = {}, (reduced from original {})".format(len(Uinds), N))
     if len(Uinds) < N:
       evaluation.set_uinds(Uinds)
     N = len(Uinds)
-    rec = np.zeros((N, FLAGS.top_N_items), dtype=int)
+    rec = np.zeros((N, topN), dtype=int)
     count = 0
     time_start = time.time()
-    for idx_s in range(0, N, FLAGS.batch_size):
+    for idx_s in range(0, N, batch_size):
       count += 1
       if count % 100 == 0:
-        print("idx: %d, c: %d" % (idx_s, count))
+        mylog("idx: %d, c: %d" % (idx_s, count))
         
-      idx_e = idx_s + FLAGS.batch_size
+      idx_e = idx_s + batch_size
       if idx_e <= N:
         users = Uinds[idx_s: idx_e]
         items_input = [items_dev[u] for u in users]
@@ -471,14 +478,24 @@ def recommend():
     time_end = time.time()
     mylog("Time used %.1f" % (time_end - time_start))
 
-    R = evaluation.gen_rec(rec, FLAGS.recommend_new)
+    ind2id = {}
+    for iid in item_index:
+      uind = item_index[iid]
+      assert(uind not in ind2id)
+      ind2id[uind] = iid
+    
+    uids = evaluation.get_uids()
+    R = {}
+    for i in xrange(N):
+      uid = uids[i]
+      R[uid] = [ind2id[logit_ind2item_ind[v]] for v in list(rec[i, :])]
 
     evaluation.eval_on(R)
-    s1, s2, s3, s4, s5 = evaluation.get_scores()
-    mylog('scores: \n\t{}\n\t{}\n\t{}\n'.format(s1, s2, s3))
-    mylog("SCORE_FORMAT: {} {} {}".format(s1[0], s2[0], s3[0]))
-    mylog("METRIC_FORMAT1: {}".format(s4))
-    mylog("METRIC_FORMAT2: {}".format(s5))
+    scores_self, scores_ex = evaluation.get_scores()
+    mylog("====evaluation scores (NDCG, RECALL, PRECISION, MAP) @ 2,5,10,20,30====")
+    mylog("METRIC_FORMAT (self): {}".format(scores_self))
+    mylog("METRIC_FORMAT (ex  ): {}".format(scores_ex))
+
   return
 
 def main(_):
