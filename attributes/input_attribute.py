@@ -9,8 +9,8 @@ from load_data import load_raw_data
 
 def read_data(raw_data_dir='../raw_data/data/', data_dir='../cache/data/', 
   combine_att='mix', logits_size_tr='10000', 
-  thresh=2, use_user_feature=True,
-  use_item_feature=True, test=False, mylog=None):
+  thresh=2, use_user_feature=True, use_item_feature=True, no_user_id=False,
+  test=False, mylog=None):
 
   if not mylog:
     def mylog(val):
@@ -40,6 +40,9 @@ def read_data(raw_data_dir='../raw_data/data/', data_dir='../cache/data/',
       items = items[:, 0].reshape(m, 1)
       item_features = ([item_features[0][0]], [item_features[1][0]])
 
+    if no_user_id:
+      users[:, 0] = 0
+      
     if combine_att == 'het':
       het = HET(data_dir=data_dir, logits_size_tr=logits_size_tr, threshold=thresh)
       u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind = het.get_attributes(

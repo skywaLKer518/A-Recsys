@@ -237,7 +237,8 @@ def split_train_dev(seq_all, ratio = 0.05):
 def get_data(raw_data, data_dir=FLAGS.data_dir, combine_att=FLAGS.combine_att, 
     logits_size_tr=FLAGS.item_vocab_size, thresh=FLAGS.vocab_min_thresh, 
     use_user_feature=FLAGS.use_user_feature, test=FLAGS.test, mylog=mylog,
-    use_item_feature=FLAGS.use_item_feature, recommend = False):
+    use_item_feature=FLAGS.use_item_feature, no_user_id=FLAGS.no_user_id, 
+    recommend = False):
 
     (data_tr, data_va, u_attr, i_attr, item_ind2logit_ind, logit_ind2item_ind, 
         user_index, item_index) = read_attributed_data(
@@ -248,6 +249,7 @@ def get_data(raw_data, data_dir=FLAGS.data_dir, combine_att=FLAGS.combine_att,
         thresh=thresh, 
         use_user_feature=use_user_feature,
         use_item_feature=use_item_feature, 
+        no_user_id=no_user_id,
         test=test, 
         mylog=mylog)
 
@@ -285,15 +287,15 @@ def get_data(raw_data, data_dir=FLAGS.data_dir, combine_att=FLAGS.combine_att,
     if recommend:
         from evaluate import Evaluation as Evaluate
         evaluation = Evaluate(raw_data, test=test)
-        uids = evaluation.get_uinds() # abuse of 'uids'  : actually uinds
-        seq_test = form_sequence_prediction(seq_all, uids, FLAGS.L, START_ID)
+        uinds = evaluation.get_uinds()
+        seq_test = form_sequence_prediction(seq_all, uinds, FLAGS.L, START_ID)
         _buckets = calculate_buckets(seq_test, FLAGS.L, FLAGS.n_bucket)
         _buckets = sorted(_buckets)
         seq_test = split_buckets(seq_test,_buckets)
     else:
         seq_test = []
         evaluation = None
-        uids = []
+        uinds = []
 
     # create embedAttr
 
@@ -302,22 +304,12 @@ def get_data(raw_data, data_dir=FLAGS.data_dir, combine_att=FLAGS.combine_att,
         u_attr.set_model_size(FLAGS.size)
         i_attr.set_model_size(FLAGS.size)
 
-        # if not FLAGS.use_item_feature:
-        #     mylog("NOT using item attributes")
-        #     i_attr.num_features_cat = 1
-        #     i_attr.num_features_mulhot = 0 
-
-        # if not FLAGS.use_user_feature:
-        #     mylog("NOT using user attributes")
-        #     u_attr.num_features_cat = 1
-        #     u_attr.num_features_mulhot = 0 
-
         embAttr = embed_attribute.EmbeddingAttribute(u_attr, i_attr, FLAGS.batch_size, FLAGS.n_sampled, _buckets[-1], FLAGS.use_sep_item, item_ind2logit_ind, logit_ind2item_ind, devices=devices)
 
         if FLAGS.loss in ["warp", 'mw']:
             prepare_warp(embAttr, seq_tr0, seq_va0)
 
-    return seq_tr, seq_va, seq_test, embAttr, START_ID, item_population, p_item, evaluation, uids, user_index, item_index, logit_ind2item_ind
+    return seq_tr, seq_va, seq_test, embAttr, START_ID, item_population, p_item, evaluation, uinds, user_index, item_index, logit_ind2item_ind
 
 
 def create_model(session,embAttr,START_ID, run_options, run_metadata):
@@ -339,7 +331,7 @@ def create_model(session,embAttr,START_ID, run_options, run_metadata):
                      dtype = dtype,
                      devices = devices,
                      use_concat = FLAGS.use_concat,
-                     no_user_id=FLAGS.no_user_id,
+                     no_user_id=False,  # to remove this argument
                      output_feat = FLAGS.output_feat,
                      no_input_item_feature = FLAGS.no_input_item_feature,
                      topk_n = FLAGS.topk,
@@ -646,7 +638,7 @@ def ensemble(raw_data=FLAGS.raw_data):
     mylog("Ensemble {} {}".format(FLAGS.train_dir, FLAGS.ensemble_suffix))
     mylog("Reading Data...")
     # task = Task(FLAGS.dataset)
-    _, _, test_set, embAttr, START_ID, _, _, evaluation, uids, user_index, item_index, logit_ind2item_ind = get_data(
+    _, _, test_set, embAttr, START_ID, _, _, evaluation, uinds, user_index, item_index, logit_ind2item_ind = get_data(
         raw_data, data_dir=FLAGS.data_dir, recommend =True)
     test_bucket_sizes = [len(test_set[b]) for b in xrange(len(_buckets))]
     test_total_size = int(sum(test_bucket_sizes))
@@ -695,9 +687,16 @@ def ensemble(raw_data=FLAGS.raw_data):
         assert(uind not in ind2id)
         ind2id[uind] = iid
 
+    uind2id = {}
+    for uid in user_index:
+        uind = user_index[uid]
+        assert(uind not in uind2id)
+        uind2id[uind] = uid
+
     R = {}
     for i in xrange(n_total_user):
-        uid = uids[i]
+        uind = uinds[i]
+        uid = uind2id[uind]
         R[uid] = [ind2id[logit_ind2item_ind[v]] for v in list(rec[i, :])]
 
     evaluation.eval_on(R)
@@ -709,7 +708,7 @@ def ensemble(raw_data=FLAGS.raw_data):
         
 
 def main(_):
-    print("V 2017-02-28 12:23")
+    print("V 2017-03-09")
     if FLAGS.test:
         if FLAGS.data_dir[-1] == '/':
             FLAGS.data_dir = FLAGS.data_dir[:-1] + '_test'
@@ -721,7 +720,6 @@ def main(_):
     
     if FLAGS.ensemble:
         suffixes = FLAGS.ensemble_suffix.split(',')
-        # log_path = os.path.join(FLAGS.train_dir+suffixes[0],"log.ensemble.txt.{}".format(FLAGS.topk))
         log_path = os.path.join(FLAGS.train_dir.replace('seed', 'seed'+suffixes[0]),"log.ensemble.txt.{}".format(FLAGS.topk))
         logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode ="w")
         ensemble()

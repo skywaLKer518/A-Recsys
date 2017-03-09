@@ -175,21 +175,21 @@ def fromScratch(val):
 
 def no_user_id(val):
     if val:
-        return '', '--no_user_id True'
+        return 'Nouid', '--no_user_id True'
     else:
-        return 'uid', '--no_user_id False'
+        return 'Uid', '--no_user_id False'
 
 def wFeat(val):
     if val:
-        return 'wFeat', '--use_user_feature True --use_item_feature True'
+        return 'Wfeat', '--use_user_feature True --use_item_feature True'
     else:
-        return 'woFeat', '--use_user_feature False --use_item_feature False'
+        return 'Wofeat', '--use_user_feature False --use_item_feature False'
 # whether or not to use separte embedding for input/output items
 def use_out_items(val):
     if val:
-        return "oT", "--use_sep_item True"
+        return "OT", "--use_sep_item True"
     else:
-        return "oF", "--use_sep_item False"
+        return "OF", "--use_sep_item False"
 
 def randseed(val):
     if val == "Ensem": # for ensemble
@@ -202,7 +202,7 @@ def output_feat(val):
 
 def no_input_feat(val):
     if val:
-        return 'noi', '--no_input_item_feature True'
+        return 'Noi', '--no_input_item_feature True'
     else:
         return '', '--no_input_item_feature False'
 
@@ -316,13 +316,13 @@ def setting2():
 
     # yelp, oF new
 
-    # template = ['yelp', ["$data_yelp_mix", "mix"], "$raw_yelp", 
-    #              "mix", 10, 128, 
-    #              0.4, 0.5, 250, 
-    #              "ce", 1, 30, 
-    #              "001",False,80000, 
-    #              False, True, False, 
-    #              True, 1, True]
+    template = ['yelp', ["$data_yelp_mix", "mix"], "$raw_yelp", 
+                 "mix", 10, 128, 
+                 0.4, 0.5, 250, 
+                 "ce", 1, 30, 
+                 "001",False,80000, 
+                 False, True, False, 
+                 True, 1, True]
     # yelp, oT
     # template = ["$data_yelp", 32, 128, 0.6, 1.0, 250, "ce", 0, 1, 30, "001", False, 'yelp', 80000, False, True, True, True, 0, True]
 
@@ -356,13 +356,13 @@ def setting2():
 
 
     # XING, with test new, het
-    template = ['xing', ["$data_xing_het", "het"], "$raw_xing", 
-                 "het", 32, 256, 
-                 0.4, 0.5, 150, 
-                 "ce", 1, 30, 
-                 "001",False,50000, 
-                 False, True, False, 
-                 True, 1, True]
+    # template = ['xing', ["$data_xing_het", "het"], "$raw_xing", 
+    #              "het", 64, 256, 
+    #              0.4, 0.5, 150, 
+    #              "warp", 1, 30, 
+    #              "001",False,50000, 
+    #              False, True, False, 
+    #              True, 1, True]
     # XING, with test new, mix
     # template = ['xing', ["$data_xing_mix", "mix"], "$raw_xing", 
     #              "mix", 32, 256, 
@@ -393,16 +393,16 @@ def setting2():
     params = []
 
     
-    _h = [256] #xing
-    # _h = [128] #yelp
-    # _dropout = [0.6] #yelp
-    _dropout = [0.5] #xing
+    # _h = [128] #xing
+    _h = [128] #yelp
+    _dropout = [0.6] #yelp
+    # _dropout = [0.5] #xing
     _learning_rate = [1, 0.5]
     _oa = [1]
-    _oa = [3]
+    # _oa = [3]
     # _us = [0.7, 0.3]
     # # # _seeds = [1, 2, 3, 4, 5, 6, 7, 8]
-    _loss = ['ce']
+    # _loss = ['ce', 'warp']
     _of = [False]
     _wf = [True]
     for lr in _learning_rate:
