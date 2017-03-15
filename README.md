@@ -18,6 +18,7 @@ Currently the models and features supported by A-RecSys include,
 + Objective functions include cross-entropy, WARP
 
 ## How to use
+
 ### input data
 CSV-formated (sep=\t) input files include
 
@@ -57,6 +58,10 @@ bash run_hmf.sh 32 1 False 100 True
 ```
 
 By default, the code generates a ground truth interaction file *res_T_test.csv* from *obs_te.csv*, and perform recommendation on all users that appear in *res_T_test.csv*; however, you can generate your own *res_T_test.csv* to narrow down user set on which recommendation is performed.
+
+
+### dependencies
+Code is tested with Tensorflow version 0.8, 0.9, 0.11, 0.12. We are working on to support TF v1.0.
 
 ## Cite
 Please cite the following if you find this helpful.
