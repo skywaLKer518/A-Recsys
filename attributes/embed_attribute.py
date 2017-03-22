@@ -195,7 +195,7 @@ class EmbeddingAttribute(object):
           innerps.append(tf.segment_max(lookup(innerp, inds), segids))  
         elif output_feat == 3:
           score_max = tf.reduce_max(innerp)
-          innerp = tf.sub(innerp, score_max)
+          innerp = tf.subtract(innerp, score_max)
           innerps.append(score_max + tf.log(1 + tf.unsorted_segment_sum(tf.exp(
             lookup(innerp, inds)), segids, V)))
         else:
@@ -217,7 +217,7 @@ class EmbeddingAttribute(object):
       self.item_attributes, 'item', concatenation=False, device=device)
     with tf.device(device):
       target_item_emb = tf.reduce_mean(cat_l + mulhot_l, 0)
-      return tf.reduce_sum(tf.mul(latent, target_item_emb), 1) + i_bias
+      return tf.reduce_sum(tf.multiply(latent, target_item_emb), 1) + i_bias
 
   def get_batch_user(self, keep_prob, concat=True, no_id=False, device='/gpu:0'):
     u_inds = self.u_indices['input']
@@ -330,8 +330,8 @@ class EmbeddingAttribute(object):
       for i in xrange(att.num_features_mulhot):
         begin_ = lookup(self.att[prefix][2][i], inds)
         size_ = lookup(self.att[prefix][3][i], inds)
-        b = tf.unpack(begin_)
-        s = tf.unpack(size_)
+        b = tf.unstack(begin_)
+        s = tf.unstack(size_)
         mulhot_indices = batch_slice2(self.att[prefix][1][i], b, s, self.n_sampled)
         mulhot_segids = batch_segids2(s, self.n_sampled)
 
@@ -389,8 +389,8 @@ class EmbeddingAttribute(object):
         #   size_, mb)
         # mulhot_segids = batch_segids(size_, mb)
 
-        b = tf.unpack(begin_)
-        s = tf.unpack(size_)
+        b = tf.unstack(begin_)
+        s = tf.unstack(size_)
         mulhot_indices = batch_slice2(self.att[prefix][1][i], b, 
           s, mb)
         mulhot_segids = batch_segids2(s, mb)
@@ -412,7 +412,7 @@ class EmbeddingAttribute(object):
         bias = tf.squeeze(tf.reduce_mean(bias_cat_list + bias_mulhot_list, 0))
 
       if concatenation:
-        return tf.concat(1, cat_list + mulhot_list), bias
+        return concat_versions(1, cat_list + mulhot_list), bias
       else:
         return cat_list, mulhot_list, bias
 
@@ -446,8 +446,8 @@ class EmbeddingAttribute(object):
             name = 'emb_lookup_item_b_{0}'.format(i))
           bias_cat_list.append(b)
       for i in xrange(attributes.num_features_mulhot):
-        begin_ = tf.unpack(lookup(self.att[prefix][2][i], inds))
-        size_ = tf.unpack(lookup(self.att[prefix][3][i], inds))
+        begin_ = tf.unstack(lookup(self.att[prefix][2][i], inds))
+        size_ = tf.unstack(lookup(self.att[prefix][3][i], inds))
         mulhot_i = []
         b_mulhot_i = []
         for j in xrange(mb):
@@ -460,11 +460,11 @@ class EmbeddingAttribute(object):
             b_mulhot_i.append(tf.reduce_mean(lookup(b_mulhot[i], m_inds), 0))
             # b_mulhot_i.append(tf.reduce_mean(lookup(b_mulhot[i], m_inds), 0, 
             #   True))
-        # mulhot_list.append(tf.concat(0, mulhot_i))
-        mulhot_list.append(tf.pack(mulhot_i))
+        # mulhot_list.append(concat_versions(0, mulhot_i))
+        mulhot_list.append(tf.stack(mulhot_i))
         if b_mulhot is not None:
-          # bias_mulhot_list.append(tf.concat(0, b_mulhot_i))
-          bias_mulhot_list.append(tf.pack(b_mulhot_i))
+          # bias_mulhot_list.append(concat_versions(0, b_mulhot_i))
+          bias_mulhot_list.append(tf.stack(b_mulhot_i))
       
       if b_cat is None and b_mulhot is None:
         bias = None
@@ -472,7 +472,7 @@ class EmbeddingAttribute(object):
         bias = tf.squeeze(tf.reduce_mean(bias_cat_list + bias_mulhot_list, 0))
 
       if concatenation:
-        return tf.concat(1, cat_list + mulhot_list), bias
+        return concat_versions(1, cat_list + mulhot_list), bias
       else:
         return cat_list, mulhot_list, bias
 
@@ -526,7 +526,7 @@ class EmbeddingAttribute(object):
     assert(loss in ['ce', 'mce', 'warp', 'mw', 'bbpr', 'bpr', 'bpr-hinge'])
     with tf.device(device):
       if loss == 'ce':
-        return tf.nn.sparse_softmax_cross_entropy_with_logits(logits, item_target)
+        return tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=item_target)
       elif loss == 'warp':
         return self._compute_warp_loss(logits, item_target)
       elif loss == 'mw':
@@ -551,9 +551,9 @@ class EmbeddingAttribute(object):
     idx_flattened = self.idx_flattened0 + item_target
     logits_ = tf.gather(flat_matrix, idx_flattened)
     logits_ = tf.reshape(logits_, [mb, 1])
-    logits2 = tf.sub(logits, logits_) + 1
+    logits2 = tf.subtract(logits, logits_) + 1
     mask2 = tf.reshape(self.mask[loss], [mb, V])
-    target = tf.select(mask2, logits2, self.zero_logits[loss])
+    target = tf.where(mask2, logits2, self.zero_logits[loss])
     return tf.reduce_sum(tf.nn.relu(target), 1)
 
   def _compute_warp_loss(self, logits, item_target):
@@ -566,9 +566,9 @@ class EmbeddingAttribute(object):
     idx_flattened = self.idx_flattened0 + item_target
     logits_ = tf.gather(flat_matrix, idx_flattened)
     logits_ = tf.reshape(logits_, [mb, 1])
-    logits2 = tf.sub(logits, logits_) + 1
+    logits2 = tf.subtract(logits, logits_) + 1
     mask2 = tf.reshape(self.mask[loss], [mb, V])
-    target = tf.select(mask2, logits2, self.zero_logits[loss])
+    target = tf.where(mask2, logits2, self.zero_logits[loss])
     return tf.log(1 + tf.reduce_sum(tf.nn.relu(target), 1))
 
   def _compute_mw_loss(self, logits, item_target):
@@ -576,9 +576,9 @@ class EmbeddingAttribute(object):
       self._prepare_warp_vars('mw')
     V = self.n_sampled
     mb = self.batch_size
-    logits2 = tf.sub(logits, tf.reshape(item_target, [mb, 1])) + 1
+    logits2 = tf.subtract(logits, tf.reshape(item_target, [mb, 1])) + 1
     mask2 = tf.reshape(self.mask['mw'], [mb, V])
-    target = tf.select(mask2, logits2, self.zero_logits['mw'])
+    target = tf.where(mask2, logits2, self.zero_logits['mw'])
     return tf.log(1 + tf.reduce_sum(tf.nn.relu(target), 1)) # scale or not??
 
   def _prepare_warp_vars(self, loss= 'warp'):

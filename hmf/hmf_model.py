@@ -100,8 +100,8 @@ class LatentProductModel(object):
     # print('debug: user, item dim', embedded_user.get_shape(), neg_embs_item.get_shape())
 
     print("construct postive/negative items/scores \n(for bpr loss, AUC)")
-    self.pos_score = tf.reduce_sum(tf.mul(embedded_user, pos_embs_item), 1) + pos_item_b
-    self.neg_score = tf.reduce_sum(tf.mul(embedded_user, neg_embs_item), 1) + neg_item_b
+    self.pos_score = tf.reduce_sum(tf.multiply(embedded_user, pos_embs_item), 1) + pos_item_b
+    self.neg_score = tf.reduce_sum(tf.multiply(embedded_user, neg_embs_item), 1) + neg_item_b
     neg_pos = self.neg_score - self.pos_score
     self.auc = 0.5 - 0.5 * tf.reduce_mean(tf.sign(neg_pos))
 
@@ -145,7 +145,7 @@ class LatentProductModel(object):
     self.output = logits
     values, self.indices= tf.nn.top_k(self.output, self.top_N_items, sorted=True)
     # self.saver = tf.train.Saver(tf.global_variables())
-    self.saver = tf.train.Saver(tf.all_variables())
+    self.saver = tf.train.Saver(tf.global_variables())
 
   def prepare_warp(self, pos_item_set, pos_item_set_eval):
     self.att_emb.prepare_warp(pos_item_set, pos_item_set_eval)

@@ -117,7 +117,7 @@ def create_model(session, u_attributes=None, i_attributes=None,
     print("Created model with fresh parameters.")
     logging.info("Created model with fresh parameters.")
     # session.run(tf.global_variables_initializer())
-    session.run(tf.initialize_all_variables())
+    session.run(tf.global_variables_initializer())
   return model
 
 def train(raw_data=FLAGS.raw_data, train_dir=FLAGS.train_dir, mylog=mylog,
@@ -432,12 +432,12 @@ def main(_):
   if not os.path.exists(FLAGS.train_dir):
     os.mkdir(FLAGS.train_dir)
   if not FLAGS.recommend:
-    mylog('train')
+    print('train')
     log_path = os.path.join(FLAGS.train_dir,"log.txt")
     logging.basicConfig(filename=log_path,level=logging.DEBUG)
     train(data_dir=FLAGS.data_dir)
   else:
-    mylog('recommend')
+    print('recommend')
     log_path = os.path.join(FLAGS.train_dir,"log.recommend.txt")
     logging.basicConfig(filename=log_path,level=logging.DEBUG)
     compute_scores(data_dir=FLAGS.data_dir)
