@@ -83,6 +83,8 @@ class SeqModel(object):
         self.output_feat = output_feat
         self.no_input_item_feature = no_input_item_feature
         self.topk_n = topk_n
+        self.dtype = dtype
+
         with tf.device(devices[0]):
             self.dropoutRate = tf.Variable(
                 float(dropoutRate), trainable=False, dtype=dtype)        
@@ -97,9 +99,11 @@ class SeqModel(object):
         with tf.device(devices[1]):
             single_cell = tf.nn.rnn_cell.LSTMCell(size, state_is_tuple=True)
             single_cell = rnn_cell.DropoutWrapper(single_cell,input_keep_prob = self.dropoutRate)
-            if num_layers > 1:
+            if num_layers >= 1:
                 single_cell = tf.nn.rnn_cell.MultiRNNCell([single_cell] * num_layers, state_is_tuple=True)
             single_cell = rnn_cell.DropoutWrapper(single_cell, output_keep_prob = self.dropoutRate)
+        
+        self.single_cell = single_cell
         
         
         # Feeds for inputs.
@@ -156,8 +160,7 @@ class SeqModel(object):
 
         # for warp
         if self.loss in ["warp", "mw"]:
-            self.set_mask, self.reset_mask = self.embeddingAttribute.get_warp_mask(
-                device = self.devices[2])
+            self.set_mask, self.reset_mask = self.embeddingAttribute.get_warp_mask(device = self.devices[2])
 
         #with tf.device(devices[0]):
         # train
@@ -180,6 +183,109 @@ class SeqModel(object):
                     self.updates.append(opt.apply_gradients(zip(clipped_gradients, params), global_step=self.global_step))
 
         self.saver = tf.train.Saver(tf.global_variables())
+
+
+    def init_beam_decoder(self,beam_size=10, max_steps = 30):
+
+        # a non bucket design
+        #  
+        # how to feed in: 
+        # user_history = [1,2,3,4]
+        # inputs = [GO, 1, 2, 3], sequene_length = [4-1]
+
+        self.beam_size = beam_size
+
+        init_state = self.single_cell.zero_state(1, self.dtype)
+        self.before_state = []
+        self.after_state = []
+        print(init_state)
+        shape = [self.beam_size, init_state[0].c.get_shape()[1]]
+
+        with tf.device(self.devices[0]):
+
+            with tf.variable_scope("beam_search"):
+
+                # two variable: before_state, after_state
+                for i, state_tuple in enumerate(init_state):
+                    cb = tf.get_variable("before_c_{}".format(i), shape, initializer=tf.constant_initializer(0.0), trainable = False) 
+                    hb = tf.get_variable("before_h_{}".format(i), shape, initializer=tf.constant_initializer(0.0), trainable = False) 
+                    sb = tf.nn.rnn_cell.LSTMStateTuple(cb,hb)
+                    ca = tf.get_variable("after_c_{}".format(i), shape, initializer=tf.constant_initializer(0.0), trainable = False) 
+                    ha = tf.get_variable("after_h_{}".format(i), shape, initializer=tf.constant_initializer(0.0), trainable = False) 
+                    sa = tf.nn.rnn_cell.LSTMStateTuple(ca,ha)
+                    self.before_state.append(sb)
+                    self.after_state.append(sa)                
+
+                # a new place holder for sequence_length 
+                self.sequence_length = tf.placeholder(tf.int32, shape=[1], name = "sequence_length")
+                
+                # the final_state after processing the start state 
+            with tf.variable_scope("",reuse=True):
+                _, self.beam_final_state = rnn.rnn(self.single_cell,self.inputs,initial_state = init_state, sequence_length = self.sequence_length)
+                
+            with tf.variable_scope("beam_search"):
+                # copy the final_state to before_state
+                self.final2before_ops = [] # an operation sequence
+                for i in xrange(len(self.before_state)):
+                    final_c = self.beam_final_state[i].c
+                    final_h = self.beam_final_state[i].h
+                    final_c_expand = tf.nn.embedding_lookup(final_c,[0] * self.beam_size)
+                    final_h_expand = tf.nn.embedding_lookup(final_h,[0] * self.beam_size)
+                    copy_c = self.before_state[i].c.assign(final_c_expand)
+                    copy_h = self.before_state[i].h.assign(final_h_expand)
+                    self.final2before_ops.append(copy_c)
+                    self.final2before_ops.append(copy_h)
+
+                # operation: copy after_state to before_state according to a ma
+                self.beam_parent = tf.placeholder(tf.int32, shape=[self.beam_size], name = "beam_parent")
+                self.after2before_ops = [] # an operation sequence
+                for i in xrange(len(self.before_state)):
+                    after_c = self.after_state[i].c
+                    after_h = self.after_state[i].h
+                    after_c_expand = tf.nn.embedding_lookup(after_c,self.beam_parent)
+                    after_h_expand = tf.nn.embedding_lookup(after_h,self.beam_parent)
+                    copy_c = self.before_state[i].c.assign(after_c_expand)
+                    copy_h = self.before_state[i].h.assign(after_h_expand)
+                    self.after2before_ops.append(copy_c)
+                    self.after2before_ops.append(copy_h)
+
+
+            # operation: one step RNN 
+            with tf.variable_scope("",reuse=True):
+                self.beam_step_outputs, self.beam_step_state = rnn.rnn(self.single_cell,self.beam_step_inputs,initial_state = self.before_state)
+
+            with tf.variable_scope("beam_search"):
+                # operate: copy beam_step_state to after_state
+                self.beam2after_ops = [] # an operation sequence
+                for i in xrange(len(self.after_state)):
+                    copy_c = self.after_state[i].c.assign(self.beam_step_state[i].c)
+                    copy_h = self.after_state[i].h.assign(self.beam_step_state[i].h)
+                    self.beam2after_ops.append(copy_c)
+                    self.beam2after_ops.append(copy_h)
+    
+
+    def show_before_state(self):
+        for i in xrange(self.before_state):
+            print(self.before_state[i].c.eval())
+            print(self.before_state[i].h.eval())
+
+    def beam_step(self, session, index = 0, beam_input = None, user_input=None, item_inputs=None,sequence_length = None, bucket_id = 0):
+        if index == 0:
+            length = self.buckets[bucket_id]
+            
+            input_feed = {}            
+            (update_sampled, input_feed_sampled, input_feed_warp) = self.embeddingAttribute.add_input(input_feed, user_input, item_inputs, forward_only = True, recommend = True)
+            input_feed[self.sequence_length.name] = sequence_length
+            
+            output_feed = [self.final2before.ops]
+            
+            self.show_before_state()
+            _ = session.run(output_feed, input_feed)
+            self.show_before_state()
+
+        else:
+            pass
+
 
     def step(self,session, user_input, item_inputs, targets, target_weights, 
         bucket_id, item_sampled=None, item_sampled_id2idx = None, forward_only = False, recommend = False):
@@ -301,9 +407,9 @@ class SeqModel(object):
 
     def get_batch_recommend(self, data_set, bucket_id, start_id = None):
         length = self.buckets[bucket_id]
-
+        
         users, item_inputs, positions, valids = [], [], [], []
-
+        
         for i in xrange(self.batch_size):
             if start_id == None:
                 user, item_seq = random.choice(data_set[bucket_id])

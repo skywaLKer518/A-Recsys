@@ -106,6 +106,20 @@ tf.app.flags.DEFINE_string("split", "last", "last: last maxlen only; overlap: ov
 tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
 tf.app.flags.DEFINE_integer("n_resample", 30, "iterations before resample.")
 
+tf.app.flags.DEFINE_boolean("old_att", False, "tmp: use attribute_0.8.csv")
+
+tf.app.flags.DEFINE_integer("topk", 1000,"the topk value")
+
+
+# for ensemble 
+tf.app.flags.DEFINE_boolean("ensemble", False, "to ensemble")
+tf.app.flags.DEFINE_string("ensemble_suffix", "", "multiple models suffix: 1,2,3,4,5")
+
+# for beam_search
+tf.app.flags.DEFINE_boolean("beam_search", False, "to beam_search")
+tf.app.flags.DEFINE_integer("beam_size", 10,"the beam size")
+>>>>>>> beam_search
+
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
                             "Limit on the size of training data (0: no limit).")
 tf.app.flags.DEFINE_boolean("old_att", False, "tmp: use attribute_0.8.csv")
@@ -341,8 +355,9 @@ def create_model(session,embAttr,START_ID, run_options, run_metadata):
 
     ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
     # if FLAGS.recommend or (not FLAGS.fromScratch) and ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
-    if FLAGS.recommend or (not FLAGS.fromScratch) and ckpt:
-        mylog("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+
+    if FLAGS.recommend or FLAGS.beam_search or FLAGS.ensemble or (not FLAGS.fromScratch) and ckpt:
+        log_it("Reading model parameters from %s" % ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
     else:
         mylog("Created model with fresh parameters.")
@@ -705,7 +720,61 @@ def ensemble(raw_data=FLAGS.raw_data):
     mylog("====evaluation scores (NDCG, RECALL, PRECISION, MAP) @ 2,5,10,20,30====")
     mylog("METRIC_FORMAT (self): {}".format(scores_self))
     mylog("METRIC_FORMAT (ex  ): {}".format(scores_ex))
+
+def beam_search():
+    log_it("Reading Data...")
+    task = Task(FLAGS.dataset)
+    _, _, test_set, embAttr, START_ID, _, _, evaluation, uids = read_data(task, test = True )
+    test_bucket_sizes = [len(test_set[b]) for b in xrange(len(_buckets))]
+    test_total_size = int(sum(test_bucket_sizes))
+
+    # reports
+    log_it(_buckets)
+    log_it("Test:")
+    log_it("total: {}".format(test_total_size))
+    log_it("buckets: {}".format(test_bucket_sizes))
+    
+    with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement = False)) as sess:
+
+        # runtime profile
+        if FLAGS.profile:
+            run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+            run_metadata = tf.RunMetadata()
+        else:
+            run_options = None
+            run_metadata = None
+
+        log_it("Creating Model")
+        model = create_model(sess, embAttr, START_ID, run_options, run_metadata)
+        show_all_variables()
+        model.init_beam_decoder()
         
+        sess.run(model.dropoutRate.assign(1.0))
+
+        start_id = 0
+        n_steps = 0
+        batch_size = FLAGS.batch_size
+    
+        dite = DataIterator(model, test_set, len(_buckets), batch_size, None)
+        ite = dite.next_sequence(stop = True, recommend = True)
+
+        n_total_user = len(uids)
+        n_recommended = 0
+        uid2rank = {}
+        for r, uid in enumerate(uids):
+            uid2rank[uid] = r
+        rec = np.zeros((n_total_user,FLAGS.topk), dtype = int)
+        rec_value = np.zeros((n_total_user,FLAGS.topk), dtype = float)
+        start = time.time()
+
+        for users, inputs, positions, valids, bucket_id in ite:
+            print(inputs)
+            print(positions)
+            results = model.beam_step(sess, index=0, user_input = users, item_inputs = inputs, sequence_length = positions, bucket_id = bucket_id)
+            break
+
+        
+    
 
 def main(_):
     print("V 2017-03-09")
@@ -718,6 +787,12 @@ def main(_):
     if not os.path.exists(FLAGS.train_dir):
         os.mkdir(FLAGS.train_dir)
     
+    if FLAGS.beam_search:
+        FLAGS.batch_size = 1
+        FLAGS.n_bucket = 1
+        beam_search()
+        return 
+
     if FLAGS.ensemble:
         suffixes = FLAGS.ensemble_suffix.split(',')
         log_path = os.path.join(FLAGS.train_dir.replace('seed', 'seed'+suffixes[0]),"log.ensemble.txt.{}".format(FLAGS.topk))
@@ -729,7 +804,9 @@ def main(_):
         log_path = os.path.join(FLAGS.train_dir,"log.recommend.txt.{}".format(FLAGS.topk))
         logging.basicConfig(filename=log_path,level=logging.DEBUG, filemode ="w")
         recommend()
+        return 
     else:
+        # train
         log_path = os.path.join(FLAGS.train_dir,"log.txt")
         if FLAGS.fromScratch:
             filemode = "w"
