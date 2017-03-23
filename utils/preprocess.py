@@ -70,6 +70,8 @@ def create_dictionary(data_dir, inds, features, feature_types, feature_names,
         vocab_counts[name][uf[ii]] = vocab_counts[name][uf[ii]] + 1 if uf[ii] in vocab_counts[name] else 1
       elif feature_types[ii] == 1:
         if not isinstance(uf[ii], list):
+          if not isinstance(uf[ii], str):
+            uf[ii] = str(uf[ii])
           uf[ii] = uf[ii].split(',')
         for t in uf[ii]:
           vocab_counts[name][t] = vocab_counts[name][t] + 1 if t in vocab_counts[name] else 1
@@ -202,6 +204,8 @@ def tokenize_attribute_map(data_dir, features, feature_types, max_vocabulary_siz
       for n in range(N):
         elem = uf[n]
         if not isinstance(elem, list):
+          if not isinstance(elem, str):
+            elem = str(elem)
           elem = elem.split(',')
         val = [vocab.get(str(v), UNK_ID) for v in elem]
         val_ = [v for v in val if v != UNK_ID]
@@ -277,6 +281,8 @@ def filter_mulhot(data_dir, items, feature_types, max_vocabulary_size,
       for n in xrange(N):
         elem = uf[n]
         if not isinstance(elem, list):
+          if not isinstance(elem, str):
+            elem = str(elem)
           elem = elem.split(',')
 
         val = [vocab.get(v, UNK_ID) for v in elem]
@@ -298,6 +304,8 @@ def filter_mulhot(data_dir, items, feature_types, max_vocabulary_size,
         i_ind = logit_ind2item_ind[n]
         elem = uf[i_ind]
         if not isinstance(elem, list):
+          if not isinstance(elem, str):
+            elem = str(elem)
           elem = elem.split(',')
 
         val = [vocab.get(v, UNK_ID) for v in elem]
