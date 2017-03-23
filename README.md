@@ -61,7 +61,7 @@ By default, the code generates a ground truth interaction file *res_T_test.csv* 
 
 
 ### dependencies
-Code is tested with Tensorflow version 0.8, 0.9, 0.11, 0.12. We are working on to support TF v1.0.
+The code now supports Tensorflow v1.0. During our development, code is tested with versions 0.8, 0.9, 0.11, 0.12. 
 
 ## Cite
 Please cite the following if you find this helpful.
