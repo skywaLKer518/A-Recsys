@@ -1,3 +1,9 @@
+.DS_Store
+*~
+[#].[#]
+.[#]*
+*[#]
+*pyc
 mf/data/*
 mf/test/*
 mf/*pyc
@@ -26,3 +32,5 @@ preprocess/*
 */*.sh
 cache/*
 train/*
+examples/cache/
+examples/train/

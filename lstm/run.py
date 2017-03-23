@@ -106,19 +106,11 @@ tf.app.flags.DEFINE_string("split", "last", "last: last maxlen only; overlap: ov
 tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
 tf.app.flags.DEFINE_integer("n_resample", 30, "iterations before resample.")
 
-tf.app.flags.DEFINE_boolean("old_att", False, "tmp: use attribute_0.8.csv")
 
-tf.app.flags.DEFINE_integer("topk", 1000,"the topk value")
-
-
-# for ensemble 
-tf.app.flags.DEFINE_boolean("ensemble", False, "to ensemble")
-tf.app.flags.DEFINE_string("ensemble_suffix", "", "multiple models suffix: 1,2,3,4,5")
 
 # for beam_search
 tf.app.flags.DEFINE_boolean("beam_search", False, "to beam_search")
 tf.app.flags.DEFINE_integer("beam_size", 10,"the beam size")
->>>>>>> beam_search
 
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
                             "Limit on the size of training data (0: no limit).")
@@ -357,7 +349,7 @@ def create_model(session,embAttr,START_ID, run_options, run_metadata):
     # if FLAGS.recommend or (not FLAGS.fromScratch) and ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
 
     if FLAGS.recommend or FLAGS.beam_search or FLAGS.ensemble or (not FLAGS.fromScratch) and ckpt:
-        log_it("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+        mylog("Reading model parameters from %s" % ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
     else:
         mylog("Created model with fresh parameters.")
@@ -722,17 +714,17 @@ def ensemble(raw_data=FLAGS.raw_data):
     mylog("METRIC_FORMAT (ex  ): {}".format(scores_ex))
 
 def beam_search():
-    log_it("Reading Data...")
+    mylog("Reading Data...")
     task = Task(FLAGS.dataset)
     _, _, test_set, embAttr, START_ID, _, _, evaluation, uids = read_data(task, test = True )
     test_bucket_sizes = [len(test_set[b]) for b in xrange(len(_buckets))]
     test_total_size = int(sum(test_bucket_sizes))
 
     # reports
-    log_it(_buckets)
-    log_it("Test:")
-    log_it("total: {}".format(test_total_size))
-    log_it("buckets: {}".format(test_bucket_sizes))
+    mylog(_buckets)
+    mylog("Test:")
+    mylog("total: {}".format(test_total_size))
+    mylog("buckets: {}".format(test_bucket_sizes))
     
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement = False)) as sess:
 
@@ -744,7 +736,7 @@ def beam_search():
             run_options = None
             run_metadata = None
 
-        log_it("Creating Model")
+        mylog("Creating Model")
         model = create_model(sess, embAttr, START_ID, run_options, run_metadata)
         show_all_variables()
         model.init_beam_decoder()
@@ -777,7 +769,7 @@ def beam_search():
     
 
 def main(_):
-    print("V 2017-03-09")
+    print("V 2017-03-22")
     if FLAGS.test:
         if FLAGS.data_dir[-1] == '/':
             FLAGS.data_dir = FLAGS.data_dir[:-1] + '_test'

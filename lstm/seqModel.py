@@ -16,7 +16,6 @@ from tensorflow.python.ops import embedding_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import rnn
-from tensorflow.python.ops import rnn_cell
 from tensorflow.python.ops import variable_scope
 
 import data_iterator
@@ -97,11 +96,11 @@ class SeqModel(object):
             self.global_step = tf.Variable(0, trainable=False)
 
         with tf.device(devices[1]):
-            single_cell = tf.nn.rnn_cell.LSTMCell(size, state_is_tuple=True)
-            single_cell = rnn_cell.DropoutWrapper(single_cell,input_keep_prob = self.dropoutRate)
+            single_cell = tf.contrib.rnn.core_rnn_cell.LSTMCell(size, state_is_tuple=True)
+            single_cell = tf.contrib.rnn.core_rnn_cell.DropoutWrapper(single_cell,input_keep_prob = self.dropoutRate)
             if num_layers >= 1:
-                single_cell = tf.nn.rnn_cell.MultiRNNCell([single_cell] * num_layers, state_is_tuple=True)
-            single_cell = rnn_cell.DropoutWrapper(single_cell, output_keep_prob = self.dropoutRate)
+                single_cell = tf.contrib.rnn.core_rnn_cell.MultiRNNCell([single_cell] * num_layers, state_is_tuple=True)
+            single_cell = tf.contrib.rnn.core_rnn_cell.DropoutWrapper(single_cell, output_keep_prob = self.dropoutRate)
         
         self.single_cell = single_cell
         
@@ -209,10 +208,10 @@ class SeqModel(object):
                 for i, state_tuple in enumerate(init_state):
                     cb = tf.get_variable("before_c_{}".format(i), shape, initializer=tf.constant_initializer(0.0), trainable = False) 
                     hb = tf.get_variable("before_h_{}".format(i), shape, initializer=tf.constant_initializer(0.0), trainable = False) 
-                    sb = tf.nn.rnn_cell.LSTMStateTuple(cb,hb)
+                    sb = tf.contrib.rnn.core_rnn_cell.LSTMStateTuple(cb,hb)
                     ca = tf.get_variable("after_c_{}".format(i), shape, initializer=tf.constant_initializer(0.0), trainable = False) 
                     ha = tf.get_variable("after_h_{}".format(i), shape, initializer=tf.constant_initializer(0.0), trainable = False) 
-                    sa = tf.nn.rnn_cell.LSTMStateTuple(ca,ha)
+                    sa = tf.contrib.rnn.core_rnn_cell.LSTMStateTuple(ca,ha)
                     self.before_state.append(sb)
                     self.after_state.append(sa)                
 
@@ -221,7 +220,7 @@ class SeqModel(object):
                 
                 # the final_state after processing the start state 
             with tf.variable_scope("",reuse=True):
-                _, self.beam_final_state = rnn.rnn(self.single_cell,self.inputs,initial_state = init_state, sequence_length = self.sequence_length)
+                _, self.beam_final_state = tf.contrib.rnn.static_rnn(self.single_cell,self.inputs,initial_state = init_state, sequence_length = self.sequence_length)
                 
             with tf.variable_scope("beam_search"):
                 # copy the final_state to before_state
@@ -252,7 +251,7 @@ class SeqModel(object):
 
             # operation: one step RNN 
             with tf.variable_scope("",reuse=True):
-                self.beam_step_outputs, self.beam_step_state = rnn.rnn(self.single_cell,self.beam_step_inputs,initial_state = self.before_state)
+                self.beam_step_outputs, self.beam_step_state = tf.contrib.rnn.static_rnn(self.single_cell,self.beam_step_inputs,initial_state = self.before_state)
 
             with tf.variable_scope("beam_search"):
                 # operate: copy beam_step_state to after_state
@@ -475,7 +474,7 @@ class SeqModel(object):
                 with variable_scope.variable_scope(variable_scope.get_variable_scope(),reuse=True if j > 0 else None):
                     
                     with tf.device(devices[1]):
-                        bucket_outputs, _ = rnn.rnn(cell,inputs[:bucket],initial_state = init_state)
+                        bucket_outputs, _ = tf.contrib.rnn.static_rnn(cell,inputs[:bucket],initial_state = init_state)
                     with tf.device(devices[2]):
 
                         bucket_outputs_full = [self.embeddingAttribute.get_prediction(x, device=devices[2], output_feat=self.output_feat) for x in bucket_outputs]

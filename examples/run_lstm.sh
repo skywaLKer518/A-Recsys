@@ -33,7 +33,7 @@ fi
 
 cd ../lstm/
 
-python run.py --dataset ml1m --raw_data ../examples/dataset/ --data_dir ../examples/cache/ml1m --train_dir ../examples/train/lstm_ml1m_h${h}lr${lr} --dataset ml1m --raw_data ../examples/dataset/ --item_vocab_size 3100  --vocab_min_thresh 1 --steps_per_checkpoint 300 --loss ce --learning_rate ${lr} --size $h  --recommend ${rec}
+python run.py --dataset ml1m --raw_data ../examples/dataset/ --data_dir ../examples/cache/ml1m --train_dir ../examples/train/lstm_ml1m_h${h}lr${lr} --item_vocab_size 3100  --vocab_min_thresh 1 --steps_per_checkpoint 5 --loss ce --learning_rate ${lr} --size $h  --recommend ${rec}
 
 
 echo 'finished!'
