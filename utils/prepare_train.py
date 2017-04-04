@@ -4,8 +4,11 @@ from datetime import datetime
 def to_week(t):
   return datetime.fromtimestamp(t).isocalendar()[1]
 
-def sample_items(items, n, p, replace=False):
-  item_sampled = np.random.choice(items, n, replace=replace, p=p)
+def sample_items(items, n, p=None, replace=False):
+  if p:
+    item_sampled = np.random.choice(items, n, replace=replace, p=p)
+  else:
+    item_sampled = np.random.choice(items, n, replace=replace)
   item_sampled_id2idx = {}
   i = 0
   for item in item_sampled:
