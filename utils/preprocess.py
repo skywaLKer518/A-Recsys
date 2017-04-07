@@ -87,6 +87,7 @@ def create_dictionary(data_dir, inds, features, feature_types, feature_names,
       max_size = logits_size_tr + len(_START_VOCAB)
     elif prefix == 'user' and i == 0:
       max_size = len(features)
+      max_size = max_vocabulary_size # looks still better to filter first
     else:
       max_size = max_vocabulary_size
 
