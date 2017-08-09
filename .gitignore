@@ -28,9 +28,13 @@ data/*
 res/*
 tmp/*
 others/*
+paper/*/*
 preprocess/*
 */*.sh
 cache/*
 train/*
 examples/cache/
 examples/train/
+ae-hmf/*
+rank/*
+ae-word2vec/*

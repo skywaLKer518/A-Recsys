@@ -119,6 +119,9 @@ class LatentProductModel(object):
     loss = self.loss_function
     if loss in ['warp', 'ce', 'bbpr']:
       batch_loss = m.compute_loss(logits, self.item_target, loss)
+    elif loss in ['warp_eval']:
+      batch_loss, batch_rank = m.compute_loss(logits, self.item_target, loss)
+
     elif loss in ['mw']:
       # batch_loss = m.compute_loss(sampled_logits, self.pos_score, loss)
       batch_loss = m.compute_loss(sampled_logits, target_score, loss)
@@ -129,10 +132,12 @@ class LatentProductModel(object):
     else:
       print("not implemented!")
       exit(-1)
-    if loss in ['warp', 'mw', 'bbpr']:
+    if loss in ['warp', 'warp_eval', 'mw', 'bbpr']:
       self.set_mask, self.reset_mask = m.get_warp_mask()
 
     self.loss = tf.reduce_mean(batch_loss)
+    self.batch_loss = batch_loss
+    self.batch_rank = batch_rank
     self.loss_eval = tf.reduce_mean(batch_loss_eval) if loss == 'mw' else self.loss
     # Gradients and SGD update operation for training the model.
     params = tf.trainable_variables()
@@ -191,10 +196,14 @@ class LatentProductModel(object):
       else:
         output_feed = [self.indices]
 
+    # for warp_eval
+    if loss in ['warp_eval']:
+        output_feed = [self.batch_loss, self.batch_rank]
+
     if item_sampled is not None and loss in ['mw', 'mce']:
       session.run(update_sampled, input_feed_sampled)
 
-    if (loss in ['warp', 'bbpr', 'mw']) and recommend is False:
+    if (loss in ['warp', 'warp_eval', 'bbpr', 'mw']) and recommend is False:
       session.run(self.set_mask[loss], input_feed_warp)
 
     if run_op is not None and run_meta is not None:
@@ -202,9 +211,11 @@ class LatentProductModel(object):
     else:
       outputs = session.run(output_feed, input_feed)
 
-    if (loss in ['warp', 'bbpr', 'mw']) and recommend is False:
+    if (loss in ['warp', 'warp_eval',  'bbpr', 'mw']) and recommend is False:
       session.run(self.reset_mask[loss], input_feed_warp)
 
+    if loss in ['warp_eval']:
+        return outputs
     if not recommend:
       if not forward_only:
         return outputs[1]#, outputs[2]#, outputs[3] #, outputs[3], outputs[4]

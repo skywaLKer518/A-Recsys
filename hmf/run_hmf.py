@@ -230,7 +230,7 @@ def train(raw_data=FLAGS.raw_data, train_dir=FLAGS.train_dir, mylog=mylog,
       
       if loss_func in ['mw', 'mce'] and current_step % FLAGS.n_resample == 0:
         item_sampled, item_sampled_id2idx = sample_items(item_population, 
-          FLAGS.n_sampled)
+          FLAGS.n_sampled, p_item)
       else:
         item_sampled = None
 
