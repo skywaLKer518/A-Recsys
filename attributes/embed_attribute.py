@@ -522,17 +522,22 @@ class EmbeddingAttribute(object):
     else:
       return self.item_attributes._embedding_size_list_cat[0]
 
-  def compute_loss(self, logits, item_target, loss='ce', device='/gpu:0'):
-    assert(loss in ['ce', 'mce', 'warp','warp_eval',  'mw', 'bbpr', 'bpr', 'bpr-hinge'])
+  def compute_loss(self, logits, item_target, loss='ce', true_rank=False,
+   device='/gpu:0'):
+    assert(loss in ['ce', 'mce', 'warp','warp_eval',  'rs', 'rs-sig', 'mw', 'bbpr', 'bpr', 'bpr-hinge'])
     with tf.device(device):
       if loss == 'ce':
-        return tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=item_target)
+        return tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, 
+          labels=item_target)
+      elif loss in ['rs', 'rs-sig', 'bbpr']:
+        return self._compute_rs_loss(logits, item_target, loss=loss, 
+          tr=true_rank)
       elif loss == 'warp':
         return self._compute_warp_loss(logits, item_target)
       elif loss == 'mw':
         return self._compute_mw_loss(logits, item_target)  
-      elif loss =='bbpr':
-        return self._compute_bbpr_loss(logits, item_target)
+      # elif loss =='bbpr':
+      #   return self._compute_bbpr_loss(logits, item_target)
       elif loss == 'bpr':
         return tf.log(1 + tf.exp(logits))
       elif loss == 'bpr-hinge':
@@ -543,25 +548,54 @@ class EmbeddingAttribute(object):
         print('Error: not implemented other loss!!')
         exit(1)
 
-  def _compute_bbpr_loss(self, logits, item_target):
-    loss = 'bbpr'
+  def _compute_rs_loss(self, logits, item_target, loss='rs', tr=False):
+    assert(loss in ['rs', 'rs-sig', 'bbpr'])
     if loss not in self.mask:
-      self._prepare_warp_vars(loss)
+      self._prepare_loss_vars(loss)
+    
+    # compute error =  error(logits - target_logits)
     V = self.logit_size
     mb = self.batch_size
     flat_matrix = tf.reshape(logits, [-1])
     idx_flattened = self.idx_flattened0 + item_target
-    logits_ = tf.gather(flat_matrix, idx_flattened)
-    logits_ = tf.reshape(logits_, [mb, 1])
-    logits2 = tf.subtract(logits, logits_) + 1
+    target_logits = tf.gather(flat_matrix, idx_flattened)
+    target_logits = tf.reshape(target_logits, [mb, 1])
+    
+    if loss in ['rs', 'rs-sig']: # margin
+      errors = tf.subtract(logits, target_logits) + 1
+      errors = tf.nn.relu(errors)
+    elif loss in ['bbpr']:
+      errors = tf.sigmoid(tf.subtract(logits, target_logits))
+
+    # masking other possitive instances
     mask2 = tf.reshape(self.mask[loss], [mb, V])
-    target = tf.where(mask2, logits2, self.zero_logits[loss])
-    return tf.reduce_sum(tf.nn.relu(target), 1)
+    errors_masked = tf.where(mask2, errors, self.zero_logits[loss])
+
+    # rs-sig: take margin rank, go through sigmoid. 0-->1/2,  inf-> 1
+    if loss in ['rs-sig']:
+      errors_masked = tf.sigmoid(errors_masked)
+
+    # compute loss
+    if loss in ['rs']:
+      l = tf.log(1 + tf.reduce_sum(errors_masked, 1))
+    elif loss in ['rs-sig']:
+      l = tf.log(1 + tf.reduce_sum(errors_masked*2-1, 1))
+    elif loss in ['bbpr']:
+      l = tf.reduce_sum(errors_masked, 1)
+    
+    if tr:
+      errors_nomargin = tf.nn.relu(tf.subtract(logits, target_logits))
+      errors_nomargin_masked = tf.where(
+        mask2, errors_nomargin, self.zero_logits[loss])
+      true_rank = tf.count_nonzero(errors_nomargin_masked, 1)
+      return [errors_masked, true_rank]
+      
+    return l
 
   def _compute_warp_loss(self, logits, item_target):
     loss = 'warp'
     if loss not in self.mask:
-      self._prepare_warp_vars(loss)
+      self._prepare_loss_vars(loss)
     V = self.logit_size
     mb = self.batch_size
     flat_matrix = tf.reshape(logits, [-1])
@@ -576,7 +610,7 @@ class EmbeddingAttribute(object):
   def _compute_warp_eval_loss(self, logits, item_target):
     loss = 'warp_eval'
     if loss not in self.mask:
-      self._prepare_warp_vars(loss)
+      self._prepare_loss_vars(loss)
     V = self.logit_size
     mb = self.batch_size
     flat_matrix = tf.reshape(logits, [-1])
@@ -596,7 +630,7 @@ class EmbeddingAttribute(object):
 
   def _compute_mw_loss(self, logits, item_target):
     if 'mw' not in self.mask:
-      self._prepare_warp_vars('mw')
+      self._prepare_loss_vars('mw')
     V = self.n_sampled
     mb = self.batch_size
     logits2 = tf.subtract(logits, tf.reshape(item_target, [mb, 1])) + 1
@@ -604,7 +638,7 @@ class EmbeddingAttribute(object):
     target = tf.where(mask2, logits2, self.zero_logits['mw'])
     return tf.log(1 + tf.reduce_sum(tf.nn.relu(target), 1)) # scale or not??
 
-  def _prepare_warp_vars(self, loss= 'warp'):
+  def _prepare_loss_vars(self, loss= 'warp'):
     V = self.n_sampled if loss == 'mw' else self.logit_size
     mb = self.batch_size
     self.idx_flattened0 = tf.range(0, mb) * V
@@ -618,7 +652,7 @@ class EmbeddingAttribute(object):
   def get_warp_mask(self, device='/gpu:0'):
     self.set_mask, self.reset_mask = {}, {}
     with tf.device(device):
-      for loss in ['mw', 'warp','warp_eval', 'bbpr']:
+      for loss in ['mw', 'warp','warp_eval', 'rs', 'rs-sig', 'bbpr']:
         if loss not in self.mask:
           continue
         self.set_mask[loss] = tf.scatter_update(self.mask[loss], 
@@ -676,13 +710,13 @@ class EmbeddingAttribute(object):
 
     # for warp loss.
     input_feed_warp = {}
-    if loss in ['warp', 'warp_eval', 'mw', 'bbpr'] and recommend is False:
+    if loss in ['warp', 'warp_eval', 'mw', 'rs', 'rs-sig', 'bbpr'] and recommend is False:
       V = self.n_sampled if loss == 'mw' else self.logit_size
       mask_indices, c = [], 0
-      s_2idx = self.item_ind2logit_ind if loss in ['warp', 'warp_eval', 'bbpr'] else item_sampled_id2idx      
+      s_2idx = self.item_ind2logit_ind if loss in ['warp', 'warp_eval', 'rs', 'rs-sig', 'bbpr'] else item_sampled_id2idx      
       item_set = self.pos_item_set_eval if forward_only else self.pos_item_set
 
-      if loss in ['warp', 'warp_eval', 'bbpr']:
+      if loss in ['warp', 'warp_eval', 'bbpr', 'rs', 'rs-sig']:
         for u in user_input:
           offset = c * V
           if u in item_set:

@@ -178,7 +178,7 @@ def train(raw_data=FLAGS.raw_data, train_dir=FLAGS.train_dir, mylog=mylog,
       logit_ind2item_ind, loss=loss_func, ind_item=item_population)
 
     pos_item_list, pos_item_list_val = None, None
-    if loss_func in ['warp', 'mw', 'bbpr']:
+    if loss_func in ['warp', 'mw', 'rs', 'rs-sig', 'bbpr']:
       pos_item_list, pos_item_list_val = positive_items(data_tr, data_va)
       model.prepare_warp(pos_item_list, pos_item_list_val)
 
@@ -298,10 +298,10 @@ def train(raw_data=FLAGS.raw_data, train_dir=FLAGS.train_dir, mylog=mylog,
         step_time = (time.time() - start_time) / count_va
         if loss_func in ['ce', 'mce']:
           eval_ppx = math.exp(eval_loss) if eval_loss < 300 else float('inf')
-          mylog("  dev: perplexity %.2f eval_auc %.4f step-time %.4f" % (
+          mylog("  dev: perplexity %.2f eval_auc(not computed) %.4f step-time %.4f" % (
             eval_ppx, eval_auc, step_time))
         else:
-          mylog("  dev: loss %.3f eval_auc %.4f step-time %.4f" % (eval_loss, 
+          mylog("  dev: loss %.3f eval_auc(not computed) %.4f step-time %.4f" % (eval_loss, 
             eval_auc, step_time))
         sys.stdout.flush()
         
