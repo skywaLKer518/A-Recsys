@@ -523,7 +523,7 @@ class EmbeddingAttribute(object):
       return self.item_attributes._embedding_size_list_cat[0]
 
   def compute_loss(self, logits, item_target, loss='ce', true_rank=False,
-   device='/gpu:0'):
+   loss_func='log', exp_p=1.005, device='/gpu:0'):
     assert(loss in ['ce', 'mce', 'warp','warp_eval',  'rs', 'rs-sig', 'mw', 'bbpr', 'bpr', 'bpr-hinge'])
     with tf.device(device):
       if loss == 'ce':
@@ -531,7 +531,7 @@ class EmbeddingAttribute(object):
           labels=item_target)
       elif loss in ['rs', 'rs-sig', 'bbpr']:
         return self._compute_rs_loss(logits, item_target, loss=loss, 
-          tr=true_rank)
+          tr=true_rank, loss_func=loss_func, exp_p = exp_p)
       elif loss == 'warp':
         return self._compute_warp_loss(logits, item_target)
       elif loss == 'mw':
@@ -548,7 +548,8 @@ class EmbeddingAttribute(object):
         print('Error: not implemented other loss!!')
         exit(1)
 
-  def _compute_rs_loss(self, logits, item_target, loss='rs', tr=False):
+  def _compute_rs_loss(self, logits, item_target, loss='rs', loss_func='log', 
+    exp_p = 1.005, tr=False):
     assert(loss in ['rs', 'rs-sig', 'bbpr'])
     if loss not in self.mask:
       self._prepare_loss_vars(loss)
@@ -574,12 +575,17 @@ class EmbeddingAttribute(object):
     # rs-sig: take margin rank, go through sigmoid. 0-->1/2,  inf-> 1
     if loss in ['rs-sig']:
       errors_masked = tf.sigmoid(errors_masked)
-
+      errors_masked = errors_masked * 2 - 1
     # compute loss
-    if loss in ['rs']:
-      l = tf.log(1 + tf.reduce_sum(errors_masked, 1))
-    elif loss in ['rs-sig']:
-      l = tf.log(1 + tf.reduce_sum(errors_masked*2-1, 1))
+    if loss in ['rs', 'rs-sig']:
+      if loss_func == 'log':
+        l = tf.log(1 + tf.reduce_sum(errors_masked, 1))
+      elif loss_func == 'exp':
+        l = 1 - tf.pow(exp_p, - tf.reduce_sum(errors_masked, 1))
+      elif loss_func == 'linear':
+        l = tf.reduce_sum(errors_masked, 1)
+      elif loss_func == 'square':
+        l = tf.square(tf.reduce_sum(errors_masked, 1))
     elif loss in ['bbpr']:
       l = tf.reduce_sum(errors_masked, 1)
     

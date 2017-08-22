@@ -24,7 +24,8 @@ class LatentProductModel(object):
                logit_ind2item_ind=None, loss_function='ce', GPU=None, 
                logit_size_test=None, nonlinear=None, dropout=1.0, 
                n_sampled=None, indices_item=None, dtype=tf.float32, 
-               top_N_items=100, hidden_size=500):
+               top_N_items=100, hidden_size=500, loss_func='log',
+               loss_exp_p = 1.005):
 
     self.user_size = user_size
     self.item_size = item_size
@@ -118,7 +119,8 @@ class LatentProductModel(object):
 
     loss = self.loss_function
     if loss in ['warp', 'ce', 'rs', 'rs-sig', 'bbpr']:
-      batch_loss = m.compute_loss(logits, self.item_target, loss)
+      batch_loss = m.compute_loss(logits, self.item_target, loss, 
+        loss_func=loss_func, exp_p=loss_exp_p)
     elif loss in ['warp_eval']:
       batch_loss, batch_rank = m.compute_loss(logits, self.item_target, loss)
 

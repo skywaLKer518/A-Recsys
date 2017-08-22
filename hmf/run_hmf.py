@@ -29,6 +29,8 @@ tf.app.flags.DEFINE_integer("item_vocab_min_thresh", 2, "filter inactive tokens.
 
 # tuning hypers
 tf.app.flags.DEFINE_string("loss", 'ce', "loss function: ce, warp, (mw, mce, bpr)")
+tf.app.flags.DEFINE_string("loss_func", 'log', "loss function: log, exp")
+tf.app.flags.DEFINE_float("loss_exp_p", 1.0005, "p in 1-p^{-x}")
 tf.app.flags.DEFINE_float("learning_rate", 0.1, "Learning rate.")
 tf.app.flags.DEFINE_float("keep_prob", 0.5, "dropout rate.")
 tf.app.flags.DEFINE_float("learning_rate_decay_factor", 1.0,
@@ -103,7 +105,8 @@ def create_model(session, u_attributes=None, i_attributes=None,
     item_ind2logit_ind, logit_ind2item_ind, loss_function = loss, GPU=gpu, 
     logit_size_test=logit_size_test, nonlinear=FLAGS.nonlinear, 
     dropout=FLAGS.keep_prob, n_sampled=n_sampled, indices_item=ind_item,
-    top_N_items=FLAGS.top_N_items, hidden_size=FLAGS.hidden_size)
+    top_N_items=FLAGS.top_N_items, hidden_size=FLAGS.hidden_size, 
+    loss_func= FLAGS.loss_func, loss_exp_p = FLAGS.loss_exp_p)
 
   if not os.path.isdir(FLAGS.train_dir):
     os.mkdir(FLAGS.train_dir)
