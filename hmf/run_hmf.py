@@ -244,7 +244,7 @@ def train(raw_data=FLAGS.raw_data, train_dir=FLAGS.train_dir, mylog=mylog,
       step_time += (time.time() - start_time) / steps_per_checkpoint
       loss += step_loss / steps_per_checkpoint
       current_step += 1
-      if current_step > total_steps:
+      if model.global_step.eval() > total_steps:
         mylog("Training reaches maximum steps. Terminating...")
         break
 
