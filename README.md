@@ -3,6 +3,11 @@
 ## A-RecSys
 A-RecSys implements a set of implicit recommendation algorithms and is designed to be used in large scale recommendation settings. It extends traditional matrix factorization algorithms and focuses on attribute embedding and applying sequence models.
 
+Works implemented by this toolkit include:
+
++ WMRB: Learning to Rank in a Scalable Batch Training Approach. RecSys 17 Poster. [pdf](http://www-scf.usc.edu/~kuanl/papers/recsys2017_poster3.pdf)
++ Temporal Learning and Sequence Modeling for a Job Recommender System. RecSys Challenge 16 [pdf](https://arxiv.org/abs/1608.03333) 
++ Sequential heterogeneous attribute embedding for item recommendation. (in submission). 
 
 Currently the models and features supported by A-RecSys include,
 
@@ -14,8 +19,8 @@ Currently the models and features supported by A-RecSys include,
 
 #### Features
 + Recommendation with implicit feedback
-+ Heterogeneous attribute embedding
-+ Objective functions include cross-entropy, WARP
++ Heterogeneous attribute embedding (see attributes/README.md for details)
++ Objective functions include cross-entropy, Weighted Margin Rank Batch loss. 
 
 ## How to use
 
@@ -66,12 +71,23 @@ The code now supports Tensorflow v1.0. During our development, code is tested wi
 ## Cite
 Please cite the following if you find this helpful.
 
-@article{liu2016temporal,
-  title={Temporal Learning and Sequence Modeling for a Job Recommender System},
-  author={Liu, Kuan and Shi, Xing and Kumar, Anoop and Zhu, Linhong and Natarajan, Prem},
-  journal={arXiv preprint arXiv:1608.03333},
-  year={2016}
+@inproceedings{liu2017wmrb,
+  title={WMRB: learning to rank in a scalable batch training approach},
+  author={Liu, Kuan and Natarajan, Prem},
+  booktitle={Proceedings of the Recommender Systems Poster},
+  year={2017},
+  organization={ACM}
 }
+
+@inproceedings{liu2016temporal,
+  title={Temporal learning and sequence modeling for a job recommender system},
+  author={Liu, Kuan and Shi, Xing and Kumar, Anoop and Zhu, Linhong and Natarajan, Prem},
+  booktitle={Proceedings of the Recommender Systems Challenge},
+  pages={7},
+  year={2016},
+  organization={ACM}
+}
+
 
 ## Feedback
 Your comments and suggestions are more than welcome! We really appreciate that!
