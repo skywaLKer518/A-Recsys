@@ -524,12 +524,12 @@ class EmbeddingAttribute(object):
 
   def compute_loss(self, logits, item_target, loss='ce', true_rank=False,
    loss_func='log', exp_p=1.005, device='/gpu:0'):
-    assert(loss in ['ce', 'mce', 'warp','warp_eval',  'rs', 'rs-sig', 'mw', 'bbpr', 'bpr', 'bpr-hinge'])
+    assert(loss in ['ce', 'mce', 'warp','warp_eval',  'rs', 'rs-sig','rs-sig2', 'mw', 'bbpr', 'bpr', 'bpr-hinge'])
     with tf.device(device):
       if loss == 'ce':
         return tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, 
           labels=item_target)
-      elif loss in ['rs', 'rs-sig', 'bbpr']:
+      elif loss in ['rs', 'rs-sig', 'rs-sig2', 'bbpr']:
         return self._compute_rs_loss(logits, item_target, loss=loss, 
           tr=true_rank, loss_func=loss_func, exp_p = exp_p)
       elif loss == 'warp':
@@ -550,7 +550,7 @@ class EmbeddingAttribute(object):
 
   def _compute_rs_loss(self, logits, item_target, loss='rs', loss_func='log', 
     exp_p = 1.005, tr=False):
-    assert(loss in ['rs', 'rs-sig', 'bbpr'])
+    assert(loss in ['rs', 'rs-sig', 'bbpr', 'rs-sig2'])
     if loss not in self.mask:
       self._prepare_loss_vars(loss)
     
@@ -565,8 +565,11 @@ class EmbeddingAttribute(object):
     if loss in ['rs', 'rs-sig']: # margin
       errors = tf.subtract(logits, target_logits) + 1
       errors = tf.nn.relu(errors)
-    elif loss in ['bbpr']:
+    elif loss in ['bbpr', 'rs-sig2']:
       errors = tf.sigmoid(tf.subtract(logits, target_logits))
+    # elif loss in ['rs-sig2']: # no margin, 
+    #   errors = 
+
 
     # masking other possitive instances
     mask2 = tf.reshape(self.mask[loss], [mb, V])
@@ -577,7 +580,7 @@ class EmbeddingAttribute(object):
       errors_masked = tf.sigmoid(errors_masked)
       errors_masked = errors_masked * 2 - 1
     # compute loss
-    if loss in ['rs', 'rs-sig']:
+    if loss in ['rs', 'rs-sig', 'rs-sig2']:
       if loss_func == 'log':
         l = tf.log(1 + tf.reduce_sum(errors_masked, 1))
       elif loss_func == 'exp':
@@ -658,7 +661,7 @@ class EmbeddingAttribute(object):
   def get_warp_mask(self, device='/gpu:0'):
     self.set_mask, self.reset_mask = {}, {}
     with tf.device(device):
-      for loss in ['mw', 'warp','warp_eval', 'rs', 'rs-sig', 'bbpr']:
+      for loss in ['mw', 'warp','warp_eval', 'rs', 'rs-sig', 'rs-sig2', 'bbpr']:
         if loss not in self.mask:
           continue
         self.set_mask[loss] = tf.scatter_update(self.mask[loss], 
@@ -716,13 +719,13 @@ class EmbeddingAttribute(object):
 
     # for warp loss.
     input_feed_warp = {}
-    if loss in ['warp', 'warp_eval', 'mw', 'rs', 'rs-sig', 'bbpr'] and recommend is False:
+    if loss in ['warp', 'warp_eval', 'mw', 'rs', 'rs-sig','rs-sig2', 'bbpr'] and recommend is False:
       V = self.n_sampled if loss == 'mw' else self.logit_size
       mask_indices, c = [], 0
-      s_2idx = self.item_ind2logit_ind if loss in ['warp', 'warp_eval', 'rs', 'rs-sig', 'bbpr'] else item_sampled_id2idx      
+      s_2idx = self.item_ind2logit_ind if loss in ['warp', 'warp_eval', 'rs', 'rs-sig', 'rs-sig2', 'bbpr'] else item_sampled_id2idx      
       item_set = self.pos_item_set_eval if forward_only else self.pos_item_set
 
-      if loss in ['warp', 'warp_eval', 'bbpr', 'rs', 'rs-sig']:
+      if loss in ['warp', 'warp_eval', 'bbpr', 'rs', 'rs-sig', 'rs-sig2']:
         for u in user_input:
           offset = c * V
           if u in item_set:

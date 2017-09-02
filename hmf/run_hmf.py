@@ -65,6 +65,7 @@ tf.app.flags.DEFINE_integer("n_sampled", 1024, "sampled softmax/warp loss.")
 
 tf.app.flags.DEFINE_string("sample_type", 'random', "random, sweep, permute")
 tf.app.flags.DEFINE_float("user_sample", 1.0, "user sample rate.")
+tf.app.flags.DEFINE_integer("seed", 0, "mini batch sampling random seed.")
 
 # 
 tf.app.flags.DEFINE_integer("gpu", -1, "gpu card number")
@@ -169,6 +170,7 @@ def train(raw_data=FLAGS.raw_data, train_dir=FLAGS.train_dir, mylog=mylog,
     data_va = [p for p in data_va if (p[1] in item_ind2logit_ind)]
     mylog("new train/dev size: %d/%d" %(len(data_tr),len(data_va)))
 
+    random.seed(FLAGS.seed)
 
     item_pop, p_item = item_frequency(data_tr, power)
 
@@ -181,7 +183,7 @@ def train(raw_data=FLAGS.raw_data, train_dir=FLAGS.train_dir, mylog=mylog,
       logit_ind2item_ind, loss=loss_func, ind_item=item_population)
 
     pos_item_list, pos_item_list_val = None, None
-    if loss_func in ['warp', 'mw', 'rs', 'rs-sig', 'bbpr']:
+    if loss_func in ['warp', 'mw', 'rs', 'rs-sig', 'rs-sig2', 'bbpr']:
       pos_item_list, pos_item_list_val = positive_items(data_tr, data_va)
       model.prepare_warp(pos_item_list, pos_item_list_val)
 
