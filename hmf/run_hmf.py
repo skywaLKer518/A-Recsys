@@ -29,8 +29,8 @@ tf.app.flags.DEFINE_integer("item_vocab_min_thresh", 2, "filter inactive tokens.
 
 # tuning hypers
 tf.app.flags.DEFINE_string("loss", 'ce', "loss function: ce, warp, (mw, mce, bpr)")
-tf.app.flags.DEFINE_string("loss_func", 'log', "loss function: log, exp")
-tf.app.flags.DEFINE_float("loss_exp_p", 1.0005, "p in 1-p^{-x}")
+tf.app.flags.DEFINE_string("loss_func", 'log', "loss function: log, exp, poly")
+tf.app.flags.DEFINE_float("loss_exp_p", 1.0005, "p in 1-p^{-x}; or in x^p")
 tf.app.flags.DEFINE_float("learning_rate", 0.1, "Learning rate.")
 tf.app.flags.DEFINE_float("keep_prob", 0.5, "dropout rate.")
 tf.app.flags.DEFINE_float("learning_rate_decay_factor", 1.0,

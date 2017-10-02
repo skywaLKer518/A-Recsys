@@ -567,9 +567,6 @@ class EmbeddingAttribute(object):
       errors = tf.nn.relu(errors)
     elif loss in ['bbpr', 'rs-sig2']:
       errors = tf.sigmoid(tf.subtract(logits, target_logits))
-    # elif loss in ['rs-sig2']: # no margin, 
-    #   errors = 
-
 
     # masking other possitive instances
     mask2 = tf.reshape(self.mask[loss], [mb, V])
@@ -585,6 +582,10 @@ class EmbeddingAttribute(object):
         l = tf.log(1 + tf.reduce_sum(errors_masked, 1))
       elif loss_func == 'exp':
         l = 1 - tf.pow(exp_p, - tf.reduce_sum(errors_masked, 1))
+      elif loss_func == 'poly':
+        l = tf.pow(tf.reduce_sum(errors_masked, 1), exp_p)
+      elif loss_func == 'poly2':
+        l = tf.pow(1 + tf.reduce_sum(errors_masked, 1), exp_p)
       elif loss_func == 'linear':
         l = tf.reduce_sum(errors_masked, 1)
       elif loss_func == 'square':
