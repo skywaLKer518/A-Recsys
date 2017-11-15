@@ -5,9 +5,10 @@ A-RecSys implements a set of implicit recommendation algorithms and is designed 
 
 Works implemented by this toolkit include:
 
-+ WMRB: Learning to Rank in a Scalable Batch Training Approach. RecSys 17 Poster. [pdf](http://www-scf.usc.edu/~kuanl/papers/recsys2017_poster3.pdf)
++ A Batch Learning Framework for Scalable Personalized Ranking. AAAI 18. [arXiv](https://arxiv.org/abs/1711.04019)
++ Sequential heterogeneous attribute embedding for item recommendation. ICDM 17 SERecsys Workshop. 
 + Temporal Learning and Sequence Modeling for a Job Recommender System. RecSys Challenge 16 [pdf](https://arxiv.org/abs/1608.03333) 
-+ Sequential heterogeneous attribute embedding for item recommendation. (in submission). 
+
 
 Currently the models and features supported by A-RecSys include,
 
