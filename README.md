@@ -1,7 +1,7 @@
 # A-RecSys : a Tensorflow Toolkit for Implicit Recommendation Tasks
 
 ## A-RecSys
-A-RecSys implements a set of implicit recommendation algorithms and is designed to be used in large scale recommendation settings. It extends traditional matrix factorization algorithms and focuses on attribute embedding and applying sequence models.
+A-RecSys implements implicit recommendation algorithms and is designed for large scale recommendation settings. It extends traditional matrix factorization algorithms, and focuses on attribute embedding and applying sequence models.
 
 Works implemented by this toolkit include:
 
@@ -10,7 +10,7 @@ Works implemented by this toolkit include:
 + Temporal Learning and Sequence Modeling for a Job Recommender System. RecSys Challenge 16 [pdf](https://arxiv.org/abs/1608.03333) 
 
 
-Currently the models and features supported by A-RecSys include,
+The models and features supported by A-RecSys include,
 
 #### Models
 + Hybrid matrix factorization model (with deep layer extensions)
@@ -25,7 +25,7 @@ Currently the models and features supported by A-RecSys include,
 
 ## How to use
 
-### input data
+### Input data
 CSV-formated (sep=\t) input files include
 
 	u.csv	: user file. user id and attribute values.
@@ -36,17 +36,17 @@ CSV-formated (sep=\t) input files include
 	
 **A example** (adapted from MovieLens 1m) is given at ./examples/dataset/
 
-### train models
+### Train models
 **Example scripts** are provided at ./examples/ to start running the code
 
-To train hybrid matrix factorization model on provided MovieLens 1m dataset,
+To train hybrid matrix factorization model on provided MovieLens 1m dataset:
 
 ``` 
 cd examples/
 bash run_hmf.sh 32 1 False 100 False
 ```
 
-To train lstm model,
+To train lstm model:
 
 ``` 
 cd examples/
@@ -55,19 +55,19 @@ bash run_lstm.sh 64 1 False
 
 (Code has been tested on TF 0.8 and above.)
 
-### recommend
-You can switch to "recommend" mode from "training" by setting flag *recommend* to 'true'. In the above HMF example, it would be
+### Recommend
+You can switch to "recommend" mode from "training" by setting flag *recommend* to 'true'. In the above HMF example, it would be:
 
 ``` 
 cd examples/
 bash run_hmf.sh 32 1 False 100 True
 ```
 
-By default, the code generates a ground truth interaction file *res_T_test.csv* from *obs_te.csv*, and perform recommendation on all users that appear in *res_T_test.csv*; however, you can generate your own *res_T_test.csv* to narrow down user set on which recommendation is performed.
+By default, the code generates a ground truth interaction file *res_T_test.csv* from *obs_te.csv*, and perform recommendation on all users that appear in *res_T_test.csv*. You can generate your own *res_T_test.csv* to narrow down user set to identify which recommendation is being performed.
 
 
-### dependencies
-The code now supports Tensorflow v1.0. During our development, code is tested with versions 0.8, 0.9, 0.11, 0.12. 
+### Dependencies
+The code now supports Tensorflow v1.0. During our development, the code was tested with versions 0.8, 0.9, 0.11, 0.12. 
 
 ## Cite
 Please cite the following if you find this helpful.
